@@ -27,8 +27,8 @@ let SH = null;
 const ready = (async () => {
   const { pathToFileURL } = require('url');
   const imp = (f) => import(pathToFileURL(path.join(PUB, 'js', f)).href);
-  const [tracks, judge, tuning, cars] = await Promise.all([imp('tracks.js'), imp('judge.js'), imp('tuning.js'), imp('cars.js')]);
-  SH = { ...tracks, ...judge, tuning, cars };
+  const [tracks, judge] = await Promise.all([imp('tracks.js'), imp('judge.js')]);
+  SH = { ...tracks, ...judge };
 })();
 
 // -------------------------------------------------------------
@@ -199,36 +199,24 @@ function genCode() {
   }
 }
 
-// Car config from a browser: every visual option and every performance setting is clamped to what the
-// game allows for that car (tuning.js / cars.js, the same code the browser uses). Anything else is dropped.
 function sanitizeCar(car) {
-  if (!car || typeof car !== 'object') car = {};
+  if (!car || typeof car !== 'object') return { id: 'hatch', paint: '#e63946', wheel: '#cccccc', rim: 0, spoiler: 0, kit: 0, stripes: 0, lowered: 0, underglow: '' };
   const hex = (c, d) => (/^#[0-9a-fA-F]{6}$/.test(c) ? c : d);
-  const def = SH && SH.cars.CARS.find((d) => d.id === car.id) || (SH ? SH.cars.CARS[0] : { id: 'hatch' });
-  const V = SH ? SH.cars.VISUAL : {}, part = (k) => { const n = V[k] ? V[k].opts.length - 1 : 3, v = clampInt(car[k], 0, n, 0); return SH && !SH.cars.fitsPart(def, k, v) ? 0 : v; };
   return {
-    id: def.id,
+    id: cleanText(car.id, 20, 'hatch'),
     paint: hex(car.paint, '#e63946'), wheel: hex(car.wheel, '#cccccc'),
-    stripeColor: hex(car.stripeColor, '#ffffff'), liveryColor: hex(car.liveryColor, '#111111'),
-    rim: clampInt(car.rim, 0, 5, 0), spoiler: part('spoiler'), kit: part('kit'),
+    stripeColor: hex(car.stripeColor, '#ffffff'),
+    rim: clampInt(car.rim, 0, 9, 0), spoiler: clampInt(car.spoiler, 0, 3, 0), kit: clampInt(car.kit, 0, 1, 0),
     stripes: clampInt(car.stripes, 0, 2, 0), lowered: clampInt(car.lowered, 0, 1, 0),
     underglow: car.underglow ? hex(car.underglow, '') : '',
-    rimSize: part('rimSize'), fbumper: part('fbumper'), rbumper: part('rbumper'), skirts: part('skirts'), hood: part('hood'),
-    tint: part('tint'), lights: part('lights'), exhaust: part('exhaust'), livery: part('livery'),
-    tune: SH ? SH.tuning.sanitizeTune(car.tune, def) : null,
   };
-}
-// highest speed this player's validated car could plausibly reach (boost, downhill and lag margin included)
-function speedCap(car, rules) {
-  const def = SH.cars.CARS.find((d) => d.id === car.id) || SH.cars.CARS[0];
-  return SH.tuning.applyTune(def, car.tune, rules).top * 1.12 * 1.3 + 6;
 }
 
 function roomInfo(r) {
   return {
     code: r.code, name: r.name, isPublic: r.isPublic, map: r.map, mode: r.mode,
     maxPlayers: r.maxPlayers, rounds: r.rounds, roundTime: r.roundTime, hostId: r.hostId,
-    status: r.status, variant: r.variant, matchTime: r.matchTime, laps: r.laps, rules: r.rules,
+    status: r.status, variant: r.variant, matchTime: r.matchTime, laps: r.laps,
     match: r.match ? { mode: r.match.mode, phase: r.match.phase, competitors: r.match.competitors } : null,
     players: [...r.players].map((id) => {
       const c = clients.get(id);
@@ -237,7 +225,7 @@ function roomInfo(r) {
   };
 }
 function listInfo(r) {
-  return { code: r.code, name: r.name, map: r.map, mode: r.mode, count: r.players.size, max: r.maxPlayers, status: r.status, rules: r.rules };
+  return { code: r.code, name: r.name, map: r.map, mode: r.mode, count: r.players.size, max: r.maxPlayers, status: r.status };
 }
 
 function send(c, msg) { if (c && !c.suspended && c.ws.open) c.ws.send(JSON.stringify(msg)); }
@@ -259,14 +247,13 @@ function applySettings(r, s, isCreate) {
     if (s.variant === 'timed' || s.variant === 'attack') r.variant = s.variant;
     if (s.matchTime !== undefined) r.matchTime = clampInt(s.matchTime, 30, 600, 120);
     if (s.laps !== undefined) r.laps = clampInt(s.laps, 1, 10, 3);
-    if (['open', 'equal', 'stock'].includes(s.rules)) r.rules = s.rules; // performance-mod rules
   }
 }
 
 function createRoom(c, s) {
   const r = {
     code: genCode(), name: `${c.name}'s room`, isPublic: true, map: 'track', mode: 'endless',
-    maxPlayers: 8, rounds: 3, roundTime: 90, variant: 'timed', matchTime: 120, laps: 3, rules: 'open', hostId: c.id, status: 'lobby', match: null,
+    maxPlayers: 8, rounds: 3, roundTime: 90, variant: 'timed', matchTime: 120, laps: 3, hostId: c.id, status: 'lobby', match: null,
     players: new Set(), game: null, timers: [], spawnSeq: 0,
   };
   applySettings(r, s || {}, true);
@@ -309,7 +296,7 @@ function sendGameStart(r, c) {
   const comp = M ? { variant: M.variant, time: M.time, laps: M.laps } : null;
   const isComp = M && M.competitors.includes(c.id);
   send(c, {
-    t: 'gameStart', map: r.map, mode: r.mode, spawn: (r.spawnSeq++) % 12, rules: r.rules,
+    t: 'gameStart', map: r.map, mode: r.mode, spawn: (r.spawnSeq++) % 12,
     rounds: r.rounds, roundTime: r.roundTime, room: roomInfo(r),
     comp, spectator: !!M && !isComp, grid: isComp ? M.p[c.id].grid : 0,
     resume: isComp && M.phase !== 'loading' && c.state ? { x: c.state[0], z: c.state[2], h: c.state[3] } : null,
@@ -415,8 +402,7 @@ function startMatch(r) {
     variant: r.variant, time: r.matchTime, laps: r.laps, results: [], mStart: null, result: null, round: null,
   };
   const slots = r.mode === 'race' ? SH.gridSlots(SH.raceRoute(r.map), Math.max(12, M.competitors.length)) : null;
-  // each competitor's car is locked in at the start: its speed limit comes from the validated setup + room rules
-  M.competitors.forEach((id, i) => { const c = clients.get(id); c.state = null; M.p[id] = { grid: i, name: c.name, slot: slots ? slots[i] : null, car: c.car, vmax: speedCap(c.car, r.rules), fast: 0 }; });
+  M.competitors.forEach((id, i) => { const c = clients.get(id); c.state = null; M.p[id] = { grid: i, name: c.name, slot: slots ? slots[i] : null }; });
   for (const id of r.players) sendGameStart(r, clients.get(id));
   broadcastRoom(r);
   later(r, 15000, () => { if (r.match === M && M.phase === 'loading') begin(r); }); // don't wait forever for slow loaders
@@ -457,13 +443,8 @@ function matchSample(r, c, m) {
     P.k0 = s.k; P.t0 = now; P.lastK = s.k - 1; s.f |= 256;
   }
   if ((s.k - P.k0) * 50 > now - P.t0 + 1500) s.k = (P.lastK ?? s.k) + 1;
-  // speed check against what this car's validated setup can do (reported speed and actual movement)
-  const prev = P.last, moved = prev ? Math.hypot(s.x - prev.x, s.z - prev.z) / Math.max(0.05, (s.k - (prev.k ?? s.k - 1)) * 0.05) : 0;
-  if (Math.hypot(s.vx, s.vz) > P.vmax || (moved > P.vmax && !(s.f & 256))) { s.f |= 256; P.fast++; } // not counted: treated like a teleport
   P.lastK = s.k; P.last = s; P.lastAt = now;
   if (M.phase === 'loading') return; // nothing is judged until the countdown has been scheduled
-  if (P.fast > 60 && !P.dq) { P.dq = true; send(c, { t: 'error', msg: 'Your car went faster than its setup allows. Your driving is no longer counted in this match.' }); log(`room ${r.code}: ${c.name} exceeded the speed limit of their car (${P.vmax.toFixed(0)} m/s)`); }
-  if (P.dq) return;
   if (M.mode === 'challenge') {
     if (M.phase === 'running' && now <= M.endAt) P.judge.push(s, { tandem: tandemFor(M, c.id, s, now) });
   } else if (M.mode === 'race') {
@@ -688,10 +669,6 @@ function handle(c, m) {
       const nr = createRoom(c, m.settings || {});
       joinRoom(c, nr);
       break;
-    }
-    case 'peek': { // look at a room (mode, map, rules) before joining it
-      const pr = rooms.get(cleanText(m.code, 8, '').toUpperCase());
-      return send(c, pr ? { t: 'peek', room: { ...listInfo(pr), rounds: pr.rounds, laps: pr.laps, variant: pr.variant } } : { t: 'peek', room: null, code: cleanText(m.code, 8, '').toUpperCase() });
     }
     case 'join': {
       const code = cleanText(m.code, 8, '').toUpperCase();
