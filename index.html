@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Drift Club</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2311121a'/%3E%3Cpath d='M6 21 L14 9 L26 9 L18 21 Z' fill='%23ff2e88'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="menu-bg"><i></i><i></i><i></i><i></i><i></i></div>
+
+<!-- ======================= MAIN MENU ======================= -->
+<section class="screen" id="scr-main">
+  <div class="main-left">
+    <div class="brand"><div class="logo">DRIFT<span>CLUB</span></div><p>Slide sideways. Chill out. Or crush your friends.</p></div>
+    <nav class="main-nav">
+      <button class="nav-btn primary" data-go="play"><b>Play</b><small>Solo drive on any map</small></button>
+      <button class="nav-btn" data-go="garage"><b>Garage</b><small>Pick &amp; customise your car</small></button>
+      <button class="nav-btn" data-go="mp"><b>Multiplayer</b><small>Create or join a room</small></button>
+      <button class="nav-btn" data-go="records"><b>Records</b><small>Personal bests &amp; online leaderboards</small></button>
+      <button class="nav-btn" data-go="settings"><b>Settings</b><small>Graphics, audio, controls</small></button>
+      <button class="nav-btn" data-go="credits"><b>Credits</b></button>
+    </nav>
+  </div>
+  <div class="main-foot"><span>W A S D drive · Space handbrake · Shift boost · Gamepad supported</span></div>
+</section>
+
+<!-- ======================= PLAY SETUP ======================= -->
+<section class="screen" id="scr-play">
+  <div class="panel wide">
+    <header class="phead"><button class="back" data-go="main">‹ Back</button><h2>Play</h2></header>
+    <h3>Competitive</h3>
+    <div class="cards comp" id="comp-cards"></div>
+    <h3>Free play · game mode</h3>
+    <div class="cards modes" id="mode-cards"></div>
+    <h3>Map</h3>
+    <div class="cards maps" id="map-cards"></div>
+    <div class="play-foot"><div class="play-car" id="play-car"></div><button class="btn primary big" id="btn-start">Start driving ›</button></div>
+  </div>
+</section>
+
+<!-- ======================= COMPETITIVE SETUP ======================= -->
+<section class="screen" id="scr-comp">
+  <div class="panel wide">
+    <header class="phead"><button class="back" data-go="play">‹ Back</button><h2 id="comp-title"></h2></header>
+    <p class="comp-desc" id="comp-desc"></p>
+    <div id="comp-setup"></div>
+    <div class="play-foot"><div class="play-car" id="comp-car"></div>
+      <div class="row"><button class="btn big" id="comp-online">Play online ›</button><button class="btn primary big" id="comp-solo">Start solo ›</button></div></div>
+  </div>
+</section>
+
+<!-- ======================= RECORDS ======================= -->
+<section class="screen" id="scr-records">
+  <div class="panel wide">
+    <header class="phead"><button class="back" data-go="main">‹ Back</button><h2>Records</h2></header>
+    <div class="tabs" id="rec-tabs"></div>
+    <div class="rec-grid"><div><h3>Your records</h3><div id="rec-personal"></div></div><div><h3>Online leaderboard</h3><div id="rec-online" class="muted">Loading…</div></div></div>
+  </div>
+</section>
+
+<!-- ======================= GARAGE ======================= -->
+<section class="screen" id="scr-garage">
+  <div class="garage-left panel">
+    <header class="phead"><button class="back" data-go="main">‹ Back</button><h2>Garage</h2></header>
+    <div class="tabs" id="cat-tabs"></div>
+    <div class="car-list" id="car-list"></div>
+  </div>
+  <div class="garage-right panel">
+    <div class="car-name" id="car-name"></div>
+    <div class="car-stats" id="car-stats"></div>
+    <p class="drag-hint">Drag the car to rotate it</p>
+    <div class="custom" id="custom"></div>
+    <button class="btn primary" data-go="play">Drive it ›</button>
+  </div>
+</section>
+
+<!-- ======================= MULTIPLAYER ======================= -->
+<section class="screen" id="scr-mp">
+  <div class="panel wide mp">
+    <header class="phead"><button class="back" data-go="main">‹ Back</button><h2>Multiplayer</h2><span class="status" id="mp-status"></span></header>
+    <div class="mp-grid">
+      <div>
+        <label class="field">Your name<input id="mp-name" maxlength="16"></label>
+        <div class="join-box"><label class="field">Join with a room code<input id="mp-code" maxlength="5" placeholder="ABCDE" autocomplete="off"></label><button class="btn primary" id="mp-join">Join</button></div>
+        <button class="btn big primary full" id="mp-create">+ Create a room</button>
+        <button class="btn full hidden" id="mp-rejoin"></button>
+        <details class="adv"><summary>Server</summary><label class="field">Server address (blank = this site)<input id="mp-server" placeholder="e.g. mydrift.onrender.com"></label></details>
+      </div>
+      <div>
+        <div class="list-head"><h3>Public rooms</h3><button class="btn small" id="mp-refresh">Refresh</button></div>
+        <div class="room-list" id="room-list"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="scr-create">
+  <div class="panel narrow">
+    <header class="phead"><button class="back" data-go="mp">‹ Back</button><h2>Create room</h2></header>
+    <div class="form" id="create-form"></div>
+    <button class="btn primary big full" id="create-go">Create room</button>
+  </div>
+</section>
+
+<section class="screen" id="scr-lobby">
+  <div class="panel wide lobby">
+    <header class="phead"><h2 id="lobby-title"></h2><div class="code-box">Room code <code id="lobby-code"></code><button class="btn small" id="lobby-copy">Copy</button></div></header>
+    <div class="lobby-grid">
+      <div><h3>Players</h3><div id="lobby-players"></div>
+        <div class="lobby-chat"><div id="lobby-chat-log"></div><input id="lobby-chat-input" maxlength="120" placeholder="Say something… (Enter)"></div></div>
+      <div><h3>Room settings</h3><div class="form" id="lobby-settings"></div></div>
+    </div>
+    <div class="lobby-foot">
+      <button class="btn danger" id="lobby-leave">Leave room</button>
+      <button class="btn" data-go="garage">Garage</button>
+      <span class="muted" id="lobby-wait">Waiting for the host to start…</span>
+      <button class="btn primary hidden" id="lobby-joinrun">Join the running game ›</button>
+      <button class="btn primary big" id="lobby-start">Start game</button>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= SETTINGS ======================= -->
+<section class="screen" id="scr-settings">
+  <div class="panel narrow settings">
+    <header class="phead"><button class="back" id="settings-back">‹ Back</button><h2>Settings</h2></header>
+    <div class="tabs" id="set-tabs"></div>
+    <div id="set-body"></div>
+  </div>
+</section>
+
+<!-- ======================= CREDITS ======================= -->
+<section class="screen" id="scr-credits">
+  <div class="panel narrow credits">
+    <header class="phead"><button class="back" data-go="main">‹ Back</button><h2>Credits</h2></header>
+    <p><b>Drift Club</b> — a browser drifting game.</p>
+    <p>Everything you see and hear is generated in code: low-poly cars and maps, a custom WebGL renderer, synthesized engines, tyre squeal and music.</p>
+    <ul>
+      <li>Game design, code, art &amp; music: built with Claude</li>
+      <li>Rendering: WebGL (no external engine required)</li>
+      <li>Multiplayer: Node.js + WebSockets room server</li>
+      <li>Car and place names are fictional</li>
+    </ul>
+    <p class="muted">Thanks for playing. Go sideways responsibly.</p>
+  </div>
+</section>
+
+<!-- ======================= HUD ======================= -->
+<div id="hud" class="hidden">
+  <div class="hud-tl"><div id="hud-mode"></div><div id="hud-name"></div></div>
+  <div id="hud-timer" class="hidden"></div>
+  <div id="hud-drift"><div class="d-row"><span id="drift-score"></span><span id="drift-mult"></span></div><div class="grace"><i id="drift-grace"></i></div><div id="drift-angle"></div></div>
+  <div id="pops"></div>
+  <div id="hud-board" class="hidden"></div>
+  <div id="hud-score"><div><small>TOTAL</small><b id="score-total">0</b></div><div><small>BEST DRIFT</small><b id="score-best">0</b></div></div>
+  <div id="hud-challenge" class="hidden"></div>
+  <div id="speedo">
+    <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" class="arc-bg"/><circle cx="50" cy="50" r="40" id="spd-arc" class="arc"/></svg>
+    <div class="spd"><b id="spd-num">0</b><small id="spd-unit">KM/H</small></div>
+    <div class="gear" id="spd-gear">N</div>
+    <div id="boost"><small>BOOST</small><div class="bar"><i id="boost-fill"></i></div></div>
+  </div>
+  <div id="hud-hint"></div>
+  <div id="comp-hud" class="hidden"></div>
+  <div id="spec-banner" class="hidden">SPECTATING · competition in progress · C = switch driver</div>
+  <div id="chat-log" class="hidden"></div>
+  <div id="minimap" class="mm-bottom-right hidden"><canvas></canvas></div>
+  <input id="chat-input" class="hidden" maxlength="120" placeholder="Chat… (Enter to send, Esc to cancel)">
+</div>
+<div id="tags"></div>
+<div id="bigtext"></div>
+<div id="results" class="hidden"></div>
+<div id="pause" class="hidden"></div>
+<div id="loading" class="hidden"><div class="spinner"></div><div id="loading-text">Loading…</div></div>
+<div id="netbanner" class="hidden"></div>
+<div id="toasts"></div>
+<div id="fps" class="hidden"></div>
+<div id="fatal" class="hidden"></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

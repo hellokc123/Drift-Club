@@ -1,0 +1,72 @@
+DRIFT CLUB - HOW TO PLAY ON A WINDOWS COMPUTER (no admin needed)
+=================================================================
+
+SOLO PLAY (nothing to install)
+  1. Right-click the downloaded drift-club.zip and choose "Extract All...", then click Extract.
+     (Opening the zip without extracting can stop the files from working.)
+  2. Open the extracted "drift-game" folder.
+  3. Double-click  DriftClub.html
+     - If it opens in the wrong program: right-click it > Open with > Microsoft Edge (or Google Chrome).
+  4. Click anywhere once to enable sound, then choose PLAY.
+
+  Everything works this way: all 5 maps, all 4 free modes, the 3 competitive modes (vs CPU / ghost), the garage, settings and your
+  saved car/progress. Only multiplayer needs the server below.
+
+MULTIPLAYER ONLINE (friends on other computers)
+  Multiplayer needs the small room server running somewhere everyone can reach.
+  Do this ONCE (about 10 minutes, all in the browser, free, no admin):
+  1. github.com: sign up, click "+" > New repository, name it drift-club, Public, Create.
+     Click "uploading an existing file", drag in EVERYTHING inside the drift-game folder
+     (server.js, package.json, render.yaml, the public folder, ...), click Commit changes.
+  2. render.com: sign up with GitHub. Click New + > Blueprint, pick drift-club, click Apply.
+     After 1-2 minutes you get an address like  https://drift-club-ab12.onrender.com
+  3. Open that address in Edge or Chrome - it's the full game, already online.
+     MULTIPLAYER > Create a room, then send your friends the address + the 5-letter room code.
+     (Using DriftClub.html instead? Go to MULTIPLAYER > Server and paste the address once.)
+  Notes: the free server sleeps when nobody plays; the first visit can take up to a minute
+  ("Waking up..."). If your connection drops, the game reconnects you automatically.
+  If the school network blocks onrender.com, play from home.
+
+SAME NETWORK ONLY (optional): Start-Multiplayer-Server.bat with portable Node.js
+  (Windows Binary .zip from nodejs.org extracted into this folder - no admin). Friends on
+  the same network open http://YOUR-IP:3000. School networks often block this.
+
+DRIVING STYLES & TRICKS
+  Garage > Driving style: DRIFT (easy slides, adjustable max angle) or RACE (grip, precise,
+  extra steering lock for tight corners; the steering range narrows smoothly at high speed).
+  Switch any time from the pause menu (Esc).
+  Drift: tap Space while steering into a corner. Throttle = more angle. Lift off to straighten.
+  Transition: hold the opposite direction while drifting (Race: + tap Space).
+  360: while drifting, hold Space + steer into the slide; release after a full turn.
+  Reverse drift: keep turning past 180 and let go; steer to hold it, S keeps the speed.
+  Donuts: slow down, Space + full lock + full throttle, keep holding.
+
+GARAGE  (customize + tune)
+  Looks: paint, wheels, rim size, bumpers, skirts, body kits, bonnet, spoiler, exhaust,
+         tint, headlights, livery, stripes, underglow.  Drag the car to rotate it.
+  Performance: engine, gearbox, tyres, suspension, brakes, weight.
+  Tuning: sliders for gearing, ride height, suspension, steering, brakes and drift/grip.
+  Presets: Stock, Street, Sport, Racing, Drift, Grip, Speed, or save your own (per car).
+  The bars compare Stock with your setup.  They are measured by test-driving the car.
+  Online rooms can be Open mods, Equalized or Stock only (shown before you join).
+
+MINIMAP  (Settings > Minimap: size, corner, rotating or north-up, zoom.  N = on/off)
+
+COMPETITIVE MODES  (PLAY > top row,  RECORDS on the main menu)
+  Drift Challenge  Timed (best total, 2 min) or Score Attack (best single chain).
+                   Crashes -250, leaving the track -150. Spinning on the spot scores nothing.
+  Speed Race       Laps around a circuit. Drive through every gate in order (the glowing
+                   pillars). Solo: race CPU cars. Online: race your friends.
+  Drift Battle     1 v 1. Run 1 you lead, run 2 you chase, then roles swap. Both runs count.
+                   Solo: you chase a ghost of your own lead run.
+  Online: pick the mode's card > Play online (or choose it when creating a room).
+  The server keeps time and scores, so everyone sees the same results. People who join
+  mid-match watch (C switches player) and play the next one. Rematch on the results screen.
+  Your personal bests are saved in the browser. Online leaderboards reset when the free
+  Render server is redeployed.
+
+CONTROLS
+  W / S        accelerate / brake & reverse      Space   handbrake (start drifts)
+  A / D        steer                              Shift   boost
+  C camera     R reset car     Esc pause menu     H hide HUD     M music on/off     N minimap
+  Xbox / PlayStation controllers work too (RT accelerate, LT brake, left stick steer, A handbrake).

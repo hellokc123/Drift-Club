@@ -1,0 +1,11 @@
+# One-click deployment for Render.com (free tier works; WebSockets supported).
+# Render reads this file when you create a "Blueprint" from your GitHub repository.
+services:
+  - type: web
+    name: drift-club
+    runtime: node
+    plan: free
+    buildCommand: echo "No build step needed"
+    startCommand: node server.js
+    healthCheckPath: /health
+    autoDeploy: true
