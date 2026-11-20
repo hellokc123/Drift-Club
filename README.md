@@ -4,7 +4,7 @@ A 3D browser drifting game: relax and cruise on your own, or compete with friend
 
 - 14 cars across 7 categories (Basic, Sports, Supercars, Drift, Muscle, Pickups, SUVs), each with its own acceleration, top speed, handling, drift behaviour, engine sound and body shape
 - Customisation: paint (16 presets plus any custom colour), wheel colour, 6 rim styles, 3 spoilers, racing stripes in any colour, body kit, lowered suspension, underglow
-- 5 maps with their own atmosphere: **Apex Circuit** (race track, sunny), **Dune Valley** (desert, golden hour), **Kurogane Pass** (mountain touge, dusk), **Pinewood Trails** (forest and lake, misty morning) and **Neon District** (city, night)
+- 5 maps with their own atmosphere: **Apex Circuit** (race track, sunny), **Dune Valley** (desert, golden hour), **Kurogane Pass** (mountain touge, dusk), **Pinewood Trails** (forest and lake, misty morning) and **City Nights** (city, night)
 - 4 modes: **Endless**, **Standard** (with timed drift challenges), **Chill** and **Competitive** (timed rounds, leaderboard, round winners)
 - Room-based multiplayer: create, join by code, public room list, private rooms, host controls, live positions, name tags, synced scores and rounds, lobby and in-game chat, leaving and rejoining
 - No downloads, no external libraries and no asset files. The renderer, models, terrain, engine sounds and music are all generated in code.

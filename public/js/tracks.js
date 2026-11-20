@@ -135,7 +135,7 @@ export const RACE = {
   track: { name: 'Apex Circuit', road: 0, start: 30, width: 16, margin: 14 },
   desert: { name: 'Dune Valley Highway', road: 0, start: 70, width: 14, margin: 16 },
   forest: { name: 'Pinewood Loop', road: 0, start: 40, width: 12, margin: 12 },
-  city: { name: 'Neon Street Circuit', pts: cityLoop(), linear: true, start: 0, width: 16, margin: 6 },
+  city: { name: 'Downtown Street Circuit', pts: cityLoop(), linear: true, start: 0, width: 16, margin: 6 },
 };
 export const RACE_MAPS = Object.keys(RACE);
 

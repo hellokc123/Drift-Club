@@ -404,7 +404,7 @@ function endGame(r) {
 // -------------------------------------------------------------
 function startMatch(r) {
   const valid = r.mode === 'race' ? SH.RACE_MAPS : r.mode === 'battle' ? SH.BATTLE_MAPS : MAPS;
-  if (!valid.includes(r.map)) return r.mode === 'race' ? 'Pick a map with a race circuit (Apex Circuit, Dune Valley, Pinewood Trails or Neon District)' : 'Pick a map with a battle course (Apex Circuit, Dune Valley, Kurogane Pass or Pinewood Trails)';
+  if (!valid.includes(r.map)) return r.mode === 'race' ? 'Pick a map with a race circuit (Apex Circuit, Dune Valley, Pinewood Trails or City Nights)' : 'Pick a map with a battle course (Apex Circuit, Dune Valley, Kurogane Pass or Pinewood Trails)';
   const present = [...r.players].filter((id) => !clients.get(id).suspended);
   if (r.mode === 'battle' && present.length < 2) return 'Drift Battle needs 2 players in the room (solo players can battle their own ghost from Play → Drift Battle)';
   clearTimers(r);
