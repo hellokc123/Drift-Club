@@ -9,6 +9,10 @@
 //   reverse – sliding backwards (after a 180 / J-turn / reverse handbrake), steerable
 // Two driving styles (DRIVE_STYLES) change the actual physics parameters.
 //
+// DRIFT ENTRY (besides handbrake / power-over / big slip): a clutch kick (lift and re-floor the
+// throttle while turning) or a feint (swing the steering one way, then hard the other way) throws
+// the rear out. Braking or lifting while turning moves weight forward and makes the rear lighter.
+//
 // VERTICAL: each wheel is a spring + damper against the terrain under it. Body height,
 // pitch and roll are integrated from the wheel forces (plus weight transfer from
 // acceleration/cornering), so the car follows hills and bumps without launching.
@@ -21,12 +25,12 @@ export const DRIVE_STYLES = {
   drift: {
     name: 'Drift', desc: 'Easy drift entry, throttle-steerable angle, quick left/right transitions, forgiving.',
     grip: 0.92, lat: 0.95, steerResp: 1.0, driftGrip: 0.82, powerOverAdd: 0.3, entrySlip: 0.22, hbEntrySpeed: 4.5,
-    angleGain: 4.2, momentum: 1.12, swing: true, minAngle: 0.14, exitHold: 0.3, maxAngleCap: 1.4, powerDelay: 0.25, stability: 0,
+    angleGain: 4.2, momentum: 1.25, swing: true, minAngle: 0.14, exitHold: 0.3, maxAngleCap: 1.4, powerDelay: 0.25, stability: 0,
   },
   race: {
     name: 'Race', desc: 'High grip, precise steering and faster cornering. Slides straighten out quickly.',
     grip: 1.3, lat: 1.55, steerResp: 1.35, driftGrip: 1.75, powerOverAdd: -0.4, entrySlip: 0.45, hbEntrySpeed: 9,
-    angleGain: 3.2, momentum: 0.85, swing: false, minAngle: 0.04, exitHold: 0.12, maxAngleCap: 0.75, powerDelay: 9, stability: 1,
+    angleGain: 3.2, momentum: 0.95, swing: false, minAngle: 0.04, exitHold: 0.12, maxAngleCap: 0.75, powerDelay: 9, stability: 1,
     // steering geometry: more lock than the car's base value, and a speed-dependent range that keeps the
     // front-wheel angle close to what the tyres can actually use (see steerLimit)
     lock: 1.15, speedSteer: { slack: 1.7, minFrac: 0.24 },
@@ -51,6 +55,9 @@ export class Vehicle {
     this.steer = 0; this.mode = 'grip'; this.driftAmt = 0; this.dir = 1; this.straightT = 0; this.swingT = 0;
     this.spinDir = 1; this.powerT = 0;
     this.slip = 0; this.rel = 0; this.velRate = 0; this.prevVelYaw = null;
+    this.load = 0; this.visSteer = 0; this.bodyPitchVel = 0; this.bodyRollVel = 0;
+    this.thrHighT = 9; this.liftT = 9; this.feintT = 9; this.feintDir = 0; this.lastSteerSide = 0; this.shiftT = 0;
+    this.mass = def.mass || 1;
     this.pitch = 0; this.roll = 0; this.pitchVel = 0; this.rollVel = 0; this.bodyPitch = 0; this.bodyRoll = 0;
     this.contact = 1; this.traction = 1; this.airTime = 0; this.slopeF = 0; this.spinT = 0;
     this.spin = 0; this.rpm = 0.1; this.gear = 1; this.boost = 1; this.boosting = false;
@@ -63,6 +70,18 @@ export class Vehicle {
     this.wheelGround = [0, 0, 0, 0]; this.wheelComp = [0, 0, 0, 0]; this.wheelOffset = [0, 0, 0, 0];
     this.Ip = Math.max(1.2, (dims.L * dims.L) / 12); this.Ir = Math.max(0.4, (dims.W * dims.W) / 10);
     this.setStyle(opts.style || 'drift', opts.maxAngle);
+    this.savePrev();
+  }
+  // remember the state at the start of a physics step, for smooth rendering between steps
+  savePrev() { this.px = this.x; this.py = this.y; this.pz = this.z; this.ph = this.h; this.pPitch = this.pitch; this.pRoll = this.roll; }
+  // position/heading blended between the last two physics steps (alpha 0..1); heading wraps safely
+  renderState(alpha = 1) {
+    const a = clamp(alpha, 0, 1);
+    return {
+      x: lerp(this.px, this.x, a), y: lerp(this.py, this.y, a), z: lerp(this.pz, this.z, a),
+      h: wrapAngle(this.ph + wrapAngle(this.h - this.ph) * a),
+      pitch: lerp(this.pPitch, this.pitch, a), roll: lerp(this.pRoll, this.roll, a),
+    };
   }
   setStyle(style, maxAngleDeg) {
     this.styleId = DRIVE_STYLES[style] ? style : 'drift';
@@ -75,7 +94,8 @@ export class Vehicle {
   // max front-wheel angle (rad) at a standstill for this car + driving style
   get lock() { return this.def.steer * (this.S.lock || 1); }
   // actual average front-wheel angle (rad, + = left) - used by the visuals and sent to other players
-  get wheelAngle() { return this.steer * this.lock; }
+  // while sliding the front wheels point along the direction of travel (counter-steer), like a real drift car
+  get wheelAngle() { return this.visSteer; }
   // fraction of full lock available while gripping at this speed
   steerLimit(speed, gS = 1) {
     const S = this.S, ss = S.speedSteer;
@@ -102,6 +122,9 @@ export class Vehicle {
     this.y = this.wheelGround.reduce((a, b) => a + b, 0) / 4;
     this.prevGround = this.wheelGround.slice();
     this.contact = 1; this.traction = 1; this.slopeF = -Math.sin(this.pitch);
+    this.load = 0; this.visSteer = 0; this.bodyPitch = this.bodyRoll = this.bodyPitchVel = this.bodyRollVel = 0;
+    this.thrHighT = 9; this.liftT = 9; this.feintT = 9; this.feintDir = 0; this.lastSteerSide = 0;
+    this.savePrev(); // a teleport must not be smeared by render interpolation
   }
 
   sampleWheels() {
@@ -119,6 +142,7 @@ export class Vehicle {
   // inp: throttle 0..1, brake 0..1, steer -1..1 (+left), handbrake bool, boost bool
   step(dt, inp) {
     const d = this.def, S = this.S, W = this.world;
+    this.savePrev();
     const sh = Math.sin(this.h), ch = Math.cos(this.h);
     const fx = sh, fz = ch, rx = -ch, rz = sh;
     let vf = this.vx * fx + this.vz * fz;
@@ -132,7 +156,9 @@ export class Vehicle {
 
     // ---------------- travel direction & drift angle (full -180..180 range)
     const velYaw = Math.atan2(this.vx, this.vz);
-    if (speed > 1.2 && this.prevVelYaw !== null) this.velRate = damp(this.velRate, wrapAngle(velYaw - this.prevVelYaw) / dt, 25, dt);
+    // how fast the travel direction turns (rad/s). Clamped so a sudden change (e.g. a bump) can't make
+    // the drift controllers below chase a huge number and spin the car.
+    if (speed > 1.2 && this.prevVelYaw !== null) this.velRate = damp(this.velRate, clamp(wrapAngle(velYaw - this.prevVelYaw) / dt, -6, 6), 25, dt);
     else this.velRate = damp(this.velRate, 0, 10, dt);
     this.prevVelYaw = speed > 1.2 ? velYaw : null;
     const rel = this.rel = speed > 1.2 ? wrapAngle(this.h - velYaw) : 0; // + = nose left of travel
@@ -144,7 +170,7 @@ export class Vehicle {
     const sens = inp.steerSens || 1;
     const limit = this.mode !== 'grip' ? 1 : this.steerLimit(speed, gS);
     const target = clamp(inp.steer * sens, -1, 1) * limit;
-    const rate = (inp.analog ? 9 : 4.4 * S.steerResp) * T.steerRate * (Math.abs(target) < Math.abs(this.steer) || Math.sign(target) !== Math.sign(this.steer) ? 1.7 : 1);
+    const rate = (inp.analog ? 9 : 4.4) * S.steerResp * T.steerRate * (Math.abs(target) < Math.abs(this.steer) || Math.sign(target) !== Math.sign(this.steer) ? 1.7 : 1);
     this.steer = moveTowards(this.steer, target, rate * dt);
     const st = this.steer;
 
@@ -180,10 +206,45 @@ export class Vehicle {
     F -= vf * (0.06 + surf.drag * 0.9) * tr;
     if (thr === 0 && inp.brake === 0 && !hb) F -= Math.sign(vf) * Math.min(Math.abs(vf) / dt, 0.9) * tr;
     F -= G * this.slopeF * 0.85 * tr; // gravity along the slope
-    if (this.mode !== 'grip') F -= vf * Math.abs(Math.sin(this.slip)) * 0.35;
+    if (this.mode !== 'grip') {
+      // sliding scrubs speed. Holding a moderate counter-steer (steering against the slide, as a real
+      // drifter does to hold the line) scrubs less, so smooth, skilled drifts keep more speed.
+      const cs = this.mode === 'drift' ? clamp(-st * this.dir, 0, 1) : 0;
+      const skill = clamp(1 - Math.abs(cs - 0.45) * 2.5, 0, 1);
+      F -= vf * Math.abs(Math.sin(this.slip)) * 0.35 * (1 - 0.3 * skill);
+    }
     const vfPrev = vf;
     vf += F * dt;
     if (inp.brake > 0 && vfPrev > 1 && vf < 0) vf = 0;
+    // weight transfer (in g): + = accelerating (weight on the rear), - = braking / lifting (weight on the nose).
+    // Taller cars with shorter wheelbases shift more weight.
+    const wt = (T.cgH / 0.42) * (2.6 / d.wb);
+    this.load = damp(this.load, clamp((vf - vfPrev) / dt / G, -1.2, 1.2) * wt, 8, dt);
+    const lf = clamp(this.load, -0.9, 0.6);
+
+    // ---------------- drift entry by technique (only from normal grip driving)
+    // clutch kick: a quick lift (< 0.3 s) from full throttle, then floor it again while turning
+    this.thrHighT = thr > 0.8 ? 0 : this.thrHighT + dt;
+    if (thr < 0.2 && this.liftT > 5) { this.liftT = 0; this.liftFromPower = this.thrHighT < 0.25; } // a lift starts
+    if (this.liftT <= 5) this.liftT += dt;
+    if (thr > 0.9 && this.throttle <= 0.9) { // throttle floored again
+      if (this.mode === 'grip' && this.liftFromPower && this.liftT < 0.45 && Math.abs(inp.steer) > 0.5 && vf > 8 && speed < 40) {
+        const k = Math.sign(inp.steer);
+        this.enterDrift(k); this.w += k * (0.7 + 0.35 * d.driftPower) * (S.stability ? 0.6 : 1); this.wheelspin = 0.6;
+      }
+      this.liftT = 9;
+    }
+    if (this.liftT > 0.6 && this.liftT <= 5) this.liftT = 9; // too slow to count as a kick
+    // feint (Scandinavian flick): turning one way, swing the steering hard the other way -> the rear
+    // swings out and the car drifts into the new direction (Drift style)
+    const side = Math.abs(inp.steer) > 0.6 ? Math.sign(inp.steer) : 0;
+    if (side) {
+      if (S.swing && this.mode === 'grip' && side !== this.lastSteerSide && this.lastSteerSide && this.feintT < 0.4 &&
+          speed > 13 && vf > 0 && thr > 0.3 && this.w * side < -0.3) {
+        this.enterDrift(side); this.w = side * (0.9 + 0.3 * d.driftPower);
+      }
+      this.lastSteerSide = side; this.feintT = 0;
+    } else this.feintT += dt;
 
     // ---------------- regime state machine
     const prevMode = this.mode;
@@ -224,6 +285,7 @@ export class Vehicle {
     let gripLat = d.grip * S.grip * gS * (1 - effPower * thr * Math.abs(st) * 0.55) * T.rearGrip;
     if (this.wheelspin > 0.01) gripLat *= 1 - 0.6 * this.wheelspin; // wheelspin = power oversteer
     if (this.kickT > 0) { this.kickT -= dt; gripLat *= 1 - T.shiftKick; } // sequential upshift jolt
+    gripLat *= 1 + lf * 0.28; // braking / lifting unloads the rear tyres (lift-off oversteer, trail-brake rotation)
     if (inp.brake > 0 && vf > 3) { // brake balance: rear bias rotates the car, hard race brakes unsettle it
       gripLat *= 1 - inp.brake * (0.15 * Math.max(0, T.brakeBias) + T.brakeKick * Math.abs(st));
     }
@@ -237,8 +299,10 @@ export class Vehicle {
     const latGrip = lerp(gripLat, slideLat, this.driftAmt) * (0.15 + 0.85 * tr);
     const nvl = vl * Math.exp(-latGrip * dt);
     const lost = Math.abs(vl) - Math.abs(nvl);
-    const mom = sliding ? d.momentum * S.momentum : 0.12;
-    vf += Math.sign(vf || 1) * lost * mom * (sliding ? 1 : (vf > 0 ? 1 : 0.3));
+    // part of the sideways energy the tyres scrub off is turned into forward speed (that's what keeps a
+    // drift flowing). Energy-based, so a slide can never create speed out of nothing.
+    const mom = sliding ? Math.min(0.97, d.momentum * S.momentum) : 0.12;
+    if (lost > 0) vf = Math.sign(vf || 1) * Math.sqrt(vf * vf + (vl * vl - nvl * nvl) * mom * (sliding ? 1 : (vf > 0 ? 1 : 0.3)));
     vl = nvl;
 
     // ---------------- yaw
@@ -249,6 +313,7 @@ export class Vehicle {
       targetW = (vf * Math.tan(ang)) / d.wb;
       let maxW = (d.lat * S.lat * gS * T.frontGrip * (1 + effPower * thr * 0.35)) / Math.max(3, speed);
       if (inp.brake > 0 && T.brakeBias < 0 && vf > 3) maxW *= 1 + 0.12 * T.brakeBias * inp.brake; // front bias: understeer
+      maxW *= 1 - lf * (lf < 0 ? 0.2 : 0.06); // weight on the nose = sharper turn-in, weight on the tail = a little understeer
       targetW = clamp(targetW, -maxW, maxW);
       if (hb && speed > 3) targetW *= 1.35;
       // race style: stability assist. Normal cornering slip is left alone; only a real slide
@@ -257,7 +322,8 @@ export class Vehicle {
       resp = 11 * S.steerResp * T.yawResp;
     } else if (this.mode === 'drift') {
       // angle controller: throttle and steering set the drift angle
-      let frac = S.minAngle + 0.6 * thr + 0.36 * steerIn + (hb ? 0.25 : 0);
+      // driftPower: how much angle the throttle buys (powerful drift cars swing wider on the throttle)
+      let frac = S.minAngle + 0.5 * thr * d.driftPower + 0.36 * steerIn + (hb ? 0.25 : 0);
       frac = clamp(frac, 0.03, 1);
       // lifting off (no handbrake, not steering into it) lets the car straighten up and grip again
       if (thr < 0.25 && steerIn < 0.3 && !hb) frac = 0;
@@ -274,7 +340,7 @@ export class Vehicle {
       targetW = this.velRate + (desired - rel) * S.angleGain * T.angleGain * spd * (d.driftSteer / 2.1);
       if (absRel > maxA + 0.3) targetW -= Math.sign(rel) * (absRel - maxA - 0.3) * 8;
       targetW = clamp(targetW, this.velRate - 4.5, this.velRate + 4.5);
-      resp = 7.5;
+      resp = 7.5 / Math.sqrt(this.mass); // heavy cars swing their weight round more slowly
     } else if (this.mode === 'spin') {
       targetW = this.velRate + this.spinDir * (3.4 + Math.min(speed, 25) * 0.06);
       resp = 4.5;
@@ -284,6 +350,14 @@ export class Vehicle {
     }
     this.w = damp(this.w, targetW, resp * (0.08 + 0.92 * tr), dt);
     if (speed < 0.5 && !thr && !inp.brake) this.w *= 0.9;
+
+    // front wheels for the visuals: while drifting they counter-steer toward the travel direction
+    let vis = st * this.lock;
+    if (this.mode === 'drift' && speed > 2) {
+      const L = this.lock * 1.2, cs = clamp(-rel, -L, L) + st * this.lock * 0.35;
+      vis = lerp(vis, clamp(cs, -L, L), this.driftAmt);
+    }
+    this.visSteer = damp(this.visSteer, vis, 16, dt);
 
     // rebuild world velocity from the OLD axes (heading change creates slip naturally)
     this.vx = fx * vf + rx * vl; this.vz = fz * vf + rz * vl;
@@ -296,6 +370,7 @@ export class Vehicle {
 
     // ---------------- suspension
     this.suspension(dt, (vf - vfPrev) / dt, this.w * speed);
+    this.bodyLean(dt, speed);
 
     // ---------------- telemetry
     const s2 = Math.sin(this.h), c2 = Math.cos(this.h);
@@ -307,6 +382,8 @@ export class Vehicle {
     const frac = Math.max(0, vf) / d.top;
     let g = 1; while (g < 6 && frac > this.gears[g]) g++;
     if (T.shiftKick && g > this.gear && this.gear >= 1) this.kickT = 0.15;
+    if (g !== this.gear && this.gear >= 1 && g >= 1) this.shiftT = 0.12; // revs drop quickly on a gear change
+    this.shiftT = Math.max(0, this.shiftT - dt);
     this.gear = vf < -0.5 ? -1 : g;
     const lo = this.gears[g - 1], hi = this.gears[g];
     let rpm = 0.25 + 0.7 * clamp((frac - lo) / (hi - lo), 0, 1.05);
@@ -314,8 +391,20 @@ export class Vehicle {
     if (speed < 1) rpm = 0.12 + thr * 0.5;
     if (tr < 0.5) rpm += thr * 0.2;
     rpm += this.wheelspin * 0.4;
-    this.rpm = damp(this.rpm, clamp(rpm, 0.1, 1.05), 10, dt);
+    this.rpm = damp(this.rpm, clamp(rpm, 0.1, 1.05), this.shiftT > 0 ? 30 : 10, dt);
     if (!boostOn) this.boost = Math.min(1, this.boost + dt * (this.mode !== 'grip' ? 0.06 : 0.012));
+  }
+
+  // Visual-only body lean on the springs (does not change the physics): the body rolls out in corners,
+  // squats when accelerating and dives when braking, with a little overshoot on quick direction changes.
+  bodyLean(dt, speed) {
+    const soft = (this.T.cgH / 0.42) * Math.min(1.4, (this.dims.H || 1.3) / 1.3) / Math.sqrt(this.T.susK);
+    const rollT = clamp(this.w * speed * 0.0045 * soft, -0.085, 0.085) * this.contact;
+    const pitchT = clamp(-this.load * 0.045 * soft, -0.05, 0.05) * this.contact;
+    const om = 13, ze = 2 * 0.45 * om; // spring frequency (rad/s) and damping
+    this.bodyRollVel += ((rollT - this.bodyRoll) * om * om - this.bodyRollVel * ze) * dt;
+    this.bodyPitchVel += ((pitchT - this.bodyPitch) * om * om - this.bodyPitchVel * ze) * dt;
+    this.bodyRoll += this.bodyRollVel * dt; this.bodyPitch += this.bodyPitchVel * dt;
   }
 
   enterDrift(dir) {
@@ -414,18 +503,24 @@ export class Vehicle {
       this.w += clamp(cross * j * 0.25, -2.5, 2.5);
       this.impact = Math.max(this.impact, -vn);
       this.lastImpact = -vn;
+      // the bounce changed the travel direction instantly: don't count that as the car turning
+      // (it would make the drift controller chase a huge yaw rate and spin the car)
+      if (this.prevVelYaw !== null) this.prevVelYaw = Math.atan2(this.vx, this.vz);
     }
   }
 
-  // collide against another car (treated as immovable on this client; each client resolves itself)
+  // collide against another car (each client resolves only its own car). The lighter car takes more
+  // of the bounce: o.mass (or o.def.mass for AI cars) if known, else an equal-weight car.
   collideCar(o) {
+    const mo = o.mass || (o.def && o.def.mass) || this.mass;
+    const share = clamp(1.1 * mo / (this.mass + mo), 0.25, 0.85); // 0.55 for two equal cars
     const sh = Math.sin(this.h), ch = Math.cos(this.h), osh = Math.sin(o.h), och = Math.cos(o.h);
     const r = this.radius + (o.radius || 0.95);
     for (const k of [1, -1]) for (const m of [1, -1]) {
       const ax = this.x + sh * this.offset * k, az = this.z + ch * this.offset * k;
       const bx = o.x + osh * (o.offset || 1.1) * m, bz = o.z + och * (o.offset || 1.1) * m;
       const dx = ax - bx, dz = az - bz, dd = Math.hypot(dx, dz);
-      if (dd < r && dd > 1e-4 && Math.abs(this.y - o.y) < 3) this.resolve(dx / dd, dz / dd, (r - dd) * 0.5, k, o.vx || 0, o.vz || 0, 0.55);
+      if (dd < r && dd > 1e-4 && Math.abs(this.y - o.y) < 3) this.resolve(dx / dd, dz / dd, (r - dd) * share, k, o.vx || 0, o.vz || 0, share);
     }
   }
 }

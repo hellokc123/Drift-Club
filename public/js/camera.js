@@ -49,10 +49,16 @@ export class CarCamera {
     const want = clamp(dd, dist * 0.85, dist * 1.12);
     this.eye[0] = car.x + (dx / dd) * want; this.eye[2] = car.z + (dz / dd) * want;
     this.target = [car.x + Math.sin(this.yaw) * V.look * 2, car.y + V.look, car.z + Math.cos(this.yaw) * V.look * 2];
+    // camera shake: pick a new random offset ~30 times a second and glide toward it, so the shake
+    // looks the same at 60 Hz and 144 Hz (a new random jump every frame would shake harder on fast screens)
     if (this.shake > 0 && settings.camShake) {
       this.shake = Math.max(0, this.shake - dt * 3);
+      this.shakeT = (this.shakeT || 0) - dt;
+      if (this.shakeT <= 0) { this.shakeT = 1 / 30; this.shakeGoal = [Math.random() - 0.5, Math.random() - 0.5]; }
+      const g = this.shakeGoal || [0, 0], o = this.shakeOff || [0, 0];
+      this.shakeOff = [damp(o[0], g[0], 40, dt), damp(o[1], g[1], 40, dt)];
       const s = this.shake * 0.25;
-      this.eye[0] += (Math.random() - 0.5) * s; this.eye[1] += (Math.random() - 0.5) * s;
-    }
+      this.eye[0] += this.shakeOff[0] * s; this.eye[1] += this.shakeOff[1] * s;
+    } else this.shakeOff = [0, 0];
   }
 }

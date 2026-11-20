@@ -29,6 +29,7 @@ export class Input {
     this.gpPrev = [];
     this.usingPad = false;
     this.enabled = true;
+    this.kThr = 0; this.kBrk = 0; this.lastRead = 0; // smoothed keyboard pedals
     this.capture = null; // rebinding callback
     window.addEventListener('keydown', (e) => {
       if (this.capture) { e.preventDefault(); const cb = this.capture; this.capture = null; cb(e.code); return; }
@@ -52,10 +53,38 @@ export class Input {
     return null;
   }
 
+  // Gamepad menu buttons (Start = pause, Y = camera, ...). Call every frame - also while paused or
+  // chatting - so the controller can always open and close the pause menu.
+  pollPad() {
+    const p = this.settings.gamepad !== false ? this.pad() : null;
+    if (!p) return;
+    const b = (i) => (p.buttons[i] ? p.buttons[i].value || (p.buttons[i].pressed ? 1 : 0) : 0);
+    // edge-triggered buttons: Y camera, Back reset, Start pause, R3 music
+    const map = { 3: 'camera', 8: 'reset', 9: 'pause', 11: 'music' };
+    for (const [i, a] of Object.entries(map)) {
+      const now = b(+i) > 0.5;
+      if (now && !this.gpPrev[i]) this.pressedQ.push(a);
+      this.gpPrev[i] = now;
+    }
+  }
+
+  // Keyboard keys are on/off; real pedals aren't. Ramp the keyboard throttle/brake smoothly
+  // (about 0.15 s to full, a bit quicker to release) so the car doesn't lurch.
+  rampKeys(thrKey, brkKey) {
+    const now = performance.now(), dt = Math.min(0.05, Math.max(0, (now - (this.lastRead || now)) / 1000));
+    this.lastRead = now;
+    const step = (v, on) => (on ? Math.min(1, v + dt * 7) : Math.max(0, v - dt * 11));
+    this.kThr = step(this.kThr, thrKey); this.kBrk = step(this.kBrk, brkKey);
+    // a fresh press always gives an instant bit of pedal, so taps still register
+    if (thrKey && this.kThr < 0.25) this.kThr = 0.25;
+    if (brkKey && this.kBrk < 0.25) this.kBrk = 0.25;
+  }
+
   // driving input snapshot
   read() {
     const s = this.settings;
-    let throttle = this.key('throttle') ? 1 : 0, brake = this.key('brake') ? 1 : 0;
+    this.rampKeys(this.key('throttle'), this.key('brake'));
+    let throttle = this.kThr, brake = this.kBrk;
     let steer = (this.key('left') ? 1 : 0) - (this.key('right') ? 1 : 0);
     let handbrake = this.key('handbrake'), boost = this.key('boost'), analog = false;
     const p = s.gamepad !== false ? this.pad() : null;
@@ -72,13 +101,6 @@ export class Input {
         throttle = Math.max(throttle, rt); brake = Math.max(brake, lt);
         handbrake = handbrake || b(0) > 0.5 || b(5) > 0.5;
         boost = boost || b(2) > 0.5 || b(1) > 0.5;
-      }
-      // edge-triggered buttons: Y camera, Back reset, Start pause, LB hud(no) — R3 music
-      const map = { 3: 'camera', 8: 'reset', 9: 'pause', 11: 'music' };
-      for (const [i, a] of Object.entries(map)) {
-        const now = b(+i) > 0.5;
-        if (now && !this.gpPrev[i]) this.pressedQ.push(a);
-        this.gpPrev[i] = now;
       }
     }
     if (!this.enabled) return { throttle: 0, brake: 0, steer: 0, handbrake: false, boost: false, analog };
