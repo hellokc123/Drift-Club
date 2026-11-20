@@ -3580,6 +3580,7 @@ class Vehicle {
     } else this.feintT += dt;
 
     // ---------------- regime state machine
+    if (this.liftExit > 0) this.liftExit -= dt;
     const prevMode = this.mode;
     const steerIn = st * this.dir;
     this.hbRecent = hb ? 0.35 : Math.max(0, (this.hbRecent || 0) - dt); // a handbrake tap counts for a moment
@@ -3588,7 +3589,7 @@ class Vehicle {
       const wantPower = effPower > 0.4 && speed > 6 && speed < 40 && vf > 0 && thr > 0.85 && Math.abs(inp.steer) > 0.7;
       this.powerT = wantPower ? this.powerT + dt : 0;
       if (vf > 0 && speed > S.hbEntrySpeed * T.hbEntry * T.entry && hb && Math.abs(st) > 0.12) this.enterDrift(Math.sign(st));
-      else if (vf > 0 && speed > 7 && absRel > S.entrySlip * T.entry && absRel < 1.5) this.enterDrift(Math.sign(rel));
+      else if (vf > 0 && speed > 7 && !(this.liftExit > 0) && absRel > S.entrySlip * T.entry && absRel < 1.5) this.enterDrift(Math.sign(rel));
       else if (this.powerT > S.powerDelay * T.entry) this.enterDrift(Math.sign(inp.steer));
       else if (speed > 1.2 && speed < 9 && vf > 0 && hb && thr > 0.7 && Math.abs(inp.steer) > 0.75) { this.enterDrift(Math.sign(inp.steer)); this.w += Math.sign(inp.steer) * 1.6; } // donut start
       else if (vf < -5 && hb && Math.abs(st) > 0.2) this.mode = 'reverse';
@@ -3597,7 +3598,10 @@ class Vehicle {
       if (absRel > 0.12 && Math.sign(rel) !== this.dir) { this.dir = Math.sign(rel); this.swingLatch = false; }
       if (this.spinArm > 0.15 && absRel > Math.min(this.maxAngle * 0.78, 0.9) && speed > 4) { this.mode = 'spin'; this.spinDir = this.dir; this.spinT = 0; }
       if (!hb && absRel < 0.1 && Math.abs(this.w - this.velRate) < 0.6) this.straightT += dt; else this.straightT = 0;
-      if (this.straightT > S.exitHold * T.exitHold || speed < (thr > 0.5 ? 1.8 : 3.5) || vf < -2 && absRel < 1.2) this.mode = 'grip';
+      // off the gas with the car nearly straight (within 10 degrees): stop drifting and drive straight,
+      // and kill the leftover rotation so it doesn't swing back out
+      if (thr < 0.1 && !hb && absRel < 0.175) { this.mode = 'grip'; this.w = this.velRate + (this.w - this.velRate) * 0.15; this.liftExit = 0.6; }
+      else if (this.straightT > S.exitHold * T.exitHold || speed < (thr > 0.5 ? 1.8 : 3.5) || vf < -2 && absRel < 1.2) this.mode = 'grip';
       else if (absRel > 1.9) this.mode = 'reverse';
     } else if (this.mode === 'spin') {
       this.spinT += dt;
