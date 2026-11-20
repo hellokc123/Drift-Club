@@ -3384,6 +3384,7 @@ class Vehicle {
     this.x = 0; this.z = 0; this.y = 0; this.h = 0;
     this.vx = 0; this.vz = 0; this.w = 0; this.vy = 0;
     this.steer = 0; this.mode = 'grip'; this.driftAmt = 0; this.dir = 1; this.straightT = 0; this.swingT = 0;
+    this.rec = 0; this.settleT = 0; this.spinRot = 0; // drift recovery (0..1), post-spin settle timer, spin rotation
     this.spinDir = 1; this.powerT = 0;
     this.slip = 0; this.rel = 0; this.velRate = 0; this.prevVelYaw = null;
     this.load = 0; this.visSteer = 0; this.bodyPitchVel = 0; this.bodyRollVel = 0;
@@ -3536,6 +3537,8 @@ class Vehicle {
     F -= vf * Math.abs(vf) * (d.accel / (top * top)) * 0.25;
     F -= vf * (0.06 + surf.drag * 0.9) * tr;
     if (thr === 0 && inp.brake === 0 && !hb) F -= Math.sign(vf) * Math.min(Math.abs(vf) / dt, 0.9) * tr;
+    // rolling backwards after a spin with no input: the tyres scrub while the car straightens, so it stops sooner
+    if (this.mode === 'reverse' && thr === 0 && inp.brake === 0 && vf < 0) F -= Math.sign(vf) * Math.min(Math.abs(vf) / dt, 3.5) * tr;
     F -= G * this.slopeF * 0.85 * tr; // gravity along the slope
     if (this.mode !== 'grip') {
       // sliding scrubs speed. Holding a moderate counter-steer (steering against the slide, as a real
@@ -3593,21 +3596,41 @@ class Vehicle {
       else if (vf < -5 && hb && Math.abs(st) > 0.2) this.mode = 'reverse';
       else if (vf < -6 && Math.abs(revRel) > 0.45) this.mode = 'reverse';
     } else if (this.mode === 'drift') {
-      if (absRel > 0.12 && Math.sign(rel) !== this.dir) { this.dir = Math.sign(rel); this.swingLatch = false; }
-      if (this.spinArm > 0.15 && absRel > Math.min(this.maxAngle * 0.78, 0.9) && speed > 4) { this.mode = 'spin'; this.spinDir = this.dir; this.spinT = 0; }
+      // recovery 0..1 = how much the driver is asking the car to straighten up.
+      //  steering INTO the drift (or handbrake) keeps it going, COUNTER-steering straightens it quickly,
+      //  letting go of the steering straightens it a bit more gently (so a quick key release doesn't end a drift).
+      const si = clamp(inp.steer * sens, -1, 1) * this.dir;
+      // analog: a light touch of counter-steer straightens gently, full counter-lock straightens fast
+      const swinging = this.swingLatch || (this.hbRecent > 0 && si < -0.8); // deliberate handbrake transition in progress
+      if (hb || swinging || si > 0.03) this.rec = Math.max(0, this.rec - (hb || swinging ? 4 : 2 + 2 * si) * dt);
+      else if (si < -0.1) this.rec = Math.min(1, this.rec + (1.6 - 1.6 * si) * dt);
+      else this.rec = Math.min(1, this.rec + (thr > 0.3 ? 1.4 : 2.5) * dt);
+      if (this.settleT > 0) { this.settleT -= dt; this.rec = Math.max(this.rec, 0.7); } // just came out of a spin
+      if (absRel > 0.08 && Math.sign(rel) !== this.dir) {
+        // the slide swung through straight to the other side: only keep drifting that way if the driver clearly
+        // wants it (handbrake, or a quick flick with throttle before recovery built up). Otherwise: grip again,
+        // and kill the leftover rotation so the car doesn't snap the other way (no tank-slapper).
+        if (hb || this.hbRecent > 0 || this.swingLatch || (inp.steer * Math.sign(rel) > 0.5 && thr > 0.5 && this.rec < 0.35)) { this.dir = Math.sign(rel); this.rec = 0; this.swingLatch = false; }
+        else { this.mode = 'grip'; this.w = this.velRate + (this.w - this.velRate) * 0.2; }
+      }
+      if (this.spinArm > 0.15 && absRel > Math.min(this.maxAngle * 0.78, 0.9) && speed > 4) { this.mode = 'spin'; this.spinDir = this.dir; this.spinT = 0; this.spinRot = 0; }
       if (!hb && absRel < 0.1 && Math.abs(this.w - this.velRate) < 0.6) this.straightT += dt; else this.straightT = 0;
-      if (this.straightT > S.exitHold * T.exitHold || speed < (thr > 0.5 ? 1.8 : 3.5) || vf < -2 && absRel < 1.2) this.mode = 'grip';
+      if (this.mode !== 'drift') { /* already left the drift above */ }
+      else if (this.rec > 0.75 && absRel < 0.18 && !hb) { this.mode = 'grip'; this.w = this.velRate + (this.w - this.velRate) * 0.3; }
+      else if (this.straightT > S.exitHold * T.exitHold || speed < (thr > 0.5 ? 1.8 : 3.5) || vf < -2 && absRel < 1.2) this.mode = 'grip';
       else if (absRel > 1.9) this.mode = 'reverse';
     } else if (this.mode === 'spin') {
       this.spinT += dt;
+      this.spinRot += this.w * dt;
       if (!hb || st * this.spinDir < 0.3) {
-        if (absRel < 1.55) { this.mode = 'drift'; this.dir = Math.sign(rel) || this.spinDir; }
-        else this.mode = 'reverse';
+        // released: settle down (strong yaw damping, grip comes back) instead of sliding on
+        if (absRel < 1.55 || vf > -3) { this.mode = 'drift'; this.dir = Math.sign(rel) || this.spinDir; this.rec = 0.8; this.settleT = 0.7; }
+        else this.mode = 'reverse'; // genuinely travelling backwards at speed
       }
       if (speed < 2) this.mode = 'grip';
     } else if (this.mode === 'reverse') {
       if (speed < 2.5) this.mode = 'grip';
-      else if (absRel < 1.35) { this.mode = 'drift'; this.dir = Math.sign(rel) || 1; }
+      else if (absRel < 1.35) { this.mode = 'drift'; this.dir = Math.sign(rel) || 1; this.rec = Math.max(this.rec, 0.6); }
     }
     if (this.mode !== prevMode) { this.straightT = 0; this.swingT = 0; }
     const sliding = this.mode !== 'grip';
@@ -3622,13 +3645,15 @@ class Vehicle {
       gripLat *= 1 - inp.brake * (0.15 * Math.max(0, T.brakeBias) + T.brakeKick * Math.abs(st));
     }
     let slideLat = d.driftGrip * S.driftGrip * (0.75 + 0.25 * gS) * (T.rearGrip === 1 ? 1 : Math.sqrt(T.rearGrip));
-    if (this.mode === 'spin') slideLat *= 0.32;
+    if (this.mode === 'spin') slideLat *= 0.32; // spinning: the car keeps its line instead of carving a big arc
     else if (this.mode === 'reverse') slideLat *= hb ? 0.5 : 0.85;
     else {
       if (hb) slideLat *= T.hbGrip;
       slideLat = slideLat * (1 - 0.32 * thr) + (1 - thr) * (S.stability ? 1.6 : 0.85);
     }
-    const latGrip = lerp(gripLat, slideLat, this.driftAmt) * (0.15 + 0.85 * tr);
+    // while recovering, grip comes back as the slip angle shrinks (not before, or the rear bites while still sideways)
+    const recG = this.mode === 'drift' ? this.rec * clamp(1 - absRel / 0.6, 0, 1) : 0;
+    const latGrip = lerp(gripLat, slideLat, this.driftAmt * (1 - recG)) * (0.15 + 0.85 * tr);
     const nvl = vl * Math.exp(-latGrip * dt);
     const lost = Math.abs(vl) - Math.abs(nvl);
     // part of the sideways energy the tyres scrub off is turned into forward speed (that's what keeps a
@@ -3636,6 +3661,8 @@ class Vehicle {
     const mom = sliding ? Math.min(0.97, d.momentum * S.momentum) : 0.12;
     if (lost > 0) vf = Math.sign(vf || 1) * Math.sqrt(vf * vf + (vl * vl - nvl * nvl) * mom * (sliding ? 1 : (vf > 0 ? 1 : 0.3)));
     vl = nvl;
+    // a spin scrubs speed (locked rear wheels, tyres dragged sideways), so a 360 slows you right down
+    if (this.mode === 'spin') { const k = Math.exp(-0.6 * dt); vf *= k; vl *= k; }
 
     // ---------------- yaw
     const spd = clamp(speed / 14, 0.5, 1.25);
@@ -3662,10 +3689,10 @@ class Vehicle {
       let maxA = this.maxAngle;
       // donuts: at low speed with full lock + throttle the car can swing round past the normal limit
       if (speed < 13 && thr > 0.8 && steerIn > 0.85) maxA = Math.max(maxA, S.stability ? 1.25 : 1.45);
-      let desired = this.dir * maxA * frac;
+      let desired = this.dir * maxA * frac * (1 - this.rec);
       // full counter-lock held = swing into a drift the other way (Drift style)
       // (Race style: a handbrake flick with opposite lock commits the swing until the car crosses over)
-      if ((S.swing || this.hbRecent > 0 || this.swingLatch) && steerIn < (this.swingLatch ? -0.4 : -0.8) && speed > 6) {
+      if ((this.hbRecent > 0 || this.swingLatch) && steerIn < (this.swingLatch ? -0.4 : -0.8) && speed > 6) { // handbrake + counter-lock = swing to the other side on purpose
         this.swingT += dt;
         if (this.swingT > (S.swing ? 0.12 : 0.06)) { desired = -this.dir * this.maxAngle * (0.45 + 0.4 * thr); if (this.hbRecent > 0) this.swingLatch = true; }
       } else { this.swingT = 0; this.swingLatch = false; }
@@ -3673,8 +3700,15 @@ class Vehicle {
       if (absRel > maxA + 0.3) targetW -= Math.sign(rel) * (absRel - maxA - 0.3) * 8;
       targetW = clamp(targetW, this.velRate - 4.5, this.velRate + 4.5);
       resp = 7.5 / Math.sqrt(this.mass); // heavy cars swing their weight round more slowly
+      if (this.rec > 0.3) {
+        // straightening up: the closer to straight, the slower the car may still rotate (critically damped, no overshoot)
+        const lim = 0.4 + absRel * 4;
+        targetW = clamp(targetW, this.velRate - lim, this.velRate + lim);
+        resp *= 1 + this.rec;
+      }
+      if (this.settleT > 0) { targetW = speed > 4 ? this.velRate : 0; resp = 9; } // after a spin: stop rotating
     } else if (this.mode === 'spin') {
-      targetW = this.velRate + this.spinDir * (3.4 + Math.min(speed, 25) * 0.06);
+      targetW = (speed > 4 ? this.velRate : 0) + this.spinDir * (2.8 + Math.min(speed, 25) * 0.05);
       resp = 4.5;
     } else { // reverse: steering rotates the car, it self-aligns to straight-backwards
       targetW = this.velRate + st * 2.1 * spd - revRel * 1.7;
@@ -3740,7 +3774,7 @@ class Vehicle {
   }
 
   enterDrift(dir) {
-    this.mode = 'drift'; this.dir = dir || 1; this.straightT = 0; this.swingT = 0; this.powerT = 0;
+    this.mode = 'drift'; this.dir = dir || 1; this.straightT = 0; this.swingT = 0; this.powerT = 0; this.rec = 0; this.settleT = 0;
   }
 
   // 4-corner spring/damper suspension following the terrain under each wheel
