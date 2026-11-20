@@ -5,7 +5,7 @@
 import { Vehicle, PHYS_DT } from './physics.js';
 import { CARS, carById, buildCarModel, carDrawItems } from './cars.js';
 import { raceRoute, gridSlots, RaceTracker, battleCourse, RACE } from './tracks.js';
-import { CompDriftJudge, round2, BattleRun, battleTotals, challengeScore, CHALLENGE_VARIANTS, DRIFT_RACE, AI_DRIFT, AI_JUDGE, aiDriftSample, driftRaceRank, driftRaceBonus } from './judge.js';
+import { CompDriftJudge, round2, BattleRun, battleTotals, challengeScore, CHALLENGE_VARIANTS, DRIFT_RACE, AI_DRIFT, AI_JUDGE, aiDriftSample, driftRaceRank, driftRaceBonus, posFactor } from './judge.js';
 import { AIDriver, AI_SKILL } from './ai.js';
 import { $, fmt, esc, toast } from './ui.js';
 
@@ -303,7 +303,7 @@ class RaceComp extends Comp {
 
 // ======================================================================= DRIFT RACE
 // The Speed Race circuit, grid, laps and checkpoints — but the result is
-//   score = drift points earned during the race + finishing-position bonus (judge.js DRIFT_RACE).
+//   score = drift points × finish factor (position and gap to the winner) + position bonus (judge.js DRIFT_RACE).
 // The player's drifting is judged from the official 20 Hz samples (online the SERVER's judge is official);
 // CPU drivers race on grip and get an estimated drift score from how hard they corner.
 const DNF_AFTER = 60; // solo: seconds after the first CPU finishes before an unfinished player is DNF
@@ -384,10 +384,10 @@ class DriftRaceComp extends RaceComp {
     const w = rows[0], mi = rows.findIndex((r) => r.me);
     return `<div class="res-kicker">Drift Race · ${esc(this.route.name)} · ${this.laps} lap${this.laps === 1 ? '' : 's'}${solo ? ` · ${AI_SKILL[this.cfg.difficulty || 'medium'].name} CPU` : ''}</div>
       <h2>${w && w.total > 0 ? `🏆 ${esc(w.name)} wins with ${fmt(w.total)}` : 'No score'}${mi >= 0 ? ` · you placed #${mi + 1}` : ''}</h2>
-      <table class="res-table dr-res"><tr><th>#</th><th>Driver</th><th>Race</th><th>Drift pts</th><th></th><th>Position bonus</th><th></th><th>Total</th></tr>
+      <table class="res-table dr-res"><tr><th>#</th><th>Driver</th><th>Race</th><th>Drift pts</th><th></th><th>Pos.</th><th></th><th>Bonus</th><th></th><th>Gap</th><th></th><th>Total</th></tr>
       ${rows.map((r, i) => `<tr class="${r.me ? 'me' : ''} ${i === 0 && r.total > 0 ? 'win' : ''}"><td>${i + 1}</td><td>${esc(r.name)}${r.cpu ? ' <i class="cpu-tag">CPU</i>' : ''}${r.left ? ' <i class="cpu-tag">left</i>' : ''}</td>
-        <td>${r.finished ? `P${r.racePos} · ${fmtTime(r.time)}` : `DNF · lap ${Math.min(this.laps, r.laps + 1)}/${this.laps}`}</td><td>${fmt(r.drift)}</td><td class="op">+</td><td>${r.bonus ? fmt(r.bonus) : '—'}</td><td class="op">=</td><td><b>${fmt(r.total)}</b></td></tr>`).join('')}</table>
-      <p class="muted">Position bonus per lap: ${DRIFT_RACE.bonusPerLap.slice(0, 5).map((b, i) => `P${i + 1} ${fmt(b)}`).join(' · ')}… (× ${this.laps} lap${this.laps === 1 ? '' : 's'}). Unfinished drivers get no bonus. ${solo ? 'CPU drift points are estimated from how hard they corner.' : 'Official drift points and positions computed by the server.'}</p>`;
+        <td>${r.finished ? `P${r.racePos} · ${fmtTime(r.time)}` : `DNF · lap ${Math.min(this.laps, r.laps + 1)}/${this.laps}`}</td><td>${fmt(r.drift)}</td><td class="op">×</td><td>${r.posF.toFixed(2)}</td><td class="op">+</td><td>${r.bonus ? fmt(r.bonus) : '—'}</td><td class="op">×</td><td title="${r.finished ? (r.gap ? `${r.gap.toFixed(1)} s behind the winner` : 'winner') : 'did not finish'}">${r.gapF.toFixed(2)}${r.finished && r.gap ? ` <small class="muted">+${r.gap.toFixed(1)}s</small>` : ''}</td><td class="op">=</td><td><b>${fmt(r.total)}</b></td></tr>`).join('')}</table>
+      <p class="muted">Total = (drift pts × position factor + position bonus) × gap factor. Position factor P1 1.0 · P2 0.9 · P3 0.8 · P4 0.68 · P5 0.56 · P6+ 0.45. Gap factor loses 1/60 per second behind the winner (min 0.35; DNF 0.35). Bonus per lap: ${DRIFT_RACE.bonusPerLap.slice(0, 5).map((b, i) => `P${i + 1} ${fmt(b)}`).join(' · ')}… (× ${this.laps}). No bonus without finishing. ${solo ? 'CPU drift points are estimated from how hard they corner.' : 'Official drift points and positions computed by the server.'}</p>`;
   }
   // live standings: race order, each with drift points and the bonus they'd get finishing there
   drStandings() {
@@ -399,7 +399,8 @@ class DriftRaceComp extends RaceComp {
         .map((r) => ({ name: r.name, me: r.me, p: r.tr.progress(r.x, r.z), lap: r.tr.lap, finished: r.tr.finished, time: r.tr.finishTime, drift: r.drift }))
         .sort((a, b) => b.p - a.p).map((r, i) => ({ ...r, racePos: i + 1 }));
     }
-    for (const r of rows) { r.bonus = this.dnf && r.me ? 0 : driftRaceBonus(r.racePos, this.laps, true); r.score = r.drift + r.bonus; }
+    // projection: as if finishing in the current position (the gap to the winner is only known at the end)
+    for (const r of rows) { const out = this.dnf && r.me; r.bonus = out ? 0 : driftRaceBonus(r.racePos, this.laps, true); r.score = Math.round((r.drift * posFactor(r.racePos) + r.bonus) * (out ? DRIFT_RACE.minGap : 1)); }
     return rows;
   }
   hud() {
@@ -414,7 +415,7 @@ class DriftRaceComp extends RaceComp {
     // the live combo itself is the big drift counter under this panel (#hud-drift)
     this.hudBox(`<div class="race-top"><div class="pos">P${me.racePos}<small>/${rows.length}</small></div>
       <div class="lap">LAP <b>${t.finished ? this.laps : lap}</b>/${this.laps}</div></div>
-      <div class="cstats dr-stats"><span>Drift pts <b class="${combo ? 'dr-live' : ''}">${fmt(drift)}</b></span><span>P${me.racePos} bonus <b>+${fmt(me.bonus)}</b></span><span>Score <b>${fmt(drift + me.bonus)}</b></span><span>Time <b>${fmtTime(Math.max(0, time))}</b></span></div>
+      <div class="cstats dr-stats"><span>Drift pts <b class="${combo ? 'dr-live' : ''}">${fmt(drift)}</b> ×${posFactor(me.racePos).toFixed(2)}</span><span>P${me.racePos} bonus <b>+${fmt(me.bonus)}</b></span><span>Score <b>${fmt(Math.round(drift * posFactor(me.racePos) + me.bonus))}</b></span><span>Time <b>${fmtTime(Math.max(0, time))}</b></span></div>
       <div class="cpbar" title="Checkpoints this lap"><i style="width:${(cp / t.gateCount) * 100}%"></i><span>Checkpoint ${cp}/${t.gateCount}</span></div>
       ${this.warn ? `<div class="cwarn">${this.warn}</div>` : ''}${this.cutLeft != null && this.phase === 'running' && !this.mp ? `<div class="cwarn">Finish in ${Math.ceil(this.cutLeft)} s or DNF</div>` : ''}`,
       board, 'Drift Race · points');

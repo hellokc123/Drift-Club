@@ -106,26 +106,41 @@ export class CompDriftJudge {
 }
 // ==================================================================== DRIFT RACE
 // A race on the Speed Race circuit where drifting AND finishing well both count.
-//   final score = drift points (earned until you finish) + finishing-position bonus
+//   final score = (drift points × position factor + position bonus) × gap factor
+//   position factor: P1 1.0, P2 0.9, P3 0.8, P4 0.68, P5 0.56, P6+ 0.45
+//   gap factor: 1 − seconds behind the winner / 60, never below 0.35 (DNF: 0.35 and no bonus)
+// so a strong drifter a few seconds behind still wins, but drifting far behind the field doesn't.
 // Drift points use the Drift Challenge judge with race tuning: combo multiplier capped at ×4,
 // the live combo banks automatically at every lap line, every point is scaled by speed
 // (paceFactor: nothing below 10 m/s ≈ 36 km/h, full value from 24 m/s ≈ 86 km/h) so slow "parking-lot" drifting at the
 // back can't out-score racing, and crashes / leaving the track only cost the live combo.
 export const DRIFT_RACE = {
   judge: { maxMult: 4, pace: true, noDeduct: true },
-  // bonus per lap for each finishing position (P1, P2, …); DNF earns no bonus
-  bonusPerLap: [40000, 30000, 22000, 16000, 11000, 7500, 5000, 3000, 2000, 1500, 1000, 500],
+  // bonus per lap for each finishing position (P1, P2, …), about one strong lap of drifting; DNF earns no bonus
+  bonusPerLap: [60000, 45000, 33000, 24000, 17000, 12000, 8000, 5000, 3000, 2000, 1000, 500],
+  posFactor: [1, 0.9, 0.8, 0.68, 0.56, 0.45],
+  gapWindow: 60, minGap: 0.35,
   maxRate: 3500, // anti-cheat: drift points can't average more than this per second of racing (+ slack)
   slack: 6000,
 };
 export const paceFactor = (speed) => clamp((speed - 10) / 14, 0, 1.25);
 export const driftRaceBonus = (pos, laps, finished) => (finished && pos >= 1 ? (DRIFT_RACE.bonusPerLap[pos - 1] ?? 0) * Math.max(1, laps) : 0);
+export const posFactor = (pos) => DRIFT_RACE.posFactor[Math.min(pos, DRIFT_RACE.posFactor.length) - 1] ?? 1;
+export const gapFactor = (gap, finished) => (finished ? clamp(1 - Math.max(0, gap) / DRIFT_RACE.gapWindow, DRIFT_RACE.minGap, 1) : DRIFT_RACE.minGap);
+export const driftRaceTotal = (drift, posF, bonus, gapF) => Math.round((drift * posF + bonus) * gapF);
 export const driftRateCap = (secs) => Math.round(Math.max(0, secs) * DRIFT_RACE.maxRate + DRIFT_RACE.slack);
 // rank rows {finished, time, prog, drift}: race positions first (finishers by time, then by progress), then
 // add the bonus and sort by total. Ties on total go to the better race position.
 export function driftRaceRank(rows, laps) {
   const byRace = [...rows].sort((a, b) => (b.finished - a.finished) || (a.finished ? a.time - b.time : b.prog - a.prog));
-  byRace.forEach((r, i) => { r.racePos = i + 1; r.drift = Math.max(0, Math.round(r.drift || 0)); r.bonus = driftRaceBonus(i + 1, laps, r.finished); r.total = r.drift + r.bonus; });
+  const win = byRace.find((r) => r.finished);
+  byRace.forEach((r, i) => {
+    r.racePos = i + 1; r.drift = Math.max(0, Math.round(r.drift || 0));
+    r.gap = r.finished && win ? Math.round((r.time - win.time) * 100) / 100 : null;
+    r.posF = posFactor(i + 1); r.gapF = Math.round(gapFactor(r.gap ?? 0, r.finished) * 100) / 100;
+    r.bonus = driftRaceBonus(i + 1, laps, r.finished);
+    r.total = driftRaceTotal(r.drift, r.posF, r.bonus, r.gapF);
+  });
   return byRace.sort((a, b) => b.total - a.total || a.racePos - b.racePos).map((r, i) => ({ ...r, pos: i + 1 }));
 }
 // CPU drivers race on grip, so their drift points are ESTIMATED from how hard they corner: the same judge
