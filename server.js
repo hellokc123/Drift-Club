@@ -19,6 +19,14 @@ const COMP_MODES = ['challenge', 'race', 'battle'];
 const SNAPSHOT_HZ = 20;
 const MAX_PAYLOAD = 64 * 1024;
 const RESUME_GRACE_MS = 30000; // a dropped player keeps their slot this long (Wi-Fi blips, page refresh)
+const MAX_PER_IP = Number(process.env.MAX_PER_IP) || 20; // open connections per network (schools share one IP)
+const FLOOD_LIMIT = 60; // messages per half second per connection (the game sends ~25)
+const RESULTS_AUTO_LOBBY_MS = Number(process.env.RESULTS_AUTO_LOBBY_MS) || 120000; // a finished match goes back to the lobby by itself after this
+const RACE_REST_MS = Number(process.env.RACE_REST_MS) || 60000; // after the first finisher, the others get this long
+const BOOT_ID = crypto.randomBytes(4).toString('hex'); // changes on every server restart
+const MODE_NAMES = { endless: 'Endless', standard: 'Standard', chill: 'Chill', competitive: 'Competitive', challenge: 'Drift Challenge', race: 'Speed Race', battle: 'Drift Battle' };
+// per-message-type limits: [messages per second, burst]
+const RATE = { chat: [2, 3], create: [1, 2], join: [2, 3], peek: [2, 3], list: [2, 3], records: [1, 2], settings: [5, 8], start: [1, 2], rematch: [1, 2] };
 
 // -------------------------------------------------------------
 // Shared game rules (the same tracks.js / judge.js the browser runs) — loaded at startup
@@ -70,7 +78,7 @@ const server = http.createServer((req, res) => {
   }
   if (url === '/') url = '/index.html';
   const fp = path.normalize(path.join(PUB, url));
-  if (!fp.startsWith(PUB)) { res.writeHead(403); return res.end('Forbidden'); }
+  if (!fp.startsWith(PUB + path.sep)) { res.writeHead(403); return res.end('Forbidden'); }
   fs.readFile(fp, (err, data) => {
     if (err) { res.writeHead(404); return res.end('Not found'); }
     res.writeHead(200, {
@@ -132,11 +140,13 @@ class WSConn {
     if (op === 0xA) { this.lastPong = Date.now(); return; }
     if (op === 0x1 || op === 0x2) {
       if (fin) return this._msg(op, payload);
-      this.frag = { op, parts: [payload] };
+      this.frag = { op, parts: [payload], size: payload.length };
       return;
     }
     if (op === 0x0 && this.frag) {
       this.frag.parts.push(payload);
+      this.frag.size += payload.length;
+      if (this.frag.size > MAX_PAYLOAD) { this.frag = null; return this.close(1009); } // whole message too big
       if (fin) { const f = this.frag; this.frag = null; this._msg(f.op, Buffer.concat(f.parts)); }
     }
   }
@@ -161,6 +171,9 @@ class WSConn {
     this._send(0x8, b);
     this.open = false;
     try { this.socket.end(); } catch { /* ignore */ }
+    // a dead or slow peer may never finish closing: force it after 2 s
+    const sock = this.socket;
+    setTimeout(() => { try { sock.destroy(); } catch { /* ignore */ } }, 2000).unref();
     if (this.onclose) this.onclose();
   }
 }
@@ -172,8 +185,18 @@ server.on('upgrade', (req, socket) => {
   socket.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n' +
     `Sec-WebSocket-Accept: ${accept}\r\n\r\n`);
   socket.setNoDelay(true);
+  const ip = clientIp(req);
+  if ((ipCount.get(ip) || 0) >= MAX_PER_IP) { const w = new WSConn(socket); w.send(JSON.stringify({ t: 'error', msg: 'Too many connections from your network' })); w.close(1008); return; }
+  ipCount.set(ip, (ipCount.get(ip) || 0) + 1);
+  socket.once('close', () => { const n = (ipCount.get(ip) || 1) - 1; if (n > 0) ipCount.set(ip, n); else ipCount.delete(ip); });
   onConnection(new WSConn(socket));
 });
+// connections per IP. On Render the real address is the first x-forwarded-for entry; elsewhere the socket's own.
+const ipCount = new Map();
+function clientIp(req) {
+  const xff = (process.env.RENDER || process.env.TRUST_PROXY) && req.headers['x-forwarded-for'];
+  return (xff ? String(xff).split(',')[0].trim() : req.socket.remoteAddress) || '?';
+}
 
 // -------------------------------------------------------------
 // Rooms
@@ -230,7 +253,7 @@ function roomInfo(r) {
     maxPlayers: r.maxPlayers, rounds: r.rounds, roundTime: r.roundTime, hostId: r.hostId,
     status: r.status, variant: r.variant, matchTime: r.matchTime, laps: r.laps, rules: r.rules,
     match: r.match ? { mode: r.match.mode, phase: r.match.phase, competitors: r.match.competitors } : null,
-    players: [...r.players].map((id) => {
+    players: [...r.players].filter((id) => clients.has(id)).map((id) => {
       const c = clients.get(id);
       return { id, name: c.name, car: c.car, wins: c.wins || 0, away: !!c.suspended };
     }),
@@ -247,7 +270,9 @@ function broadcast(r, msg, exceptId) {
 }
 function broadcastRoom(r) { broadcast(r, { t: 'room', room: roomInfo(r) }); }
 
+// Settings are only ever changed by the host (or at creation). Returns what changed, so everyone can be told.
 function applySettings(r, s, isCreate) {
+  const before = { mode: r.mode, map: r.map };
   if (s.name !== undefined) r.name = cleanText(s.name, 24, r.name || 'Drift Room');
   if (s.isPublic !== undefined) r.isPublic = !!s.isPublic;
   if (s.maxPlayers !== undefined) r.maxPlayers = Math.max(clampInt(s.maxPlayers, 2, 12, 8), isCreate ? 1 : r.players.size);
@@ -261,11 +286,13 @@ function applySettings(r, s, isCreate) {
     if (s.laps !== undefined) r.laps = clampInt(s.laps, 1, 10, 3);
     if (['open', 'equal', 'stock'].includes(s.rules)) r.rules = s.rules; // performance-mod rules
   }
+  return { mode: before.mode !== r.mode, map: before.map !== r.map };
 }
 
+// A room is only created with the mode the player picked: there is no silent default.
 function createRoom(c, s) {
   const r = {
-    code: genCode(), name: `${c.name}'s room`, isPublic: true, map: 'track', mode: 'endless',
+    code: genCode(), name: `${c.name}'s room`, isPublic: true, map: 'track', mode: s.mode,
     maxPlayers: 8, rounds: 3, roundTime: 90, variant: 'timed', matchTime: 120, laps: 3, rules: 'open', hostId: c.id, status: 'lobby', match: null,
     players: new Set(), game: null, timers: [], spawnSeq: 0,
   };
@@ -293,8 +320,12 @@ function leaveRoom(c) {
   if (r.players.size === 0) { clearTimers(r); rooms.delete(r.code); log(`room ${r.code} closed`); return; }
   if (r.match && r.match.competitors.includes(c.id)) competitorLeft(r, c.id);
   if (r.hostId === c.id) {
-    r.hostId = r.players.values().next().value;
-    broadcast(r, { t: 'chat', system: true, text: `${clients.get(r.hostId).name} is now the host` });
+    // pick a connected player as the new host if possible, and tell everyone clearly
+    const ids = [...r.players].filter((id) => clients.has(id));
+    r.hostId = ids.find((id) => !clients.get(id).suspended) || ids[0];
+    const h = clients.get(r.hostId);
+    broadcast(r, { t: 'host', id: r.hostId, name: h ? h.name : '?', prev: c.name });
+    broadcast(r, { t: 'chat', system: true, text: `${c.name} (host) left — ${h ? h.name : '?'} is now the host` });
   }
   broadcast(r, { t: 'playerLeft', id: c.id });
   broadcast(r, { t: 'chat', system: true, text: `${c.name} left` });
@@ -302,7 +333,14 @@ function leaveRoom(c) {
 }
 
 function clearTimers(r) { r.timers.forEach(clearTimeout); r.timers = []; }
-function later(r, ms, fn) { const t = setTimeout(() => { r.timers = r.timers.filter((x) => x !== t); fn(); }, ms); r.timers.push(t); }
+// room timer; an error in one room must never stop the whole server
+function later(r, ms, fn) {
+  const t = setTimeout(() => {
+    r.timers = r.timers.filter((x) => x !== t);
+    try { fn(); } catch (e) { console.error(`room ${r.code} timer error`, e); }
+  }, ms);
+  r.timers.push(t);
+}
 
 function sendGameStart(r, c) {
   const g = r.game, M = r.match;
@@ -392,7 +430,7 @@ function endMatch(r) {
 function endGame(r) {
   clearTimers(r);
   r.status = 'lobby'; r.game = null; r.match = null;
-  for (const id of r.players) clients.get(id).state = null;
+  for (const id of r.players) { const c = clients.get(id); if (c) c.state = null; }
   broadcast(r, { t: 'gameEnd' });
   broadcastRoom(r);
 }
@@ -498,7 +536,7 @@ function finishChallenge(r) {
     .sort((a, b) => SH.challengeScore(M.variant, b) - SH.challengeScore(M.variant, a));
   const w = rows.find((x) => SH.challengeScore(M.variant, x) > 0);
   M.result = { t: 'mResult', mode: 'challenge', variant: M.variant, rows, winnerId: w ? w.id : null, matchId: M.id };
-  broadcast(r, M.result); broadcastRoom(r);
+  broadcast(r, M.result); broadcastRoom(r); autoLobby(r);
   recordResult(M);
 }
 function raceRows(M) {
@@ -510,15 +548,17 @@ function raceRows(M) {
 function checkRaceEnd(r) {
   const M = r.match; if (!M || M.phase === 'results') return;
   const active = M.competitors.filter((id) => !M.p[id].left);
-  if (active.every((id) => M.p[id].tracker && M.p[id].tracker.finished)) later(r, 1500, () => finishRace(r));
-  else if (!M.firstFinishTimer) { M.firstFinishTimer = true; later(r, 60000, () => finishRace(r)); } // 60 s for the rest to finish
+  const done = (id) => M.p[id].tracker && M.p[id].tracker.finished;
+  if (active.every(done)) later(r, 1500, () => finishRace(r));
+  // once somebody has crossed the line, the rest get 60 s to finish (a player leaving doesn't start this)
+  else if (!M.firstFinishTimer && M.competitors.some(done)) { M.firstFinishTimer = true; later(r, RACE_REST_MS, () => finishRace(r)); }
 }
 function finishRace(r) {
   const M = r.match; if (!M || M.phase === 'results') return;
   M.phase = 'results';
   const rows = raceRows(M);
   M.result = { t: 'mResult', mode: 'race', laps: M.laps, rows, winnerId: rows[0] && rows[0].finished ? rows[0].id : null, matchId: M.id };
-  broadcast(r, M.result); broadcastRoom(r);
+  broadcast(r, M.result); broadcastRoom(r); autoLobby(r);
   recordResult(M);
 }
 function startBattleRound(r, n) {
@@ -558,8 +598,14 @@ function finishBattle(r, forfeitBy) {
     winner = forfeitBy ? (forfeitBy === A ? B : A) : null;
   }
   M.result = { t: 'mResult', mode: 'battle', a: { id: A, name: M.p[A].name, ...a }, b: { id: B, name: M.p[B].name, ...b }, winnerId: winner, matchId: M.id, forfeit: forfeitBy ? `${M.p[forfeitBy].name} left the battle` : null };
-  broadcast(r, M.result); broadcastRoom(r);
+  broadcast(r, M.result); broadcastRoom(r); autoLobby(r);
   if (!forfeitBy) recordResult(M);
+}
+// after the results, the room goes back to the lobby by itself if the host doesn't pick rematch/lobby,
+// so a room can never stay stuck "in game" with the mode settings locked
+function autoLobby(r) {
+  const M = r.match;
+  later(r, RESULTS_AUTO_LOBBY_MS, () => { if (r.match === M && M.phase === 'results') endGame(r); });
 }
 function competitorLeft(r, id) {
   const M = r.match; if (!M || M.phase === 'results') return;
@@ -570,13 +616,13 @@ function competitorLeft(r, id) {
 }
 // periodic match state (4 Hz)
 setInterval(() => {
-  for (const r of rooms.values()) {
+  for (const r of rooms.values()) try {
     const M = r.match; if (!M || M.phase === 'loading' || M.phase === 'results') continue;
     if (M.mode === 'challenge') {
       const rows = M.competitors.filter((id) => M.p[id].judge).map((id) => { const J = M.p[id].judge; const best = Math.max(J.scorer.best, J.live); return { id, name: M.p[id].name, score: Math.round(M.variant === 'attack' ? best : J.total + J.live), total: Math.round(J.total), best: Math.round(J.scorer.best), mult: J.scorer.mult }; });
       broadcast(r, { t: 'mState', mode: 'challenge', rows });
     } else if (M.mode === 'race') broadcast(r, { t: 'mState', mode: 'race', rows: raceRows(M) });
-  }
+  } catch (e) { console.error(`room ${r.code} state error`, e); }
 }, 250);
 
 // records: only completed matches, each match once
@@ -621,31 +667,46 @@ function onConnection(ws) {
   let c = { id: String(nextId++), ws, name: 'Driver', room: null, car: sanitizeCar(null), state: null, score: { total: 0, best: 0, chain: 0 }, wins: 0, msgCount: 0, token: null, suspended: false };
   clients.set(c.id, c);
   ws.onmessage = (text) => {
-    if (++c.msgCount > 400) return; // simple flood guard (reset twice a second)
+    if (++c.msgCount > FLOOD_LIMIT) return; // flood guard (reset twice a second)
     let m; try { m = JSON.parse(text); } catch { return; }
     if (!m || typeof m.t !== 'string') return;
-    if (m.t === 'hello') {
-      // resume a dropped session (same player, same room, same score) if the token matches
-      const old = typeof m.token === 'string' && sessions.get(m.token);
-      if (old && old !== c && old.suspended) {
-        clients.delete(c.id);
-        clearTimeout(old.dropTimer);
-        old.ws = ws; old.suspended = false; old.msgCount = 0;
-        c = old;
-        send(c, { t: 'welcome', id: c.id, token: c.token, resumed: true, serverTime: Date.now() });
-        const r = c.room && rooms.get(c.room);
-        if (r) {
-          send(c, { t: 'joined', room: roomInfo(r), you: c.id, resumed: true });
-          if (r.status === 'playing' && !m.inGame) sendGameStart(r, c);
-          broadcast(r, { t: 'chat', system: true, text: `${c.name} reconnected` }, c.id);
-          broadcastRoom(r);
-        }
-        log(`${c.name} resumed session`);
-        return;
-      }
-    }
-    try { handle(c, m); } catch (e) { console.error('handler error', e); }
+    if (!c.token && m.t !== 'hello') return; // nothing counts until the player has said hello
+    if (!rateOk(c, m.t)) return;
+    try {
+      if (m.t === 'hello' && resume(m)) return;
+      handle(c, m);
+    } catch (e) { console.error('handler error', e); }
   };
+  // Resume a dropped session (same player, same room, same score) if the token matches.
+  // The old socket may not be flagged as dropped yet (the heartbeat takes up to ~40 s), so a
+  // matching token simply takes the session over: the newest connection always wins.
+  function resume(m) {
+    const old = typeof m.token === 'string' && sessions.get(m.token);
+    if (!old || old === c) return false;
+    if (c.room) leaveRoom(c); // this connection was already in a room of its own: leave it properly first
+    clients.delete(c.id); if (c.token) sessions.delete(c.token);
+    clearTimeout(old.dropTimer);
+    const prevWs = old.ws;
+    old.ws = ws; old.suspended = false; old.msgCount = 0; old.rate = {};
+    if (prevWs !== ws && prevWs.open) { // still connected somewhere else (e.g. a second tab): tell it, then close it
+      prevWs.onclose = null;
+      try { prevWs.send(JSON.stringify({ t: 'replaced' })); } catch { /* ignore */ }
+      prevWs.close(4000);
+    }
+    c = old;
+    if (m.name) c.name = cleanText(m.name, 16, c.name);
+    send(c, { t: 'welcome', id: c.id, token: c.token, resumed: true, serverTime: Date.now(), boot: BOOT_ID });
+    const r = c.room && rooms.get(c.room);
+    if (r) {
+      send(c, { t: 'joined', room: roomInfo(r), you: c.id, resumed: true });
+      if (r.status === 'playing' && !m.inGame) sendGameStart(r, c);
+      else if (r.status !== 'playing' && m.inGame) send(c, { t: 'gameEnd' }); // the game ended while we were away
+      broadcast(r, { t: 'chat', system: true, text: `${c.name} reconnected` }, c.id);
+      broadcastRoom(r);
+    } else c.room = null;
+    log(`${c.name} resumed session`);
+    return true;
+  }
   ws.onclose = () => {
     if (c.ws !== ws) return; // an old socket of a resumed session
     if (c.room && rooms.has(c.room) && c.token) {
@@ -666,6 +727,16 @@ function onConnection(ws) {
   };
 }
 
+// per-type cooldowns (token bucket): stops chat spam and create/join/list hammering
+function rateOk(c, t) {
+  const lim = RATE[t]; if (!lim) return true;
+  const now = Date.now(), b = (c.rate = c.rate || {})[t] || (c.rate[t] = { n: lim[1], at: now });
+  b.n = Math.min(lim[1], b.n + ((now - b.at) / 1000) * lim[0]); b.at = now;
+  if (b.n < 1) return false;
+  b.n -= 1; return true;
+}
+const sane = (v) => { v = Number(v); return Number.isFinite(v) ? Math.min(5e6, Math.max(0, v)) : 0; };
+
 function handle(c, m) {
   const r = c.room ? rooms.get(c.room) : null;
   const isHost = r && r.hostId === c.id;
@@ -674,7 +745,8 @@ function handle(c, m) {
       c.name = cleanText(m.name, 16, `Driver${c.id}`);
       if (m.car) c.car = sanitizeCar(m.car);
       if (!c.token) { c.token = crypto.randomBytes(12).toString('hex'); sessions.set(c.token, c); }
-      send(c, { t: 'welcome', id: c.id, token: c.token, resumed: false, serverTime: Date.now() });
+      // hadToken: the browser asked to resume but that session no longer exists (expired or server restarted)
+      send(c, { t: 'welcome', id: c.id, token: c.token, resumed: false, serverTime: Date.now(), boot: BOOT_ID, hadToken: typeof m.token === 'string' && m.token !== c.token });
       break;
     case 'name':
       c.name = cleanText(m.name, 16, c.name);
@@ -684,8 +756,10 @@ function handle(c, m) {
       send(c, { t: 'rooms', rooms: [...rooms.values()].filter((x) => x.isPublic).map(listInfo) });
       break;
     case 'create': {
+      const s = m.settings || {};
+      if (!MODES.includes(s.mode)) return send(c, { t: 'error', msg: 'Pick a game mode for the room' });
       if (m.car) c.car = sanitizeCar(m.car);
-      const nr = createRoom(c, m.settings || {});
+      const nr = createRoom(c, s);
       joinRoom(c, nr);
       break;
     }
@@ -696,7 +770,7 @@ function handle(c, m) {
     case 'join': {
       const code = cleanText(m.code, 8, '').toUpperCase();
       const jr = rooms.get(code);
-      if (!jr) return send(c, { t: 'error', msg: `Room "${code}" not found` });
+      if (!jr) return send(c, { t: 'error', gone: code, msg: `Room ${code} doesn't exist any more (it closed, or the server restarted). Create a new room.` });
       if (jr.code === c.room) { // already in this room (e.g. re-entering a running game from the lobby)
         send(c, { t: 'joined', room: roomInfo(jr), you: c.id });
         if (jr.status === 'playing') sendGameStart(jr, c);
@@ -712,8 +786,11 @@ function handle(c, m) {
       send(c, { t: 'left' });
       break;
     case 'settings':
-      if (!isHost) return send(c, { t: 'error', msg: 'Only the host can change settings' });
-      applySettings(r, m.settings || {}, false);
+      if (!isHost) return send(c, { t: 'error', msg: r ? 'Only the host can change settings' : 'You are not in a room any more' });
+      if (r.status !== 'lobby' && m.settings && (m.settings.mode || m.settings.map)) send(c, { t: 'error', msg: 'Mode and map can be changed once the game is back in the lobby' });
+      const ch = applySettings(r, m.settings || {}, false);
+      // a mode/map change is always announced, so nobody wonders why the room changed
+      if (ch.mode || ch.map) broadcast(r, { t: 'chat', system: true, text: `${c.name} (host) set the room to ${MODE_NAMES[r.mode]} on ${r.map}` });
       broadcastRoom(r);
       break;
     case 'car':
@@ -721,8 +798,8 @@ function handle(c, m) {
       if (r) broadcastRoom(r);
       break;
     case 'start':
-      if (!isHost) return send(c, { t: 'error', msg: 'Only the host can start the game' });
-      if (r.status !== 'lobby') return;
+      if (!isHost) return send(c, { t: 'error', msg: r ? 'Only the host can start the game' : 'You are not in a room any more' });
+      if (r.status !== 'lobby') return send(c, { t: 'error', msg: 'A game is already running — end it first' });
       if (COMP_MODES.includes(r.mode)) { const err = startMatch(r); if (err) send(c, { t: 'error', msg: err }); }
       else startGame(r);
       break;
@@ -744,12 +821,14 @@ function handle(c, m) {
       if (!r || r.status !== 'playing') return;
       const p = Array.isArray(m.p) ? m.p : [];
       c.state = [num(p[0]), num(p[1]), num(p[2]), num(m.h), num(m.vx), num(m.vz), num(m.s), m.f | 0, num(m.sl), num(m.pi), num(m.ro)];
+      c.stateAt = Date.now(); c.stateNew = true;
       if (r.match) matchSample(r, c, m);
       break;
     }
     case 'sc':
       if (!r) return;
-      c.score = { total: Math.max(0, Number(m.total) || 0), best: Math.max(0, Number(m.best) || 0), chain: Math.max(0, Number(m.chain) || 0) };
+      // free-play scores are reported by the browser: at least keep them finite and sane
+      c.score = { total: sane(m.total), best: sane(m.best), chain: sane(m.chain) };
       break;
     case 'chat':
       if (!r) return;
@@ -763,40 +842,53 @@ function handle(c, m) {
   }
 }
 
-// Snapshot broadcast — every room's player states
+// Snapshot broadcast — every room's player states.
+// Only states that arrived since the last snapshot are sent (a frozen player isn't re-sent as if new),
+// each with its age in ms so the browser can place it at the right time.
 setInterval(() => {
   const now = Date.now();
-  for (const r of rooms.values()) {
+  for (const r of rooms.values()) try {
     if (r.status !== 'playing') continue;
     const ps = [];
-    for (const id of r.players) { const c = clients.get(id); if (c.state && !c.suspended && (!r.match || r.match.competitors.includes(id))) ps.push([id, ...c.state]); }
+    for (const id of r.players) {
+      const c = clients.get(id);
+      if (!c || !c.state || !c.stateNew || c.suspended || (r.match && !r.match.competitors.includes(id))) continue;
+      c.stateNew = false;
+      ps.push([id, ...c.state, Math.min(1000, now - c.stateAt)]);
+    }
     if (ps.length) broadcast(r, { t: 'snap', ts: now, ps });
-  }
+  } catch (e) { console.error(`room ${r.code} snapshot error`, e); }
 }, 1000 / SNAPSHOT_HZ);
 
 // Leaderboard broadcast
 setInterval(() => {
-  for (const r of rooms.values()) {
+  for (const r of rooms.values()) try {
     if (r.status !== 'playing') continue;
-    const lb = [...r.players].map((id) => { const c = clients.get(id); return { id, name: c.name, score: Math.round(c.score.total + c.score.chain), best: Math.round(c.score.best), wins: c.wins || 0 }; });
+    const lb = [...r.players].filter((id) => clients.has(id)).map((id) => { const c = clients.get(id); return { id, name: c.name, score: Math.round(c.score.total + c.score.chain), best: Math.round(c.score.best), wins: c.wins || 0 }; });
     broadcast(r, { t: 'lb', lb });
-  }
+  } catch (e) { console.error(`room ${r.code} leaderboard error`, e); }
   for (const c of clients.values()) c.msgCount = 0;
 }, 500);
 
 // Heartbeat: drop dead connections
 setInterval(() => {
   const now = Date.now();
-  for (const c of clients.values()) {
+  for (const c of clients.values()) try {
     if (c.suspended) continue;
     if (now - c.ws.lastPong > 30000) c.ws.close(1001);
     else c.ws.ping();
-  }
+  } catch (e) { console.error('heartbeat error', e); }
 }, 10000);
 
 function log(s) { console.log(`[${new Date().toISOString().slice(11, 19)}] ${s}`); }
 
+// Render (and Ctrl+C) stop the server with a signal: warn everyone first, because rooms live in memory
+function shutdown() {
+  for (const c of clients.values()) send(c, { t: 'serverRestart', msg: 'The multiplayer server is restarting — rooms will be closed.' });
+  setTimeout(() => process.exit(0), 300);
+}
 if (require.main === module) {
+  process.on('SIGTERM', shutdown); process.on('SIGINT', shutdown);
   ready.then(() => server.listen(PORT, '0.0.0.0', () => {
     console.log(`\n  DRIFT CLUB server running`);
     console.log(`  Open  http://localhost:${PORT}  in your browser`);
