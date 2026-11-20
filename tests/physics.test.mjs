@@ -242,3 +242,26 @@ test('a light touch of steer into the drift keeps it going (gamepad)', () => {
     assert.ok(dr / n > 0.9, `${id}: ${(100 * dr / n).toFixed(0)}%`);
   }
 });
+
+// ---- player report #2: "if I want to go straight it goes straight then switches to the other side", "360 slides everywhere"
+import { spin } from './spin-probe.mjs';
+test('straightening out with FULL gas and counter-steer held does not kick into a new drift', () => {
+  for (const style of ['drift', 'race']) for (const c of CARS) for (const hold of [0.4, 2.5]) {
+    const v = makeCar(c.id, style); bigDrift(v); if (v.mode !== 'drift') continue;
+    const d0 = Math.sign(v.rel); let seenGrip = false, again = false;
+    run(v, 3, (car, t) => ({ ...N, throttle: 1, steer: t < hold ? -d0 : 0 }), (car) => { if (car.mode === 'grip') seenGrip = true; else if (seenGrip) again = true; });
+    assert.equal(again, false, `${c.id} ${style} hold ${hold}: drifted again after straightening`);
+  }
+});
+test('a 360 keeps travelling straight and grips again right after letting go (40/70/100 km/h)', () => {
+  for (const id of ['hatch', 'shiro', 'brute', 'hauler']) for (const kmh of [40, 70, 100]) {
+    const r = spin(id, kmh, 'release');
+    assert.ok(+r.settle < 0.3, `${id} ${kmh}: took ${r.settle}s to grip after the 360`);
+  }
+});
+test('steering again after straightening out still lets you start a new drift', () => {
+  const v = makeCar('shiro'); bigDrift(v); const d0 = Math.sign(v.rel);
+  run(v, 1.2, { ...N, throttle: 1, steer: -d0 }); run(v, 0.4, { ...N, throttle: 1 });
+  let drifted = false; run(v, 2, { ...N, throttle: 1, steer: d0 }, (c) => { if (c.mode === 'drift') drifted = true; });
+  assert.ok(drifted, 'power-over after centring the wheel should still start a drift');
+});
