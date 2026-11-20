@@ -10,7 +10,8 @@ import { OFF_TRACK_MARGIN, TrackGeo } from './tracks.js';
 export const MINIMAP_SIZES = { s: 140, m: 180, l: 240 };
 export const MINIMAP_POS = ['bottom-right', 'top-right', 'top-left', 'bottom-left'];
 export const MINIMAP_RANGES = { auto: 'Auto', near: 'Near', far: 'Far', map: 'Whole map' };
-const PALETTE = ['#ff006e', '#3a86ff', '#ffbe0b', '#80ffdb', '#ff7b00', '#c77dff', '#06d6a0', '#ef476f'];
+// player marker colours: easy to tell apart, but muted (no neon)
+const PALETTE = ['#e07a4a', '#5b8fd1', '#e0b858', '#5fae8c', '#c96a6a', '#9a86c4', '#8cb35a', '#d08fb0'];
 const NAT = { grass: [62, 96, 50], sand: [176, 146, 98], dirt: [104, 86, 62], asphalt: [44, 46, 54] };
 const PAVE = { asphalt: [150, 154, 166], gravel: [150, 132, 104], salt: [222, 222, 214], kerb: [190, 80, 80] };
 
@@ -83,18 +84,18 @@ export class Minimap {
       const P = comp.route.path;
       const pts = []; for (let i = 0; i < P.n; i += 2) pts.push([P.x[i], P.z[i]]);
       line(pts, true, 'rgba(255,255,255,0.9)', Math.max(2, 3 * res * 2));
-      line(pts, true, 'rgba(0,229,255,0.9)', Math.max(1, 1.2 * res * 2));
+      line(pts, true, 'rgba(79,125,163,0.95)', Math.max(1, 1.2 * res * 2));
       this.gateGeom(comp.route.gates).slice(0, 1).forEach((gt) => gateLine(gt, '#fff', 4));
       // direction chevrons every ~120 m so the driving direction is obvious
       for (let i = 20; i < P.n; i += 40) {
         const j = (i + 2) % P.n, a = Math.atan2(P.x[j] - P.x[i], P.z[j] - P.z[i]);
-        this.chevron(ctx, P.x[i], P.z[i], a, 7, 'rgba(0,229,255,1)');
+        this.chevron(ctx, P.x[i], P.z[i], a, 7, 'rgba(79,125,163,1)');
       }
     } else if (comp && comp.course) { // Drift Battle course
       const C = comp.course, P = C.path, pts = []; for (let i = 0; i < P.n; i++) pts.push([P.x[i], P.z[i]]);
-      line(pts, false, 'rgba(255,190,11,0.55)', Math.max(4, C.width * res));
+      line(pts, false, 'rgba(216,178,92,0.5)', Math.max(4, C.width * res));
       line(pts, false, 'rgba(255,255,255,0.85)', 1.5, [6, 5]);
-      for (const [gt, col] of [[C.start, '#06d6a0'], [C.end, '#ff006e']]) if (gt) gateLine(this.gateGeom([{ ...gt, hw: C.width / 2 + 3 }])[0], col, 4);
+      for (const [gt, col] of [[C.start, '#6dbb7f'], [C.end, '#e0675c']]) if (gt) gateLine(this.gateGeom([{ ...gt, hw: C.width / 2 + 3 }])[0], col, 4);
     }
     if (comp && comp.judge && this.g.opts.mapId !== 'city') { // Drift Challenge: the judged drift area (tarmac + margin)
       const T = new TrackGeo(this.g.opts.mapId), W = this.world, n = this.n;
@@ -105,7 +106,7 @@ export class Minimap {
           const [x, z] = this.toWorld(u + 0.5, v + 0.5);
           const sd = W.sdAt(x, z); if (sd < m - 3 || sd > m + 4) continue; // cheap pre-filter
           const e = T.edge(x, z);
-          if (Math.abs(e - m) < band) { const i = (v * n + u) * 4; d[i] = 255; d[i + 1] = 214; d[i + 2] = 10; d[i + 3] = 235; }
+          if (Math.abs(e - m) < band) { const i = (v * n + u) * 4; d[i] = 216; d[i + 1] = 178; d[i + 2] = 92; d[i + 3] = 235; }
         }
         ctx.putImageData(img, 0, 0);
       }
@@ -154,12 +155,12 @@ export class Minimap {
     for (const r of g.remotes.values()) {
       if (!r.seen || !r.model || r.away) continue; // only connected players who are driving (a dropped player disappears at once)
       const role = roleOf(r.id);
-      out.push({ x: r.x, z: r.z, h: r.h, col: role === 'lead' ? '#ffbe0b' : role === 'chase' ? '#00e5ff' : this.color(r.id), label: role === 'lead' ? 'L' : role === 'chase' ? 'C' : (r.name || '?')[0].toUpperCase(), kind: 'player', name: r.name });
+      out.push({ x: r.x, z: r.z, h: r.h, col: role === 'lead' ? '#d8b25c' : role === 'chase' ? '#8fb3d1' : this.color(r.id), label: role === 'lead' ? 'L' : role === 'chase' ? 'C' : (r.name || '?')[0].toUpperCase(), kind: 'player', name: r.name });
     }
     if (comp && comp.ai) comp.ai.forEach((a, i) => out.push({ x: a.v.x, z: a.v.z, h: a.v.h, col: '#8d99ae', label: String(i + 1), kind: 'cpu', name: a.name }));
     if (battle && !comp.mp && comp.role === 'chase' && comp.ghost && comp.ghost.length) {
       const gs = comp.ghostAt(Math.max(0, comp.t || 0)) || comp.ghost[0].s;
-      if (gs) out.push({ x: gs.x, z: gs.z, h: gs.h, col: '#9fe6ff', label: 'L', kind: 'ghost', name: 'Ghost' });
+      if (gs) out.push({ x: gs.x, z: gs.z, h: gs.h, col: '#b8cde0', label: 'L', kind: 'ghost', name: 'Ghost' });
     }
     return out;
   }
@@ -202,7 +203,7 @@ export class Minimap {
     ctx.clearRect(0, 0, px, px);
     ctx.save();
     ctx.beginPath(); ctx.arc(R, R, R - 1, 0, Math.PI * 2); ctx.clip();
-    ctx.fillStyle = '#10101a'; ctx.fillRect(0, 0, px, px);
+    ctx.fillStyle = '#15171a'; ctx.fillRect(0, 0, px, px);
     // world -> screen: centre, rotate (heading up in rotating mode), scale; background is in px units
     ctx.translate(R, R); ctx.rotate(rot); ctx.scale(scale / this.res, scale / this.res);
     const [cu, cv] = this.toPx(cx, cz);
@@ -215,7 +216,7 @@ export class Minimap {
     if (comp && comp.route && comp.tracker && !this.g.spectator && !comp.tracker.finished) {
       const gt = this.gateGeom([comp.route.gates[comp.tracker.next]])[0], [u, v] = this.toPx(gt.x, gt.z);
       const pulse = 0.6 + 0.4 * Math.sin(performance.now() / 160);
-      ctx.beginPath(); ctx.arc(u, v, (5 / scale) * this.res, 0, Math.PI * 2); ctx.fillStyle = `rgba(255,214,10,${pulse})`; ctx.fill();
+      ctx.beginPath(); ctx.arc(u, v, (5 / scale) * this.res, 0, Math.PI * 2); ctx.fillStyle = `rgba(216,178,92,${pulse})`; ctx.fill();
     }
     ctx.restore();
     // markers (screen space so they stay the same size at any zoom)
@@ -245,7 +246,7 @@ export class Minimap {
     const nx = R + Math.sin(rot) * (R - 10), ny = R - Math.cos(rot) * (R - 10); // world north (+z) on screen
     ctx.font = 'bold 10px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.beginPath(); ctx.arc(nx, ny, 7, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#ff4d6d'; ctx.fillText('N', nx, ny + 0.5); ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#e0675c'; ctx.fillText('N', nx, ny + 0.5); ctx.textBaseline = 'alphabetic';
     // rim
     ctx.beginPath(); ctx.arc(R, R, R - 1, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2; ctx.stroke();
   }
@@ -254,7 +255,7 @@ export class Minimap {
     // tip, back-right, notch, back-left in local (right, up) units, rotated by a (0 = screen up)
     const pts = [[0, 1.1], [0.75, -0.8], [0, -0.35], [-0.75, -0.8]].map(([rx, up]) => [u + (rx * ca + up * sa) * s, v + (rx * sa - up * ca) * s]);
     ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath();
-    ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = me ? 2 : 1.5; ctx.strokeStyle = me ? '#ff006e' : 'rgba(0,0,0,0.85)'; ctx.stroke();
+    ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = me ? 2 : 1.5; ctx.strokeStyle = me ? '#e2703c' : 'rgba(0,0,0,0.85)'; ctx.stroke();
   }
   dot(ctx, u, v, r, col) { ctx.beginPath(); ctx.arc(u, v, r, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.stroke(); }
 }

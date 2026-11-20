@@ -7,11 +7,11 @@ import { makeNoise, rng, smoothstep, clamp, lerp } from './engine/math.js';
 import { crSample, segDist, GEO } from './tracks.js';
 
 export const MAP_LIST = [
-  { id: 'track', name: 'Apex Circuit', type: 'Race Track', desc: 'A proper racing circuit with sweepers, a carousel, a hairpin and an infield skidpad.', accent: '#3a86ff' },
-  { id: 'desert', name: 'Dune Valley', type: 'Desert', desc: 'Golden-hour highway loop around a huge salt flat. Endless room to slide.', accent: '#f4a261' },
-  { id: 'mountain', name: 'Kurogane Pass', type: 'Mountains', desc: 'A dusk touge climbing switchbacks to a summit lookout.', accent: '#b5179e' },
-  { id: 'forest', name: 'Pinewood Trails', type: 'Forest', desc: 'Misty forest loop around a lake with a big gravel clearing.', accent: '#52b788' },
-  { id: 'city', name: 'Neon District', type: 'City', desc: 'Night-time grid of streets, a central plaza and open parking lots.', accent: '#ff006e' },
+  { id: 'track', name: 'Apex Circuit', type: 'Race Track', desc: 'A proper racing circuit with sweepers, a carousel, a hairpin and an infield skidpad.', accent: '#8fb3d1' },
+  { id: 'desert', name: 'Dune Valley', type: 'Desert', desc: 'Golden-hour highway loop around a huge salt flat. Endless room to slide.', accent: '#d9a46a' },
+  { id: 'mountain', name: 'Kurogane Pass', type: 'Mountains', desc: 'A dusk touge climbing switchbacks to a summit lookout.', accent: '#d48d6e' },
+  { id: 'forest', name: 'Pinewood Trails', type: 'Forest', desc: 'Misty forest loop around a lake with a big gravel clearing.', accent: '#86b77a' },
+  { id: 'city', name: 'City Nights', type: 'City', desc: 'Night-time grid of streets, a central plaza and open parking lots.', accent: '#d8b25c' },
 ];
 
 export const SURFACES = {
@@ -513,7 +513,7 @@ function building(ctx, x, z, w, d, h, c, night, r) {
     const segs = Math.max(1, Math.floor(along / 7));
     for (let k = 0; k < rows; k++) for (let s = 0; s < segs; s++) {
       const lit = night && r() < 0.42;
-      const wc = lit ? [...(r() < 0.7 ? [1, 0.82, 0.5] : [0.6, 0.85, 1]), 0.85] : night ? [0.06, 0.07, 0.1] : [0.25, 0.32, 0.4];
+      const wc = lit ? [...(r() < 0.7 ? [1, 0.82, 0.5] : [0.86, 0.88, 0.86]), 0.85] : night ? [0.06, 0.07, 0.1] : [0.25, 0.32, 0.4];
       const u = -along / 2 + (s + 0.5) * (along / segs), yy = y + 3.5 + k * 3.4;
       const cx = x + nx * (w / 2 + 0.04) + (nz ? u : 0), cz = z + nz * (d / 2 + 0.04) + (nx ? u : 0);
       const hw = (along / segs - 1.6) / 2, tx = nz ? 1 : 0, tz = nx ? 1 : 0, s2 = nx + nz; // tangent along the face
@@ -727,9 +727,9 @@ const SPECS = {
         { name: 'Summit Donuts', x: 30, z: 205, r: 48, target: 14000, time: 25 },
       ],
       env: {
-        sky: { top: col('#2a2d63'), horizon: col('#f08a7a'), bottom: col('#7a5a6a') },
-        sunDir: norm([0.75, 0.16, -0.35]), sunCol: [1.0, 0.62, 0.48], sunGlow: [1.2, 0.5, 0.35], ambSky: [0.42, 0.42, 0.62], ambGround: [0.25, 0.22, 0.26],
-        fogCol: col('#9a7f98'), fogNear: 220, fogFar: 1000, night: false, headlights: true, music: 'dusk',
+        sky: { top: col('#2e3d5e'), horizon: col('#e39c74'), bottom: col('#6e5f58') },
+        sunDir: norm([0.75, 0.16, -0.35]), sunCol: [1.0, 0.68, 0.5], sunGlow: [1.2, 0.6, 0.38], ambSky: [0.44, 0.46, 0.58], ambGround: [0.26, 0.24, 0.22],
+        fogCol: col('#9a8a84'), fogNear: 220, fogFar: 1000, night: false, headlights: true, music: 'dusk',
       },
       scenery(c) {
         const r = c.rand;
@@ -861,14 +861,15 @@ const SPECS = {
         { name: 'Downtown Sprint', x: -225, z: 45, r: 60, target: 10000, time: 25 },
       ],
       env: {
-        sky: { top: col('#05061a'), horizon: col('#2c1b4a'), bottom: col('#120d1f') },
-        sunDir: norm([-0.3, 0.7, 0.4]), sunCol: [0.22, 0.26, 0.42], sunGlow: [0.08, 0.08, 0.15], ambSky: [0.2, 0.2, 0.34], ambGround: [0.12, 0.09, 0.14],
-        fogCol: col('#1a1230'), fogNear: 140, fogFar: 680, night: true, headlights: true, stars: 1, music: 'night',
+        sky: { top: col('#0a1220'), horizon: col('#2b3340'), bottom: col('#14171c') },
+        sunDir: norm([-0.3, 0.7, 0.4]), sunCol: [0.26, 0.29, 0.36], sunGlow: [0.06, 0.07, 0.09], ambSky: [0.24, 0.26, 0.32], ambGround: [0.14, 0.13, 0.12],
+        fogCol: col('#1e232b'), fogNear: 140, fogFar: 680, night: true, headlights: true, stars: 0.5, music: 'night',
       },
       scenery(c) {
         const r = c.rand, inner = (B - ST) / 2;
         const pal = [[0.32, 0.33, 0.38], [0.42, 0.36, 0.33], [0.25, 0.3, 0.38], [0.5, 0.48, 0.45], [0.3, 0.27, 0.3]];
-        const neon = [[1, 0.1, 0.55], [0.1, 0.95, 0.85], [0.6, 0.3, 1], [1, 0.75, 0.1], [0.2, 0.5, 1]];
+        // ordinary shop signs: backlit white/cream panels and a few painted brand colours (no neon)
+        const signs = [[0.92, 0.9, 0.84], [0.95, 0.82, 0.6], [0.72, 0.22, 0.18], [0.18, 0.42, 0.3], [0.22, 0.3, 0.5]];
         for (const b of blocks) {
           const k = kind(b), g = c.geo(b.x, b.z);
           if (k !== 'plaza') {
@@ -876,10 +877,10 @@ const SPECS = {
             g.box(b.x, 0.015, b.z, inner * 2 + 0.01, 0.03, inner * 2 + 0.01, { top: [0.36, 0.36, 0.38], side: [0.5, 0.5, 0.5] });
             g.box(b.x, 0.03, b.z, inner * 2 - 4.5, 0.03, inner * 2 - 4.5, k === 'park' ? [0.15, 0.3, 0.12] : k === 'lot' ? [0.18, 0.18, 0.2] : [0.3, 0.3, 0.32]);
           } else {
-            g.box(b.x, 0.015, b.z, B + 0.1, 0.03, B + 0.1, [0.34, 0.3, 0.36]);
+            g.box(b.x, 0.015, b.z, B + 0.1, 0.03, B + 0.1, [0.38, 0.36, 0.33]); // stone paving
           }
           // lamps at corners (all blocks)
-          for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) lamp(c, b.x + sx * (inner - 1), b.z + sz * (inner - 1), Math.atan2(sx, sz), true, sx * sz > 0 ? [1, 0.82, 0.55] : [0.7, 0.85, 1]);
+          for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) lamp(c, b.x + sx * (inner - 1), b.z + sz * (inner - 1), Math.atan2(sx, sz), true, sx * sz > 0 ? [1, 0.82, 0.55] : [1, 0.9, 0.74]); // warm street lights
           if (k === 'build') {
             const split = r();
             const lots = split < 0.3 ? [[0, 0, 1, 1]] : split < 0.65 ? [[-0.5, 0, 0.5, 1], [0.5, 0, 0.5, 1]] : [[-0.5, -0.5, 0.5, 0.5], [0.5, -0.5, 0.5, 0.5], [-0.5, 0.5, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5]];
@@ -891,9 +892,9 @@ const SPECS = {
               building(c, x, z, w, d, h, pal[Math.floor(r() * pal.length)], true, r);
               c.box(x, z, w, d);
               if (r() < 0.45) {
-                const nc = neon[Math.floor(r() * neon.length)], side = r() < 0.5 ? 1 : -1;
-                g.box(x + (r() - 0.5) * w * 0.5, 7 + r() * 6, z + side * (d / 2 + 0.3), 5 + r() * 6, 1.4, 0.2, [...nc, 1]);
-                c.glow(x, 0.05, z + side * (d / 2 + 4), 7, [nc[0] * 0.25, nc[1] * 0.25, nc[2] * 0.25, 1]);
+                const sc = signs[Math.floor(r() * signs.length)], side = r() < 0.5 ? 1 : -1;
+                g.box(x + (r() - 0.5) * w * 0.5, 7 + r() * 6, z + side * (d / 2 + 0.3), 5 + r() * 6, 1.4, 0.2, [...sc, 0.55]); // softly lit sign
+                c.glow(x, 0.05, z + side * (d / 2 + 4), 7, [0.09, 0.075, 0.055, 1]); // faint warm spill on the pavement
               }
             }
           } else if (k === 'park') {
@@ -908,9 +909,9 @@ const SPECS = {
             const x = (b.i - K + 1) * B, z = (b.j - K + 1) * B;
             g.cylinder(x, 0.4, z, 6, 0.8, 16, [0.5, 0.5, 0.55]);
             g.cylinder(x, 3.5, z, 0.6, 6, 8, [0.6, 0.6, 0.65]);
-            g.blob(x, 7.2, z, 1.6, 1.6, 1.6, [0.1, 0.9, 0.9, 1], 0, r);
+            g.blob(x, 7.2, z, 1.6, 1.6, 1.6, [0.55, 0.45, 0.3], 0, r); // bronze sculpture
             c.circle(x, z, 6.2);
-            c.glow(x, 0.08, z, 16, [0.05, 0.3, 0.3, 1]);
+            c.glow(x, 0.08, z, 16, [0.16, 0.13, 0.09, 1]); // warm floodlight pool
           }
         }
         // crosswalks & intersections
