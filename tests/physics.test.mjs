@@ -186,3 +186,41 @@ test('old saved tunes still load and give the stock car when empty', () => {
   for (const [k, p] of Object.entries(builtinPresets(def))) { const d = applyTune(def, p); assert.ok(Number.isFinite(d.accel) && Number.isFinite(d.mass), k); }
   assert.equal(applyTune(def, null).accel, def.accel);
 });
+
+// ---- drift exit / 360 feel (player complaint: "won't let me go straight", "360 sends me sliding everywhere") ----
+import { exitTest, spinTest, bigDrift } from './feel-probe.mjs';
+const FEEL_CARS = CARS.map((c) => c.id);
+
+test('letting go of steering (still on the gas) straightens out within ~1.2 s, without flipping to the other side', () => {
+  for (const id of FEEL_CARS) {
+    const r = exitTest(id, 'neutral');
+    assert.ok(+r.exitS < 1.2, `${id} took ${r.exitS}s to straighten`);
+    assert.ok(+r.otherSideDeg < 9, `${id} swung ${r.otherSideDeg}° the other way`);
+    assert.equal(r.redrift, false, `${id} started drifting again on its own`);
+  }
+});
+
+test('counter-steering ends the drift quickly and does not throw the car into the opposite drift', () => {
+  for (const id of FEEL_CARS) for (const k of ['counter', 'tap', 'lift']) {
+    const r = exitTest(id, k);
+    assert.ok(+r.exitS < (k === 'lift' ? 1.3 : 1.1), `${id} ${k}: ${r.exitS}s`);
+    assert.ok(+r.otherSideDeg < 9, `${id} ${k}: flipped ${r.otherSideDeg}°`);
+  }
+  for (const id of ['sedan', 'aurora']) assert.ok(+exitTest(id, 'neutral', 'race').exitS < 1.2);
+});
+
+test('steering into the drift keeps it going (full lock, keyboard taps and half-stick)', () => {
+  for (const id of ['shiro', 'brute', 'kitsune']) for (const pat of ['full', 'taps', 'half']) {
+    const v = makeCar(id); bigDrift(v); let dr = 0, n = 0;
+    run(v, 5, (c, t) => ({ ...N, throttle: 0.9, steer: pat === 'full' ? 1 : pat === 'half' ? 0.5 : (t % 0.8) < 0.15 ? 0 : 1 }), (c) => { n++; if (c.mode === 'drift') dr++; });
+    assert.ok(dr / n > 0.95, `${id} ${pat}: only drifting ${(100 * dr / n).toFixed(0)}% of the time`);
+  }
+});
+
+test('a handbrake 360 settles quickly instead of sliding away', () => {
+  for (const id of FEEL_CARS) for (const after of ['release', 'gas']) {
+    const r = spinTest(id, after);
+    assert.ok(+r.settleS < 2.6, `${id} ${after}: settled in ${r.settleS}s`);
+    assert.ok(+r.travelM < 10, `${id} ${after}: slid ${r.travelM} m`);
+  }
+});
