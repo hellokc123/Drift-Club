@@ -269,8 +269,9 @@ export class Vehicle {
       //  steering INTO the drift (or handbrake) keeps it going, COUNTER-steering straightens it quickly,
       //  letting go of the steering straightens it a bit more gently (so a quick key release doesn't end a drift).
       const si = clamp(inp.steer * sens, -1, 1) * this.dir;
-      if (hb || si > 0.1) this.rec = Math.max(0, this.rec - 4 * dt);
-      else if (si < -0.1) this.rec = Math.min(1, this.rec + 3.2 * dt);
+      // analog: a light touch of counter-steer straightens gently, full counter-lock straightens fast
+      if (hb || si > 0.1) this.rec = Math.max(0, this.rec - (hb ? 4 : 2 + 2 * si) * dt);
+      else if (si < -0.1) this.rec = Math.min(1, this.rec + (1.6 - 1.6 * si) * dt);
       else this.rec = Math.min(1, this.rec + (thr > 0.3 ? 1.4 : 2.5) * dt);
       if (this.settleT > 0) { this.settleT -= dt; this.rec = Math.max(this.rec, 0.7); } // just came out of a spin
       if (absRel > 0.08 && Math.sign(rel) !== this.dir) {
