@@ -1,11 +1,11 @@
-// Competitive mode controllers: Drift Challenge, Speed Race, Drift Battle.
+// Competitive mode controllers: Drift Challenge, Speed Race, Drift Race, Drift Battle.
 // They plug into Game through a few hooks (load, filterInput, stepExtras, onSample, update,
 // draw, hud, destroy). Solo play is fully local; online play follows the SERVER's clock and
 // uses the server's official scores/positions/results (the local judges only drive the live HUD).
 import { Vehicle, PHYS_DT } from './physics.js';
 import { CARS, carById, buildCarModel, carDrawItems } from './cars.js';
 import { raceRoute, gridSlots, RaceTracker, battleCourse, RACE } from './tracks.js';
-import { CompDriftJudge, BattleRun, battleTotals, challengeScore, CHALLENGE_VARIANTS } from './judge.js';
+import { CompDriftJudge, round2, BattleRun, battleTotals, challengeScore, CHALLENGE_VARIANTS, DRIFT_RACE, AI_DRIFT, AI_JUDGE, aiDriftSample, driftRaceRank, driftRaceBonus } from './judge.js';
 import { AIDriver, AI_SKILL } from './ai.js';
 import { $, fmt, esc, toast } from './ui.js';
 
@@ -16,6 +16,7 @@ export function createComp(game) {
   const k = game.mode.comp;
   if (k === 'challenge') return new ChallengeComp(game);
   if (k === 'race') return new RaceComp(game);
+  if (k === 'driftrace') return new DriftRaceComp(game);
   if (k === 'battle') return new BattleComp(game);
   return null;
 }
@@ -160,6 +161,7 @@ class ChallengeComp extends Comp {
 
 // ======================================================================= SPEED RACE
 class RaceComp extends Comp {
+  get kind() { return 'race'; }
   load() {
     const g = this.g, S = g.app.settings;
     this.route = raceRoute(g.opts.mapId);
@@ -184,7 +186,7 @@ class RaceComp extends Comp {
       this.ai.push({ name: names[i], v, model, def, drv: new AIDriver(v, this.route.path, this.cfg.difficulty || 'medium', 11 + i * 7), tr: new RaceTracker(this.route, this.laps), tag, k: 0 });
     }
     this.standings = [];
-    if (this.mp) { this.bindStart(); this.on('mState', (m) => { if (m.mode === 'race') { this.standings = m.rows; this.serverMe = m.rows.find((r) => r.id === this.net.id); } }); }
+    if (this.mp) { this.bindStart(); this.on('mState', (m) => { if (m.mode === this.kind) { this.standings = m.rows; this.serverMe = m.rows.find((r) => r.id === this.net.id); } }); }
     this.readyUp();
   }
   stepExtras(dt) {
@@ -297,6 +299,126 @@ class RaceComp extends Comp {
       rows.slice(0, 8).map((r, i) => `<div class="lb-row ${r.me ? 'me' : ''}"><span>${i + 1}</span><b>${esc(r.name)}</b><em>${r.finished ? fmtTime(r.time) : `Lap ${Math.min(this.laps, r.lap + 1)}`}</em></div>`).join(''), 'Race standings');
   }
   destroy() { super.destroy(); for (const a of this.ai) a.tag.remove(); }
+}
+
+// ======================================================================= DRIFT RACE
+// The Speed Race circuit, grid, laps and checkpoints — but the result is
+//   score = drift points earned during the race + finishing-position bonus (judge.js DRIFT_RACE).
+// The player's drifting is judged from the official 20 Hz samples (online the SERVER's judge is official);
+// CPU drivers race on grip and get an estimated drift score from how hard they corner.
+const DNF_AFTER = 60; // solo: seconds after the first CPU finishes before an unfinished player is DNF
+class DriftRaceComp extends RaceComp {
+  get kind() { return 'driftrace'; }
+  load() {
+    const g = this.g;
+    this.ownsScoring = true;
+    this.dj = new CompDriftJudge(g.opts.mapId, (t, d) => { if (t !== 'penalty') g.onScore(t, d); }, DRIFT_RACE.judge);
+    g.scorer = this.dj.scorer; g.scorer.enabled = true;
+    $('#hud-drift').classList.remove('hidden'); $('#hud-score').classList.remove('hidden');
+    super.load();
+    this.aiF = AI_DRIFT[this.cfg.difficulty || 'medium'] || AI_DRIFT.medium;
+    for (const a of this.ai) { a.dj = new CompDriftJudge(g.opts.mapId, () => {}, AI_JUDGE); a.vy = null; a.sk = 0; a.lastLap = 0; }
+    this.cutT = 0;
+  }
+  aiDrift(a) { return Math.round((a.dj.total + a.dj.live) * this.aiF); }
+  myDrift() { return Math.round(this.dj.total + this.dj.live); }
+  onSample(s, ctx) {
+    // judge first, then the tracker (same order as the server): a lap line banks the combo
+    if (this.phase === 'running' && this.t >= 0 && !this.tracker.finished) this.dj.push(s, ctx);
+    super.onSample(s, ctx);
+  }
+  // CPU drift estimates are sampled every 0.05 s of SIMULATED time (not per rendered frame), so a slow
+  // frame rate can't change their score
+  stepExtras(dt) {
+    super.stepExtras(dt);
+    if ((this.phase !== 'running' && this.phase !== 'done') || this.t < 0) return;
+    for (const a of this.ai) {
+      a.acc = (a.acc || 0) + dt;
+      while (a.acc >= 0.05) { a.acc -= 0.05; this.aiSample(a); }
+    }
+  }
+  aiSample(a) {
+    if (a.tr.lap > a.lastLap) { a.lastLap = a.tr.lap; a.dj.scorer.bank(); } // lap line banks the combo
+    if (a.tr.finished) { if (!a.dj.finished) a.dj.finish(); return; }
+    const v = a.v, jump = a.px !== undefined && Math.hypot(v.x - a.px, v.z - a.pz) > 8; // stuck-reset
+    a.px = v.x; a.pz = v.z;
+    const s = { k: ++a.sk, x: round2(v.x), z: round2(v.z), h: round2(v.h), vx: round2(v.vx), vz: round2(v.vz), f: (v.drifting ? 1 : 0) | (jump ? 256 : 0), sl: round2(v.rel) };
+    const o = aiDriftSample(s, jump ? null : a.vy, 0.05);
+    a.vy = o.velYaw; a.dj.push(o.s);
+  }
+  onEvent(ev) {
+    if (ev.type === 'lap' || ev.type === 'finish') this.dj.scorer.bank();
+    if (ev.type === 'finish') this.dj.finish();
+    super.onEvent(ev);
+  }
+  update(dt, sim) {
+    super.update(dt, sim);
+    // solo: once a CPU has finished, an unfinished player has DNF_AFTER seconds left (no endless slow drifting)
+    if (!this.mp && this.phase === 'running' && !this.resultShown && this.ai.some((a) => a.tr.finished)) {
+      this.cutT += sim ? dt : 0;
+      this.cutLeft = Math.max(0, DNF_AFTER - this.cutT);
+      if (this.cutT > DNF_AFTER) { this.phase = 'done'; this.dnf = true; this.dj.finish(); this.g.bigText('TIME UP', 1500); this.maybeSoloResults(true); }
+    }
+  }
+  maybeSoloResults(force) {
+    if (this.resultShown || (!force && !this.ai.every((a) => a.tr.finished))) return;
+    if (!this.dj.finished) this.dj.finish();
+    for (const a of this.ai) if (!a.dj.finished) a.dj.finish();
+    const c = this.g.car;
+    const all = [{ name: this.g.app.settings.playerName, me: true, tr: this.tracker, x: c.x, z: c.z, drift: this.myDrift() },
+      ...this.ai.map((a) => ({ name: a.name, cpu: true, tr: a.tr, x: a.v.x, z: a.v.z, drift: this.aiDrift(a) }))];
+    const rows = driftRaceRank(all.map((r) => ({ name: r.name, me: r.me, cpu: r.cpu, finished: r.tr.finished, time: r.tr.finishTime, best: r.tr.best, laps: r.tr.lap, prog: r.tr.progress(r.x, r.z), drift: r.drift })), this.laps);
+    const mine = rows.find((r) => r.me);
+    this.g.app.saveRecord('driftrace', { map: this.g.opts.mapId, laps: this.laps, score: mine.total, drift: mine.drift, bonus: mine.bonus, racePos: mine.racePos, pos: mine.pos, field: rows.length, finished: mine.finished });
+    this.showResults(this.resultsHtml(rows, true), { solo: true });
+  }
+  onServerResult(m) {
+    if (m.mode !== 'driftrace') return;
+    this.phase = 'done'; if (!this.dj.finished) this.dj.finish();
+    const rows = m.rows.map((r) => ({ ...r, laps: r.lap, me: r.id === this.net.id }));
+    const mine = rows.find((r) => r.me);
+    if (mine && !this._saved) { this._saved = true; this.g.app.saveRecord('driftrace', { map: this.g.opts.mapId, laps: m.laps, score: mine.total, drift: mine.drift, bonus: mine.bonus, racePos: mine.racePos, pos: mine.pos, field: rows.length, finished: mine.finished }); }
+    this.showResults(this.resultsHtml(rows, false), { solo: false });
+  }
+  resultsHtml(rows, solo) {
+    const w = rows[0], mi = rows.findIndex((r) => r.me);
+    return `<div class="res-kicker">Drift Race · ${esc(this.route.name)} · ${this.laps} lap${this.laps === 1 ? '' : 's'}${solo ? ` · ${AI_SKILL[this.cfg.difficulty || 'medium'].name} CPU` : ''}</div>
+      <h2>${w && w.total > 0 ? `🏆 ${esc(w.name)} wins with ${fmt(w.total)}` : 'No score'}${mi >= 0 ? ` · you placed #${mi + 1}` : ''}</h2>
+      <table class="res-table dr-res"><tr><th>#</th><th>Driver</th><th>Race</th><th>Drift pts</th><th></th><th>Position bonus</th><th></th><th>Total</th></tr>
+      ${rows.map((r, i) => `<tr class="${r.me ? 'me' : ''} ${i === 0 && r.total > 0 ? 'win' : ''}"><td>${i + 1}</td><td>${esc(r.name)}${r.cpu ? ' <i class="cpu-tag">CPU</i>' : ''}${r.left ? ' <i class="cpu-tag">left</i>' : ''}</td>
+        <td>${r.finished ? `P${r.racePos} · ${fmtTime(r.time)}` : `DNF · lap ${Math.min(this.laps, r.laps + 1)}/${this.laps}`}</td><td>${fmt(r.drift)}</td><td class="op">+</td><td>${r.bonus ? fmt(r.bonus) : '—'}</td><td class="op">=</td><td><b>${fmt(r.total)}</b></td></tr>`).join('')}</table>
+      <p class="muted">Position bonus per lap: ${DRIFT_RACE.bonusPerLap.slice(0, 5).map((b, i) => `P${i + 1} ${fmt(b)}`).join(' · ')}… (× ${this.laps} lap${this.laps === 1 ? '' : 's'}). Unfinished drivers get no bonus. ${solo ? 'CPU drift points are estimated from how hard they corner.' : 'Official drift points and positions computed by the server.'}</p>`;
+  }
+  // live standings: race order, each with drift points and the bonus they'd get finishing there
+  drStandings() {
+    let rows;
+    if (this.mp && this.standings.length) rows = this.standings.map((r) => ({ name: r.name, me: r.id === this.net.id, lap: r.lap, finished: r.finished, time: r.time, drift: (r.drift || 0) + (r.live || 0), racePos: r.pos }));
+    else {
+      const c = this.g.car;
+      rows = [{ name: this.g.app.settings.playerName, me: true, tr: this.tracker, x: c.x, z: c.z, drift: this.myDrift() }, ...this.ai.map((a) => ({ name: a.name, tr: a.tr, x: a.v.x, z: a.v.z, drift: this.aiDrift(a) }))]
+        .map((r) => ({ name: r.name, me: r.me, p: r.tr.progress(r.x, r.z), lap: r.tr.lap, finished: r.tr.finished, time: r.tr.finishTime, drift: r.drift }))
+        .sort((a, b) => b.p - a.p).map((r, i) => ({ ...r, racePos: i + 1 }));
+    }
+    for (const r of rows) { r.bonus = this.dnf && r.me ? 0 : driftRaceBonus(r.racePos, this.laps, true); r.score = r.drift + r.bonus; }
+    return rows;
+  }
+  hud() {
+    const t = this.tracker, rows = this.drStandings(), me = rows.find((r) => r.me) || { racePos: 1, drift: 0, bonus: 0, score: 0 };
+    const lap = Math.min(this.laps, (this.mp && this.serverMe ? this.serverMe.lap : t.lap) + 1);
+    const time = this.phase === 'running' ? this.t : this.phase === 'done' ? (t.finishTime || this.t) : 0;
+    const cp = t.started ? (t.next === 0 ? t.gateCount : t.next) : 0;
+    const sc = this.dj.scorer, combo = sc.chain > 0 ? Math.round(sc.liveScore) : 0;
+    const drift = this.myDrift(); // local judge: instant feedback (online the server's numbers rank you)
+    const board = [...rows].sort((a, b) => b.score - a.score).slice(0, 8)
+      .map((r, i) => `<div class="lb-row ${r.me ? 'me' : ''}"><span>${i + 1}</span><b>${esc(r.name)} <i class="dr-pos">P${r.racePos}</i></b><em>${fmt(r.score)}</em></div>`).join('');
+    // the live combo itself is the big drift counter under this panel (#hud-drift)
+    this.hudBox(`<div class="race-top"><div class="pos">P${me.racePos}<small>/${rows.length}</small></div>
+      <div class="lap">LAP <b>${t.finished ? this.laps : lap}</b>/${this.laps}</div></div>
+      <div class="cstats dr-stats"><span>Drift pts <b class="${combo ? 'dr-live' : ''}">${fmt(drift)}</b></span><span>P${me.racePos} bonus <b>+${fmt(me.bonus)}</b></span><span>Score <b>${fmt(drift + me.bonus)}</b></span><span>Time <b>${fmtTime(Math.max(0, time))}</b></span></div>
+      <div class="cpbar" title="Checkpoints this lap"><i style="width:${(cp / t.gateCount) * 100}%"></i><span>Checkpoint ${cp}/${t.gateCount}</span></div>
+      ${this.warn ? `<div class="cwarn">${this.warn}</div>` : ''}${this.cutLeft != null && this.phase === 'running' && !this.mp ? `<div class="cwarn">Finish in ${Math.ceil(this.cutLeft)} s or DNF</div>` : ''}`,
+      board, 'Drift Race · points');
+  }
 }
 
 // ======================================================================= DRIFT BATTLE

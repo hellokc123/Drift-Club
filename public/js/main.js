@@ -53,6 +53,11 @@ class App {
       if (d.time && (!r.total[d.laps] || d.time < r.total[d.laps])) r.total[d.laps] = d.time;
       if (d.best && (!r.lap || d.best < r.lap)) r.lap = d.best;
       r.races = (r.races || 0) + 1; if (d.pos === 1 && d.field > 1) r.wins = (r.wins || 0) + 1;
+    } else if (type === 'driftrace') {
+      const r = ((R.driftrace = R.driftrace || {})[d.map] = R.driftrace[d.map] || { score: {} });
+      if (d.finished && d.score > (r.score[d.laps] || 0)) r.score[d.laps] = d.score;
+      r.drift = Math.max(r.drift || 0, d.drift || 0);
+      r.races = (r.races || 0) + 1; if (d.pos === 1 && d.field > 1) r.wins = (r.wins || 0) + 1;
     } else if (type === 'battle') {
       const b = (R.battle = R.battle || {});
       if (d.solo) { b.solo = b.solo || {}; b.solo[d.map] = Math.max(b.solo[d.map] || 0, d.total); }

@@ -124,7 +124,7 @@ export class DriftScorer {
       this.grace -= dt;
       if (this.grace <= 0) this.bank();
     }
-    this.mult = Math.min(MAX_MULT, 1 + this.combo * 0.5 + Math.floor(this.chainTime / 5) * 0.5);
+    this.mult = Math.min(this.maxMult || MAX_MULT, 1 + this.combo * 0.5 + Math.floor(this.chainTime / 5) * 0.5);
     this.prevMode = mode;
   }
 
@@ -167,6 +167,7 @@ export const MODES = [
 MODES.push(
   { id: 'challenge', comp: 'challenge', name: 'Drift Challenge', icon: '★', desc: 'Score Attack or Timed Challenge. Angle, speed, distance, smoothness and combos count; crashes and leaving the track cost you.', score: true, timer: true, challenges: false, crashPenalty: true, board: true },
   { id: 'race', comp: 'race', name: 'Speed Race', icon: '⚑', desc: 'Circuit racing: starting grid, countdown, laps, checkpoints, positions and best laps. Race CPU drivers solo or friends online.', score: false, timer: true, challenges: false, crashPenalty: false, board: true },
+  { id: 'driftrace', comp: 'driftrace', name: 'Drift Race', icon: '≋', desc: 'A race where style pays: drift points earned on the way plus a bonus for where you finish. Out-drift the field or out-run it.', score: true, timer: true, challenges: false, crashPenalty: false, board: true },
   { id: 'battle', comp: 'battle', name: 'Drift Battle', icon: '⇄', desc: 'Head-to-head tandem: lead one run, chase the other. Judged on angle, line and proximity. Solo: chase your own ghost.', score: false, timer: true, challenges: false, crashPenalty: false, board: false },
 );
 export const FREE_MODES = MODES.filter((m) => !m.comp);

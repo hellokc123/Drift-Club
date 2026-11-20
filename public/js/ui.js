@@ -6,11 +6,12 @@ import { measureStats, STAT_SCALE, statFrac } from './carstats.js';
 import { MAP_LIST } from './maps.js';
 import { MODES, FREE_MODES, COMP_MODES } from './scoring.js';
 import { RACE, RACE_MAPS, BATTLE, BATTLE_MAPS } from './tracks.js';
-import { CHALLENGE_VARIANTS } from './judge.js';
+import { CHALLENGE_VARIANTS, DRIFT_RACE } from './judge.js';
 import { AI_SKILL } from './ai.js';
 import { ACTIONS, DEFAULT_BINDINGS, keyLabel } from './input.js';
 import { VIEWS } from './camera.js';
 import { DRIVE_STYLES } from './physics.js';
+const isRaceMode = (m) => m === 'race' || m === 'driftrace'; // modes run on the race circuits
 
 export const $ = (s, el = document) => el.querySelector(s);
 export const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -26,7 +27,7 @@ export function toast(html, ms = 2500, cls = '') {
 export class UI {
   constructor(app) {
     this.app = app; this.current = 'main'; this.playSel = { mode: 'endless', map: 'track' };
-    this.compSel = { mode: 'challenge', challenge: { variant: 'timed', time: 120, map: 'track' }, race: { map: 'track', laps: 3, ai: 5, difficulty: 'medium' }, battle: { map: 'track' } };
+    this.compSel = { mode: 'challenge', challenge: { variant: 'timed', time: 120, map: 'track' }, race: { map: 'track', laps: 3, ai: 5, difficulty: 'medium' }, driftrace: { map: 'track', laps: 3, ai: 4, difficulty: 'medium' }, battle: { map: 'track' } };
     this.recTab = 'challenge';
     this.garageCat = carById(app.settings.car.id).cat;
     this.settingsTab = 'graphics'; this.settingsReturn = 'main';
@@ -60,7 +61,7 @@ export class UI {
   // ------------------------------------------------------------- PLAY
   renderPlay() {
     const S = this.S;
-    const art = { challenge: 'track', race: 'city', battle: 'mountain' };
+    const art = { challenge: 'track', race: 'city', driftrace: 'forest', battle: 'mountain' };
     $('#comp-cards').innerHTML = COMP_MODES.map((m) => `<button class="card compcard" data-comp="${m.id}"><div class="map-thumb t-${art[m.id]}"><span class="comp-icon">${m.icon}</span></div><b>${m.name}</b><span>${m.desc}</span><em>Solo · Online</em></button>`).join('');
     $$('#comp-cards .card').forEach((b) => (b.onclick = () => { this.click(); this.compSel.mode = b.dataset.comp; this.show('comp'); }));
     if (!FREE_MODES.find((m) => m.id === this.playSel.mode)) this.playSel.mode = 'endless';
@@ -76,11 +77,11 @@ export class UI {
   }
 
   // ------------------------------------------------------------- COMPETITIVE SETUP
-  compMaps(mode) { return mode === 'race' ? RACE_MAPS : mode === 'battle' ? BATTLE_MAPS : MAP_LIST.map((m) => m.id); }
+  compMaps(mode) { return isRaceMode(mode) ? RACE_MAPS : mode === 'battle' ? BATTLE_MAPS : MAP_LIST.map((m) => m.id); }
   compOpts(mode) {
     const C = this.compSel[mode];
     if (mode === 'challenge') return { variant: C.variant, time: C.time };
-    if (mode === 'race') return { laps: C.laps, ai: C.ai, difficulty: C.difficulty };
+    if (isRaceMode(mode)) return { laps: C.laps, ai: C.ai, difficulty: C.difficulty };
     return {};
   }
   renderComp() {
@@ -88,7 +89,7 @@ export class UI {
     $('#comp-title').textContent = M.name; $('#comp-desc').textContent = M.desc;
     const chips = (list, cur, attr) => `<div class="chips">${list.map(([v, n]) => `<button class="chip ${String(v) === String(cur) ? 'sel' : ''}" data-${attr}="${v}">${n}</button>`).join('')}</div>`;
     const mapCards = this.compMaps(mode).map((id) => {
-      const m = MAP_LIST.find((x) => x.id === id), sub = mode === 'race' ? RACE[id].name : mode === 'battle' ? BATTLE[id].name : m.type;
+      const m = MAP_LIST.find((x) => x.id === id), sub = isRaceMode(mode) ? RACE[id].name : mode === 'battle' ? BATTLE[id].name : m.type;
       const pb = this.personalBest(mode, id, C);
       return `<button class="card map ${id === C.map ? 'sel' : ''}" data-cmap="${id}" style="--map-accent:${m.accent}"><div class="map-thumb t-${id}"></div><small>${sub}</small><b>${m.name}</b>${pb ? `<em>${pb}</em>` : ''}</button>`;
     }).join('');
@@ -97,15 +98,16 @@ export class UI {
       h += `<div class="setup-row"><label>Challenge type</label>${chips(Object.entries(CHALLENGE_VARIANTS).map(([k, v]) => [k, v.name]), C.variant, 'cvar')}</div>
         <p class="setup-note">${C.variant === 'attack' ? 'Score Attack: your <b>single best drift chain</b> wins. Keep one long combo alive.' : 'Timed Challenge: <b>total points</b> before the timer hits zero.'} Crashes cost 250, leaving the track costs 150 and ends the chain.</p>
         <div class="setup-row"><label>Time limit</label><input type="range" id="c-time" min="30" max="600" step="30" value="${C.time}"><em id="c-time-v">${Math.floor(C.time / 60)}:${String(C.time % 60).padStart(2, '0')}</em></div>`;
-    } else if (mode === 'race') {
+    } else if (isRaceMode(mode)) {
       h += `<div class="setup-row"><label>Laps</label><input type="range" id="c-laps" min="1" max="10" step="1" value="${C.laps}"><em id="c-laps-v">${C.laps}</em></div>
         <div class="setup-row"><label>CPU opponents (solo)</label><input type="range" id="c-ai" min="0" max="7" step="1" value="${C.ai}"><em id="c-ai-v">${C.ai}</em></div>
         <div class="setup-row"><label>CPU difficulty</label>${chips(Object.entries(AI_SKILL).map(([k, v]) => [k, v.name]), C.difficulty, 'cdiff')}</div>
+        ${mode === 'driftrace' ? `<p class="setup-note"><b>Score = drift points + position bonus.</b> Drift points count from GO until you cross the finish line; your combo banks at every lap line (max ×${DRIFT_RACE.judge.maxMult}), faster drifts pay more and slow drifting earns almost nothing. Bonus per lap: ${DRIFT_RACE.bonusPerLap.slice(0, 4).map((b, i) => `P${i + 1} +${fmt(b)}`).join(', ')}… — no bonus if you don't finish. Crashes and leaving the track cost your live combo.</p>` : ''}
         <p class="setup-note">Pass every checkpoint in order. Resets never count as checkpoints. Solo races start you at the back of the grid. CPU drivers are clearly labelled and only appear in solo races.</p>`;
     } else {
       h += `<p class="setup-note"><b>Online (2 players):</b> round 1, one of you leads and the other chases; round 2 the roles swap. Lead runs are judged on angle, speed, line, consistency and transitions; chase runs on proximity, speed and angle matching, line and control. Penalties for leaving the course, spinning and contact.<br><b>Solo:</b> drive a judged lead run, then chase a ghost replay of it.</p>`;
     }
-    h += `<h3>${mode === 'race' ? 'Circuit' : mode === 'battle' ? 'Battle course' : 'Map'}</h3><div class="cards maps">${mapCards}</div>`;
+    h += `<h3>${isRaceMode(mode) ? 'Circuit' : mode === 'battle' ? 'Battle course' : 'Map'}</h3><div class="cards maps">${mapCards}</div>`;
     $('#comp-setup').innerHTML = h;
     const S = this.S, def = carById(S.car.id);
     $('#comp-car').innerHTML = `<span class="swatch" style="background:${S.car.paint}"></span><div><small>${(DRIVE_STYLES[S.driveStyle] || DRIVE_STYLES.drift).name} style</small><b>${def.name}</b></div><button class="btn small" data-go="garage">Change</button>`;
@@ -120,13 +122,14 @@ export class UI {
   personalBest(mode, map, C) {
     const R = this.S.records || {};
     if (mode === 'challenge') { const r = R.challenge && R.challenge[map]; return r && r[C.variant] ? `PB ${fmt(r[C.variant])}` : ''; }
+    if (mode === 'driftrace') { const r = R.driftrace && R.driftrace[map]; const b = r && r.score && r.score[C.laps]; return b ? `PB ${fmt(b)} pts (${C.laps} lap${C.laps == 1 ? '' : 's'})` : ''; }
     if (mode === 'race') { const r = R.race && R.race[map]; const t = r && r.total && r.total[C.laps]; return t ? `PB ${fmtT(t)} (${C.laps} lap${C.laps == 1 ? "" : "s"})` : r && r.lap ? `Best lap ${fmtT(r.lap)}` : ''; }
     const b = R.battle && R.battle.solo && R.battle.solo[map]; return b ? `Solo best ${b}` : '';
   }
 
   // ------------------------------------------------------------- RECORDS
   async renderRecords() {
-    const tabs = [['challenge', 'Drift Challenge'], ['race', 'Speed Race'], ['battle', 'Drift Battle']];
+    const tabs = [['challenge', 'Drift Challenge'], ['race', 'Speed Race'], ['driftrace', 'Drift Race'], ['battle', 'Drift Battle']];
     $('#rec-tabs').innerHTML = tabs.map(([k, n]) => `<button class="tab ${k === this.recTab ? 'sel' : ''}" data-rtab="${k}">${n}</button>`).join('');
     $$('[data-rtab]').forEach((b) => (b.onclick = () => { this.click(); this.recTab = b.dataset.rtab; this.renderRecords(); }));
     const R = this.S.records || {}, tab = this.recTab, mapName = (id) => (MAP_LIST.find((m) => m.id === id) || {}).name || id;
@@ -137,6 +140,9 @@ export class UI {
     } else if (tab === 'race') {
       const rows = Object.entries(R.race || {});
       mine = rows.length ? `<table class="res-table"><tr><th>Circuit</th><th>Fastest lap</th><th>Fastest race times</th><th>Wins</th></tr>${rows.map(([m, r]) => `<tr><td>${RACE[m] ? RACE[m].name : m}</td><td>${fmtT(r.lap)}</td><td>${Object.entries(r.total || {}).map(([l, t]) => `${l} lap${l > 1 ? 's' : ''}: ${fmtT(t)}`).join('<br>') || '—'}</td><td>${r.wins || 0}/${r.races || 0}</td></tr>`).join('')}</table>` : '';
+    } else if (tab === 'driftrace') {
+      const rows = Object.entries(R.driftrace || {});
+      mine = rows.length ? `<table class="res-table"><tr><th>Circuit</th><th>Best scores</th><th>Most drift points</th><th>Wins</th></tr>${rows.map(([m, r]) => `<tr><td>${RACE[m] ? RACE[m].name : m}</td><td>${Object.entries(r.score || {}).map(([l, v]) => `${l} lap${l > 1 ? 's' : ''}: ${fmt(v)}`).join('<br>') || '—'}</td><td>${r.drift ? fmt(r.drift) : '—'}</td><td>${r.wins || 0}/${r.races || 0}</td></tr>`).join('')}</table>` : '';
     } else {
       const b = R.battle || {};
       const m = (b.wins || 0) + (b.losses || 0) + (b.draws || 0);
@@ -156,6 +162,7 @@ export class UI {
   onlineHtml(tab, D, mapName) {
     const list = (arr, val) => (arr && arr.length ? `<ol class="lb-list">${arr.slice(0, 5).map((e) => `<li><b>${esc(e.name)}</b><em>${val(e)}</em></li>`).join('')}</ol>` : '<span class="muted">—</span>');
     if (tab === 'challenge') return Object.entries(D.challenge || {}).map(([m, c]) => `<div class="lb-block"><h4>${mapName(m)}</h4><div class="lb-cols"><div><small>Timed</small>${list(c.timed, (e) => fmt(e.score))}</div><div><small>Score Attack</small>${list(c.attack, (e) => fmt(e.score))}</div><div><small>Longest drift</small>${list(c.longest, (e) => e.m + ' m')}</div><div><small>Highest combo</small>${list(c.combo, (e) => '×' + e.mult)}</div></div></div>`).join('');
+    if (tab === 'driftrace') return Object.entries(D.driftrace || {}).map(([m, r]) => `<div class="lb-block"><h4>${RACE[m] ? RACE[m].name : m}</h4><div class="lb-cols"><div><small>Most drift points</small>${list(r.drift, (e) => fmt(e.score))}</div>${Object.entries(r.score || {}).map(([l, a]) => `<div><small>Best ${l}-lap score</small>${list(a, (e) => fmt(e.score))}</div>`).join('')}</div></div>`).join('');
     if (tab === 'race') return Object.entries(D.race || {}).map(([m, r]) => `<div class="lb-block"><h4>${RACE[m] ? RACE[m].name : m}</h4><div class="lb-cols"><div><small>Fastest lap</small>${list(r.lap, (e) => fmtT(e.time))}</div>${Object.entries(r.total || {}).map(([l, a]) => `<div><small>Fastest ${l}-lap race</small>${list(a, (e) => fmtT(e.time))}</div>`).join('')}</div></div>`).join('');
     return D.battle && D.battle.length ? `<table class="res-table"><tr><th>#</th><th>Driver</th><th>Won</th><th>Lost</th><th>Win %</th><th>Points</th></tr>${D.battle.map((e, i) => `<tr><td>${i + 1}</td><td>${esc(e.name)}</td><td>${e.wins}</td><td>${e.losses}</td><td>${e.winPct}%</td><td>${fmt(e.points)}</td></tr>`).join('')}</table>` : '';
   }
@@ -375,7 +382,7 @@ export class UI {
   // map options valid for a mode (races need a circuit, battles a battle course)
   mapOptions(mode, cur) {
     const ids = this.compMaps(mode);
-    return ids.map((id) => { const m = MAP_LIST.find((x) => x.id === id); const sub = mode === 'race' ? RACE[id].name : mode === 'battle' ? BATTLE[id].name : m.type; return `<option value="${id}" ${id === cur ? 'selected' : ''}>${m.name} — ${sub}</option>`; }).join('');
+    return ids.map((id) => { const m = MAP_LIST.find((x) => x.id === id); const sub = isRaceMode(mode) ? RACE[id].name : mode === 'battle' ? BATTLE[id].name : m.type; return `<option value="${id}" ${id === cur ? 'selected' : ''}>${m.name} — ${sub}</option>`; }).join('');
   }
   modeOptions(cur) {
     return `<optgroup label="Competitive">${COMP_MODES.map((m) => `<option value="${m.id}" ${m.id === cur ? 'selected' : ''}>${m.name}</option>`).join('')}</optgroup><optgroup label="Free play">${FREE_MODES.map((m) => `<option value="${m.id}" ${m.id === cur ? 'selected' : ''}>${m.name}</option>`).join('')}</optgroup>`;
@@ -383,7 +390,7 @@ export class UI {
   // mode-specific room fields; `v` = current values, `dis` = disabled attr
   modeFields(mode, v, dis = '', pre = 'cr') {
     if (mode === 'challenge') return `<label>Challenge type<select id="${pre}-variant" ${dis}>${Object.entries(CHALLENGE_VARIANTS).map(([k, x]) => `<option value="${k}" ${k === v.variant ? 'selected' : ''}>${x.name}</option>`).join('')}</select></label><label>Time limit (seconds)<input id="${pre}-mtime" type="number" min="30" max="600" step="30" value="${v.matchTime}" ${dis}></label>`;
-    if (mode === 'race') return `<label>Laps<input id="${pre}-laps" type="number" min="1" max="10" value="${v.laps}" ${dis}></label>`;
+    if (isRaceMode(mode)) return `<label>Laps<input id="${pre}-laps" type="number" min="1" max="10" value="${v.laps}" ${dis}></label>`;
     if (mode === 'battle') return '<p class="muted">Drift Battle is 1 v 1: the first two players compete, anyone else spectates.</p>';
     if (mode === 'competitive') return `<label>Rounds<input id="${pre}-rounds" type="number" min="1" max="5" value="${v.rounds}" ${dis}></label><label>Round length (s)<input id="${pre}-time" type="number" min="30" max="300" step="15" value="${v.roundTime}" ${dis}></label>`;
     return '';
@@ -440,7 +447,7 @@ export class UI {
       ${this.modeFields(room.mode, room, dis, 'lb')}
       <label>Performance mods<select id="lb-rules" ${dis}>${Object.entries(RULES).map(([k, x]) => `<option value="${k}" ${k === (room.rules || 'open') ? 'selected' : ''}>${x.name}</option>`).join('')}</select></label>
       <p class="muted">${RULES[room.rules || 'open'].desc}</p>
-      ${this.compMaps(room.mode).includes(room.map) ? '' : '<p class="bad-note">This map has no ' + (room.mode === 'race' ? 'race circuit' : 'battle course') + ' — pick another map.</p>'}
+      ${this.compMaps(room.mode).includes(room.map) ? '' : '<p class="bad-note">This map has no ' + (isRaceMode(room.mode) ? 'race circuit' : 'battle course') + ' — pick another map.</p>'}
       ${host ? (room.status === 'lobby' ? '<p class="muted"><b>You are the host:</b> you choose the mode and map.</p>' : '<p class="muted">A game is running. Press <b>End game</b> to change mode or map.</p>')
         : `<p class="muted">Only the host (<b>${esc((room.players.find((p) => p.id === room.hostId) || {}).name || '?')}</b>) can change settings.</p>`}`;
     const send = (patch) => N.send({ t: 'settings', settings: patch });

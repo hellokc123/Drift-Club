@@ -57,6 +57,9 @@ COMPETITIVE MODES  (PLAY > top row,  RECORDS on the main menu)
                    Crashes -250, leaving the track -150. Spinning on the spot scores nothing.
   Speed Race       Laps around a circuit. Drive through every gate in order (the glowing
                    pillars). Solo: race CPU cars. Online: race your friends.
+  Drift Race       A race on the Speed Race circuits where drifting pays. Score = drift
+                   points (until you finish, combo banks every lap) + position bonus
+                   (P1 +40,000 per lap, P2 +30,000, P3 +22,000 ...). Don't finish = no bonus.
   Drift Battle     1 v 1. Run 1 you lead, run 2 you chase, then roles swap. Both runs count.
                    Solo: you chase a ghost of your own lead run.
   Online: pick the mode's card > Play online (or choose it when creating a room).

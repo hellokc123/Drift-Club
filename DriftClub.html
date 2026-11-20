@@ -357,6 +357,10 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
 .cpbar i { display: block; height: 100%; background: #4f7da3; }
 .cpbar span { position: absolute; inset: 0; font-size: 10px; line-height: 14px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; }
 .cwarn { margin-top: 8px; display: inline-block; background: rgba(176, 58, 48, 0.95); padding: 5px 14px; border-radius: 8px; font-weight: 800; animation: pulse3 0.6s infinite alternate; }
+/* Drift Race */
+#comp-hud .dr-stats b.dr-live { color: var(--gold); }
+.lb-row .dr-pos { font-style: normal; font-weight: 700; font-size: 11px; color: var(--muted); }
+.dr-res td.op { color: var(--muted); padding-left: 0; padding-right: 0; text-align: center; }
 .role { display: inline-block; margin-top: 4px; padding: 4px 18px; border-radius: 8px; font-size: 24px; font-weight: 900; font-style: italic; letter-spacing: 0.06em; }
 .role-lead { background: #3f7d4f; }
 .role-chase { background: var(--accent-btn); }
@@ -5029,7 +5033,7 @@ class DriftScorer {
       this.grace -= dt;
       if (this.grace <= 0) this.bank();
     }
-    this.mult = Math.min(MAX_MULT, 1 + this.combo * 0.5 + Math.floor(this.chainTime / 5) * 0.5);
+    this.mult = Math.min(this.maxMult || MAX_MULT, 1 + this.combo * 0.5 + Math.floor(this.chainTime / 5) * 0.5);
     this.prevMode = mode;
   }
 
@@ -5072,6 +5076,7 @@ const MODES = [
 MODES.push(
   { id: 'challenge', comp: 'challenge', name: 'Drift Challenge', icon: '★', desc: 'Score Attack or Timed Challenge. Angle, speed, distance, smoothness and combos count; crashes and leaving the track cost you.', score: true, timer: true, challenges: false, crashPenalty: true, board: true },
   { id: 'race', comp: 'race', name: 'Speed Race', icon: '⚑', desc: 'Circuit racing: starting grid, countdown, laps, checkpoints, positions and best laps. Race CPU drivers solo or friends online.', score: false, timer: true, challenges: false, crashPenalty: false, board: true },
+  { id: 'driftrace', comp: 'driftrace', name: 'Drift Race', icon: '≋', desc: 'A race where style pays: drift points earned on the way plus a bonus for where you finish. Out-drift the field or out-run it.', score: true, timer: true, challenges: false, crashPenalty: false, board: true },
   { id: 'battle', comp: 'battle', name: 'Drift Battle', icon: '⇄', desc: 'Head-to-head tandem: lead one run, chase the other. Judged on angle, line and proximity. Solo: chase your own ghost.', score: false, timer: true, challenges: false, crashPenalty: false, board: false },
 );
 const FREE_MODES = MODES.filter((m) => !m.comp);
@@ -5124,11 +5129,14 @@ class Kinematics {
 // tandem, combo chains) and adds drift distance, smoothness, collision and off-track penalties,
 // and the stats the results screen needs.
 const PENALTY = { crash: 250, offtrack: 150 };
+// opts (Drift Race): maxMult caps the combo multiplier, pace scales every point gained by the car's
+// speed (slow drifting earns little), noDeduct = crashes / leaving the track only cost the live combo.
 class CompDriftJudge {
-  constructor(mapId, onEvent = () => {}) {
+  constructor(mapId, onEvent = () => {}, opts = {}) {
     this.geo = new TrackGeo(mapId);
-    this.onEvent = onEvent;
+    this.onEvent = onEvent; this.opts = opts;
     this.scorer = new DriftScorer((t, d) => this.onEvent(t, d));
+    if (opts.maxMult) this.scorer.maxMult = opts.maxMult;
     this.kin = new Kinematics();
     this.offTrack = false; this.penalties = 0; this.penaltyCount = { crash: 0, offtrack: 0 };
     this.maxMult = 1; this.maxCombo = 0; this.bestAngle = 0;
@@ -5141,7 +5149,7 @@ class CompDriftJudge {
     if (this.finished) return;
     const c = this.kin.push(s), sc = this.scorer;
     // --- collisions: reported impact OR a sudden stop the server can see for itself
-    if ((c.impact || c.decel > 14) && c.speed < 30) this.penalize('crash');
+    if ((c.impact || (c.decel > 14 && !this.opts.noDecelCrash)) && c.speed < 30) this.penalize('crash');
     // --- leaving the track
     const edge = this.geo.edge(s.x, s.z);
     const off = edge > OFF_TRACK_MARGIN;
@@ -5163,6 +5171,7 @@ class CompDriftJudge {
       this.angEma += (Math.min(85, sc.angle) - this.angEma) * 0.15;
       if (this.smooth > 0.8) this.bestAngle = Math.max(this.bestAngle, this.angEma);
     } else this.angEma *= 0.8;
+    if (this.opts.pace && sc.chain > before) sc.chain = before + (sc.chain - before) * paceFactor(c.speed);
     // drift length = distance covered while a drift chain is alive and the car is sliding
     if (sc.chain > 0 && car.mode !== 'grip') { this.distance += c.speed * c.dt; this.curDrift += c.speed * c.dt; this.longest = Math.max(this.longest, this.curDrift); }
     if (sc.chain === 0) this.curDrift = 0;
@@ -5171,9 +5180,9 @@ class CompDriftJudge {
   }
   penalize(kind) {
     this.penaltyCount[kind]++;
-    this.penalties += PENALTY[kind];
+    if (!this.opts.noDeduct) this.penalties += PENALTY[kind];
     if (this.scorer.chain > 0) this.scorer.crash(kind === 'offtrack' ? 'offtrack' : 'crash');
-    this.onEvent('penalty', { kind, points: PENALTY[kind] });
+    this.onEvent('penalty', { kind, points: this.opts.noDeduct ? 0 : PENALTY[kind] });
   }
   finish() { if (!this.finished) { this.scorer.bank(); this.finished = true; } return this.summary(); }
   summary() {
@@ -5183,6 +5192,45 @@ class CompDriftJudge {
       penalties: this.penalties, crashes: this.penaltyCount.crash, offtracks: this.penaltyCount.offtrack, tricks: { ...this.scorer.stats },
     };
   }
+}
+// ==================================================================== DRIFT RACE
+// A race on the Speed Race circuit where drifting AND finishing well both count.
+//   final score = drift points (earned until you finish) + finishing-position bonus
+// Drift points use the Drift Challenge judge with race tuning: combo multiplier capped at ×4,
+// the live combo banks automatically at every lap line, every point is scaled by speed
+// (paceFactor: nothing below 10 m/s ≈ 36 km/h, full value from 24 m/s ≈ 86 km/h) so slow "parking-lot" drifting at the
+// back can't out-score racing, and crashes / leaving the track only cost the live combo.
+const DRIFT_RACE = {
+  judge: { maxMult: 4, pace: true, noDeduct: true },
+  // bonus per lap for each finishing position (P1, P2, …); DNF earns no bonus
+  bonusPerLap: [40000, 30000, 22000, 16000, 11000, 7500, 5000, 3000, 2000, 1500, 1000, 500],
+  maxRate: 3500, // anti-cheat: drift points can't average more than this per second of racing (+ slack)
+  slack: 6000,
+};
+const paceFactor = (speed) => clamp((speed - 10) / 14, 0, 1.25);
+const driftRaceBonus = (pos, laps, finished) => (finished && pos >= 1 ? (DRIFT_RACE.bonusPerLap[pos - 1] ?? 0) * Math.max(1, laps) : 0);
+const driftRateCap = (secs) => Math.round(Math.max(0, secs) * DRIFT_RACE.maxRate + DRIFT_RACE.slack);
+// rank rows {finished, time, prog, drift}: race positions first (finishers by time, then by progress), then
+// add the bonus and sort by total. Ties on total go to the better race position.
+function driftRaceRank(rows, laps) {
+  const byRace = [...rows].sort((a, b) => (b.finished - a.finished) || (a.finished ? a.time - b.time : b.prog - a.prog));
+  byRace.forEach((r, i) => { r.racePos = i + 1; r.drift = Math.max(0, Math.round(r.drift || 0)); r.bonus = driftRaceBonus(i + 1, laps, r.finished); r.total = r.drift + r.bonus; });
+  return byRace.sort((a, b) => b.total - a.total || a.racePos - b.racePos).map((r, i) => ({ ...r, pos: i + 1 }));
+}
+// CPU drivers race on grip, so their drift points are ESTIMATED from how hard they corner: the same judge
+// is fed a virtual slip angle that grows with lateral acceleration (skill sets how bold they are).
+// The estimate is then scaled by skill (AI_DRIFT) so CPUs are beatable but never score zero.
+const AI_DRIFT = { easy: 0.25, medium: 0.4, hard: 0.55 };
+const AI_JUDGE = { ...DRIFT_RACE.judge, pace: false, noDecelCrash: true };
+function aiDriftSample(s, prevVelYaw, dt) {
+  const speed = Math.hypot(s.vx, s.vz); if (speed < 1.2) return { s, velYaw: prevVelYaw };
+  const velYaw = Math.atan2(s.vx, s.vz);
+  const rate = prevVelYaw == null ? 0 : wrapAngle(velYaw - prevVelYaw) / dt;
+  const lat = Math.abs(rate) * speed; // m/s² of cornering
+  const ang = clamp((lat - 4) * 4.2, 0, 42); // degrees
+  if (ang < 13 || speed < 7.5) return { s: { ...s, f: s.f & ~1 }, velYaw };
+  const rel = (rate >= 0 ? 1 : -1) * ang / 57.3; // nose points to the inside of the corner
+  return { s: { ...s, h: round2(wrapAngle(velYaw + rel)), f: s.f | 1, sl: round2(rel) }, velYaw };
 }
 // challenge variants: 'attack' = best single drift chain wins, 'timed' = total points in the time limit
 const CHALLENGE_VARIANTS = { timed: { name: 'Timed Challenge', defaultTime: 120 }, attack: { name: 'Score Attack', defaultTime: 180 } };
@@ -5305,7 +5353,7 @@ function battleTotals(run1, run2) {
   return { a, b, winner: a.total === b.total ? 0 : a.total > b.total ? 1 : 2 };
 }
 
-return { SAMPLE_DT, round2, F, PENALTY, CompDriftJudge, CHALLENGE_VARIANTS, challengeScore, BATTLE_PEN, BattleRun, battleTotals };
+return { SAMPLE_DT, round2, F, PENALTY, CompDriftJudge, DRIFT_RACE, paceFactor, driftRaceBonus, driftRateCap, driftRaceRank, AI_DRIFT, AI_JUDGE, aiDriftSample, CHALLENGE_VARIANTS, challengeScore, BATTLE_PEN, BattleRun, battleTotals };
 })();
 
 // ===== js/ai.js =====
@@ -5472,11 +5520,13 @@ const { measureStats, STAT_SCALE, statFrac } = __mod["js/carstats.js"];
 const { MAP_LIST } = __mod["js/maps.js"];
 const { MODES, FREE_MODES, COMP_MODES } = __mod["js/scoring.js"];
 const { RACE, RACE_MAPS, BATTLE, BATTLE_MAPS } = __mod["js/tracks.js"];
-const { CHALLENGE_VARIANTS } = __mod["js/judge.js"];
+const { CHALLENGE_VARIANTS, DRIFT_RACE } = __mod["js/judge.js"];
 const { AI_SKILL } = __mod["js/ai.js"];
 const { ACTIONS, DEFAULT_BINDINGS, keyLabel } = __mod["js/input.js"];
 const { VIEWS } = __mod["js/camera.js"];
 const { DRIVE_STYLES } = __mod["js/physics.js"];
+const isRaceMode = (m) => m === 'race' || m === 'driftrace'; // modes run on the race circuits
+
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const fmt = (n) => Math.round(n || 0).toLocaleString('en-US');
@@ -5491,7 +5541,7 @@ function toast(html, ms = 2500, cls = '') {
 class UI {
   constructor(app) {
     this.app = app; this.current = 'main'; this.playSel = { mode: 'endless', map: 'track' };
-    this.compSel = { mode: 'challenge', challenge: { variant: 'timed', time: 120, map: 'track' }, race: { map: 'track', laps: 3, ai: 5, difficulty: 'medium' }, battle: { map: 'track' } };
+    this.compSel = { mode: 'challenge', challenge: { variant: 'timed', time: 120, map: 'track' }, race: { map: 'track', laps: 3, ai: 5, difficulty: 'medium' }, driftrace: { map: 'track', laps: 3, ai: 4, difficulty: 'medium' }, battle: { map: 'track' } };
     this.recTab = 'challenge';
     this.garageCat = carById(app.settings.car.id).cat;
     this.settingsTab = 'graphics'; this.settingsReturn = 'main';
@@ -5525,7 +5575,7 @@ class UI {
   // ------------------------------------------------------------- PLAY
   renderPlay() {
     const S = this.S;
-    const art = { challenge: 'track', race: 'city', battle: 'mountain' };
+    const art = { challenge: 'track', race: 'city', driftrace: 'forest', battle: 'mountain' };
     $('#comp-cards').innerHTML = COMP_MODES.map((m) => `<button class="card compcard" data-comp="${m.id}"><div class="map-thumb t-${art[m.id]}"><span class="comp-icon">${m.icon}</span></div><b>${m.name}</b><span>${m.desc}</span><em>Solo · Online</em></button>`).join('');
     $$('#comp-cards .card').forEach((b) => (b.onclick = () => { this.click(); this.compSel.mode = b.dataset.comp; this.show('comp'); }));
     if (!FREE_MODES.find((m) => m.id === this.playSel.mode)) this.playSel.mode = 'endless';
@@ -5541,11 +5591,11 @@ class UI {
   }
 
   // ------------------------------------------------------------- COMPETITIVE SETUP
-  compMaps(mode) { return mode === 'race' ? RACE_MAPS : mode === 'battle' ? BATTLE_MAPS : MAP_LIST.map((m) => m.id); }
+  compMaps(mode) { return isRaceMode(mode) ? RACE_MAPS : mode === 'battle' ? BATTLE_MAPS : MAP_LIST.map((m) => m.id); }
   compOpts(mode) {
     const C = this.compSel[mode];
     if (mode === 'challenge') return { variant: C.variant, time: C.time };
-    if (mode === 'race') return { laps: C.laps, ai: C.ai, difficulty: C.difficulty };
+    if (isRaceMode(mode)) return { laps: C.laps, ai: C.ai, difficulty: C.difficulty };
     return {};
   }
   renderComp() {
@@ -5553,7 +5603,7 @@ class UI {
     $('#comp-title').textContent = M.name; $('#comp-desc').textContent = M.desc;
     const chips = (list, cur, attr) => `<div class="chips">${list.map(([v, n]) => `<button class="chip ${String(v) === String(cur) ? 'sel' : ''}" data-${attr}="${v}">${n}</button>`).join('')}</div>`;
     const mapCards = this.compMaps(mode).map((id) => {
-      const m = MAP_LIST.find((x) => x.id === id), sub = mode === 'race' ? RACE[id].name : mode === 'battle' ? BATTLE[id].name : m.type;
+      const m = MAP_LIST.find((x) => x.id === id), sub = isRaceMode(mode) ? RACE[id].name : mode === 'battle' ? BATTLE[id].name : m.type;
       const pb = this.personalBest(mode, id, C);
       return `<button class="card map ${id === C.map ? 'sel' : ''}" data-cmap="${id}" style="--map-accent:${m.accent}"><div class="map-thumb t-${id}"></div><small>${sub}</small><b>${m.name}</b>${pb ? `<em>${pb}</em>` : ''}</button>`;
     }).join('');
@@ -5562,15 +5612,16 @@ class UI {
       h += `<div class="setup-row"><label>Challenge type</label>${chips(Object.entries(CHALLENGE_VARIANTS).map(([k, v]) => [k, v.name]), C.variant, 'cvar')}</div>
         <p class="setup-note">${C.variant === 'attack' ? 'Score Attack: your <b>single best drift chain</b> wins. Keep one long combo alive.' : 'Timed Challenge: <b>total points</b> before the timer hits zero.'} Crashes cost 250, leaving the track costs 150 and ends the chain.</p>
         <div class="setup-row"><label>Time limit</label><input type="range" id="c-time" min="30" max="600" step="30" value="${C.time}"><em id="c-time-v">${Math.floor(C.time / 60)}:${String(C.time % 60).padStart(2, '0')}</em></div>`;
-    } else if (mode === 'race') {
+    } else if (isRaceMode(mode)) {
       h += `<div class="setup-row"><label>Laps</label><input type="range" id="c-laps" min="1" max="10" step="1" value="${C.laps}"><em id="c-laps-v">${C.laps}</em></div>
         <div class="setup-row"><label>CPU opponents (solo)</label><input type="range" id="c-ai" min="0" max="7" step="1" value="${C.ai}"><em id="c-ai-v">${C.ai}</em></div>
         <div class="setup-row"><label>CPU difficulty</label>${chips(Object.entries(AI_SKILL).map(([k, v]) => [k, v.name]), C.difficulty, 'cdiff')}</div>
+        ${mode === 'driftrace' ? `<p class="setup-note"><b>Score = drift points + position bonus.</b> Drift points count from GO until you cross the finish line; your combo banks at every lap line (max ×${DRIFT_RACE.judge.maxMult}), faster drifts pay more and slow drifting earns almost nothing. Bonus per lap: ${DRIFT_RACE.bonusPerLap.slice(0, 4).map((b, i) => `P${i + 1} +${fmt(b)}`).join(', ')}… — no bonus if you don't finish. Crashes and leaving the track cost your live combo.</p>` : ''}
         <p class="setup-note">Pass every checkpoint in order. Resets never count as checkpoints. Solo races start you at the back of the grid. CPU drivers are clearly labelled and only appear in solo races.</p>`;
     } else {
       h += `<p class="setup-note"><b>Online (2 players):</b> round 1, one of you leads and the other chases; round 2 the roles swap. Lead runs are judged on angle, speed, line, consistency and transitions; chase runs on proximity, speed and angle matching, line and control. Penalties for leaving the course, spinning and contact.<br><b>Solo:</b> drive a judged lead run, then chase a ghost replay of it.</p>`;
     }
-    h += `<h3>${mode === 'race' ? 'Circuit' : mode === 'battle' ? 'Battle course' : 'Map'}</h3><div class="cards maps">${mapCards}</div>`;
+    h += `<h3>${isRaceMode(mode) ? 'Circuit' : mode === 'battle' ? 'Battle course' : 'Map'}</h3><div class="cards maps">${mapCards}</div>`;
     $('#comp-setup').innerHTML = h;
     const S = this.S, def = carById(S.car.id);
     $('#comp-car').innerHTML = `<span class="swatch" style="background:${S.car.paint}"></span><div><small>${(DRIVE_STYLES[S.driveStyle] || DRIVE_STYLES.drift).name} style</small><b>${def.name}</b></div><button class="btn small" data-go="garage">Change</button>`;
@@ -5585,13 +5636,14 @@ class UI {
   personalBest(mode, map, C) {
     const R = this.S.records || {};
     if (mode === 'challenge') { const r = R.challenge && R.challenge[map]; return r && r[C.variant] ? `PB ${fmt(r[C.variant])}` : ''; }
+    if (mode === 'driftrace') { const r = R.driftrace && R.driftrace[map]; const b = r && r.score && r.score[C.laps]; return b ? `PB ${fmt(b)} pts (${C.laps} lap${C.laps == 1 ? '' : 's'})` : ''; }
     if (mode === 'race') { const r = R.race && R.race[map]; const t = r && r.total && r.total[C.laps]; return t ? `PB ${fmtT(t)} (${C.laps} lap${C.laps == 1 ? "" : "s"})` : r && r.lap ? `Best lap ${fmtT(r.lap)}` : ''; }
     const b = R.battle && R.battle.solo && R.battle.solo[map]; return b ? `Solo best ${b}` : '';
   }
 
   // ------------------------------------------------------------- RECORDS
   async renderRecords() {
-    const tabs = [['challenge', 'Drift Challenge'], ['race', 'Speed Race'], ['battle', 'Drift Battle']];
+    const tabs = [['challenge', 'Drift Challenge'], ['race', 'Speed Race'], ['driftrace', 'Drift Race'], ['battle', 'Drift Battle']];
     $('#rec-tabs').innerHTML = tabs.map(([k, n]) => `<button class="tab ${k === this.recTab ? 'sel' : ''}" data-rtab="${k}">${n}</button>`).join('');
     $$('[data-rtab]').forEach((b) => (b.onclick = () => { this.click(); this.recTab = b.dataset.rtab; this.renderRecords(); }));
     const R = this.S.records || {}, tab = this.recTab, mapName = (id) => (MAP_LIST.find((m) => m.id === id) || {}).name || id;
@@ -5602,6 +5654,9 @@ class UI {
     } else if (tab === 'race') {
       const rows = Object.entries(R.race || {});
       mine = rows.length ? `<table class="res-table"><tr><th>Circuit</th><th>Fastest lap</th><th>Fastest race times</th><th>Wins</th></tr>${rows.map(([m, r]) => `<tr><td>${RACE[m] ? RACE[m].name : m}</td><td>${fmtT(r.lap)}</td><td>${Object.entries(r.total || {}).map(([l, t]) => `${l} lap${l > 1 ? 's' : ''}: ${fmtT(t)}`).join('<br>') || '—'}</td><td>${r.wins || 0}/${r.races || 0}</td></tr>`).join('')}</table>` : '';
+    } else if (tab === 'driftrace') {
+      const rows = Object.entries(R.driftrace || {});
+      mine = rows.length ? `<table class="res-table"><tr><th>Circuit</th><th>Best scores</th><th>Most drift points</th><th>Wins</th></tr>${rows.map(([m, r]) => `<tr><td>${RACE[m] ? RACE[m].name : m}</td><td>${Object.entries(r.score || {}).map(([l, v]) => `${l} lap${l > 1 ? 's' : ''}: ${fmt(v)}`).join('<br>') || '—'}</td><td>${r.drift ? fmt(r.drift) : '—'}</td><td>${r.wins || 0}/${r.races || 0}</td></tr>`).join('')}</table>` : '';
     } else {
       const b = R.battle || {};
       const m = (b.wins || 0) + (b.losses || 0) + (b.draws || 0);
@@ -5621,6 +5676,7 @@ class UI {
   onlineHtml(tab, D, mapName) {
     const list = (arr, val) => (arr && arr.length ? `<ol class="lb-list">${arr.slice(0, 5).map((e) => `<li><b>${esc(e.name)}</b><em>${val(e)}</em></li>`).join('')}</ol>` : '<span class="muted">—</span>');
     if (tab === 'challenge') return Object.entries(D.challenge || {}).map(([m, c]) => `<div class="lb-block"><h4>${mapName(m)}</h4><div class="lb-cols"><div><small>Timed</small>${list(c.timed, (e) => fmt(e.score))}</div><div><small>Score Attack</small>${list(c.attack, (e) => fmt(e.score))}</div><div><small>Longest drift</small>${list(c.longest, (e) => e.m + ' m')}</div><div><small>Highest combo</small>${list(c.combo, (e) => '×' + e.mult)}</div></div></div>`).join('');
+    if (tab === 'driftrace') return Object.entries(D.driftrace || {}).map(([m, r]) => `<div class="lb-block"><h4>${RACE[m] ? RACE[m].name : m}</h4><div class="lb-cols"><div><small>Most drift points</small>${list(r.drift, (e) => fmt(e.score))}</div>${Object.entries(r.score || {}).map(([l, a]) => `<div><small>Best ${l}-lap score</small>${list(a, (e) => fmt(e.score))}</div>`).join('')}</div></div>`).join('');
     if (tab === 'race') return Object.entries(D.race || {}).map(([m, r]) => `<div class="lb-block"><h4>${RACE[m] ? RACE[m].name : m}</h4><div class="lb-cols"><div><small>Fastest lap</small>${list(r.lap, (e) => fmtT(e.time))}</div>${Object.entries(r.total || {}).map(([l, a]) => `<div><small>Fastest ${l}-lap race</small>${list(a, (e) => fmtT(e.time))}</div>`).join('')}</div></div>`).join('');
     return D.battle && D.battle.length ? `<table class="res-table"><tr><th>#</th><th>Driver</th><th>Won</th><th>Lost</th><th>Win %</th><th>Points</th></tr>${D.battle.map((e, i) => `<tr><td>${i + 1}</td><td>${esc(e.name)}</td><td>${e.wins}</td><td>${e.losses}</td><td>${e.winPct}%</td><td>${fmt(e.points)}</td></tr>`).join('')}</table>` : '';
   }
@@ -5840,7 +5896,7 @@ class UI {
   // map options valid for a mode (races need a circuit, battles a battle course)
   mapOptions(mode, cur) {
     const ids = this.compMaps(mode);
-    return ids.map((id) => { const m = MAP_LIST.find((x) => x.id === id); const sub = mode === 'race' ? RACE[id].name : mode === 'battle' ? BATTLE[id].name : m.type; return `<option value="${id}" ${id === cur ? 'selected' : ''}>${m.name} — ${sub}</option>`; }).join('');
+    return ids.map((id) => { const m = MAP_LIST.find((x) => x.id === id); const sub = isRaceMode(mode) ? RACE[id].name : mode === 'battle' ? BATTLE[id].name : m.type; return `<option value="${id}" ${id === cur ? 'selected' : ''}>${m.name} — ${sub}</option>`; }).join('');
   }
   modeOptions(cur) {
     return `<optgroup label="Competitive">${COMP_MODES.map((m) => `<option value="${m.id}" ${m.id === cur ? 'selected' : ''}>${m.name}</option>`).join('')}</optgroup><optgroup label="Free play">${FREE_MODES.map((m) => `<option value="${m.id}" ${m.id === cur ? 'selected' : ''}>${m.name}</option>`).join('')}</optgroup>`;
@@ -5848,7 +5904,7 @@ class UI {
   // mode-specific room fields; `v` = current values, `dis` = disabled attr
   modeFields(mode, v, dis = '', pre = 'cr') {
     if (mode === 'challenge') return `<label>Challenge type<select id="${pre}-variant" ${dis}>${Object.entries(CHALLENGE_VARIANTS).map(([k, x]) => `<option value="${k}" ${k === v.variant ? 'selected' : ''}>${x.name}</option>`).join('')}</select></label><label>Time limit (seconds)<input id="${pre}-mtime" type="number" min="30" max="600" step="30" value="${v.matchTime}" ${dis}></label>`;
-    if (mode === 'race') return `<label>Laps<input id="${pre}-laps" type="number" min="1" max="10" value="${v.laps}" ${dis}></label>`;
+    if (isRaceMode(mode)) return `<label>Laps<input id="${pre}-laps" type="number" min="1" max="10" value="${v.laps}" ${dis}></label>`;
     if (mode === 'battle') return '<p class="muted">Drift Battle is 1 v 1: the first two players compete, anyone else spectates.</p>';
     if (mode === 'competitive') return `<label>Rounds<input id="${pre}-rounds" type="number" min="1" max="5" value="${v.rounds}" ${dis}></label><label>Round length (s)<input id="${pre}-time" type="number" min="30" max="300" step="15" value="${v.roundTime}" ${dis}></label>`;
     return '';
@@ -5905,7 +5961,7 @@ class UI {
       ${this.modeFields(room.mode, room, dis, 'lb')}
       <label>Performance mods<select id="lb-rules" ${dis}>${Object.entries(RULES).map(([k, x]) => `<option value="${k}" ${k === (room.rules || 'open') ? 'selected' : ''}>${x.name}</option>`).join('')}</select></label>
       <p class="muted">${RULES[room.rules || 'open'].desc}</p>
-      ${this.compMaps(room.mode).includes(room.map) ? '' : '<p class="bad-note">This map has no ' + (room.mode === 'race' ? 'race circuit' : 'battle course') + ' — pick another map.</p>'}
+      ${this.compMaps(room.mode).includes(room.map) ? '' : '<p class="bad-note">This map has no ' + (isRaceMode(room.mode) ? 'race circuit' : 'battle course') + ' — pick another map.</p>'}
       ${host ? (room.status === 'lobby' ? '<p class="muted"><b>You are the host:</b> you choose the mode and map.</p>' : '<p class="muted">A game is running. Press <b>End game</b> to change mode or map.</p>')
         : `<p class="muted">Only the host (<b>${esc((room.players.find((p) => p.id === room.hostId) || {}).name || '?')}</b>) can change settings.</p>`}`;
     const send = (patch) => N.send({ t: 'settings', settings: patch });
@@ -6261,14 +6317,14 @@ return { Effects };
 
 // ===== js/compmodes.js =====
 __mod["js/compmodes.js"] = (function () {
-// Competitive mode controllers: Drift Challenge, Speed Race, Drift Battle.
+// Competitive mode controllers: Drift Challenge, Speed Race, Drift Race, Drift Battle.
 // They plug into Game through a few hooks (load, filterInput, stepExtras, onSample, update,
 // draw, hud, destroy). Solo play is fully local; online play follows the SERVER's clock and
 // uses the server's official scores/positions/results (the local judges only drive the live HUD).
 const { Vehicle, PHYS_DT } = __mod["js/physics.js"];
 const { CARS, carById, buildCarModel, carDrawItems } = __mod["js/cars.js"];
 const { raceRoute, gridSlots, RaceTracker, battleCourse, RACE } = __mod["js/tracks.js"];
-const { CompDriftJudge, BattleRun, battleTotals, challengeScore, CHALLENGE_VARIANTS } = __mod["js/judge.js"];
+const { CompDriftJudge, round2, BattleRun, battleTotals, challengeScore, CHALLENGE_VARIANTS, DRIFT_RACE, AI_DRIFT, AI_JUDGE, aiDriftSample, driftRaceRank, driftRaceBonus } = __mod["js/judge.js"];
 const { AIDriver, AI_SKILL } = __mod["js/ai.js"];
 const { $, fmt, esc, toast } = __mod["js/ui.js"];
 const fmtTime = (t) => (t == null || !Number.isFinite(t) ? '—' : `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`);
@@ -6278,6 +6334,7 @@ function createComp(game) {
   const k = game.mode.comp;
   if (k === 'challenge') return new ChallengeComp(game);
   if (k === 'race') return new RaceComp(game);
+  if (k === 'driftrace') return new DriftRaceComp(game);
   if (k === 'battle') return new BattleComp(game);
   return null;
 }
@@ -6422,6 +6479,7 @@ class ChallengeComp extends Comp {
 
 // ======================================================================= SPEED RACE
 class RaceComp extends Comp {
+  get kind() { return 'race'; }
   load() {
     const g = this.g, S = g.app.settings;
     this.route = raceRoute(g.opts.mapId);
@@ -6446,7 +6504,7 @@ class RaceComp extends Comp {
       this.ai.push({ name: names[i], v, model, def, drv: new AIDriver(v, this.route.path, this.cfg.difficulty || 'medium', 11 + i * 7), tr: new RaceTracker(this.route, this.laps), tag, k: 0 });
     }
     this.standings = [];
-    if (this.mp) { this.bindStart(); this.on('mState', (m) => { if (m.mode === 'race') { this.standings = m.rows; this.serverMe = m.rows.find((r) => r.id === this.net.id); } }); }
+    if (this.mp) { this.bindStart(); this.on('mState', (m) => { if (m.mode === this.kind) { this.standings = m.rows; this.serverMe = m.rows.find((r) => r.id === this.net.id); } }); }
     this.readyUp();
   }
   stepExtras(dt) {
@@ -6559,6 +6617,126 @@ class RaceComp extends Comp {
       rows.slice(0, 8).map((r, i) => `<div class="lb-row ${r.me ? 'me' : ''}"><span>${i + 1}</span><b>${esc(r.name)}</b><em>${r.finished ? fmtTime(r.time) : `Lap ${Math.min(this.laps, r.lap + 1)}`}</em></div>`).join(''), 'Race standings');
   }
   destroy() { super.destroy(); for (const a of this.ai) a.tag.remove(); }
+}
+
+// ======================================================================= DRIFT RACE
+// The Speed Race circuit, grid, laps and checkpoints — but the result is
+//   score = drift points earned during the race + finishing-position bonus (judge.js DRIFT_RACE).
+// The player's drifting is judged from the official 20 Hz samples (online the SERVER's judge is official);
+// CPU drivers race on grip and get an estimated drift score from how hard they corner.
+const DNF_AFTER = 60; // solo: seconds after the first CPU finishes before an unfinished player is DNF
+class DriftRaceComp extends RaceComp {
+  get kind() { return 'driftrace'; }
+  load() {
+    const g = this.g;
+    this.ownsScoring = true;
+    this.dj = new CompDriftJudge(g.opts.mapId, (t, d) => { if (t !== 'penalty') g.onScore(t, d); }, DRIFT_RACE.judge);
+    g.scorer = this.dj.scorer; g.scorer.enabled = true;
+    $('#hud-drift').classList.remove('hidden'); $('#hud-score').classList.remove('hidden');
+    super.load();
+    this.aiF = AI_DRIFT[this.cfg.difficulty || 'medium'] || AI_DRIFT.medium;
+    for (const a of this.ai) { a.dj = new CompDriftJudge(g.opts.mapId, () => {}, AI_JUDGE); a.vy = null; a.sk = 0; a.lastLap = 0; }
+    this.cutT = 0;
+  }
+  aiDrift(a) { return Math.round((a.dj.total + a.dj.live) * this.aiF); }
+  myDrift() { return Math.round(this.dj.total + this.dj.live); }
+  onSample(s, ctx) {
+    // judge first, then the tracker (same order as the server): a lap line banks the combo
+    if (this.phase === 'running' && this.t >= 0 && !this.tracker.finished) this.dj.push(s, ctx);
+    super.onSample(s, ctx);
+  }
+  // CPU drift estimates are sampled every 0.05 s of SIMULATED time (not per rendered frame), so a slow
+  // frame rate can't change their score
+  stepExtras(dt) {
+    super.stepExtras(dt);
+    if ((this.phase !== 'running' && this.phase !== 'done') || this.t < 0) return;
+    for (const a of this.ai) {
+      a.acc = (a.acc || 0) + dt;
+      while (a.acc >= 0.05) { a.acc -= 0.05; this.aiSample(a); }
+    }
+  }
+  aiSample(a) {
+    if (a.tr.lap > a.lastLap) { a.lastLap = a.tr.lap; a.dj.scorer.bank(); } // lap line banks the combo
+    if (a.tr.finished) { if (!a.dj.finished) a.dj.finish(); return; }
+    const v = a.v, jump = a.px !== undefined && Math.hypot(v.x - a.px, v.z - a.pz) > 8; // stuck-reset
+    a.px = v.x; a.pz = v.z;
+    const s = { k: ++a.sk, x: round2(v.x), z: round2(v.z), h: round2(v.h), vx: round2(v.vx), vz: round2(v.vz), f: (v.drifting ? 1 : 0) | (jump ? 256 : 0), sl: round2(v.rel) };
+    const o = aiDriftSample(s, jump ? null : a.vy, 0.05);
+    a.vy = o.velYaw; a.dj.push(o.s);
+  }
+  onEvent(ev) {
+    if (ev.type === 'lap' || ev.type === 'finish') this.dj.scorer.bank();
+    if (ev.type === 'finish') this.dj.finish();
+    super.onEvent(ev);
+  }
+  update(dt, sim) {
+    super.update(dt, sim);
+    // solo: once a CPU has finished, an unfinished player has DNF_AFTER seconds left (no endless slow drifting)
+    if (!this.mp && this.phase === 'running' && !this.resultShown && this.ai.some((a) => a.tr.finished)) {
+      this.cutT += sim ? dt : 0;
+      this.cutLeft = Math.max(0, DNF_AFTER - this.cutT);
+      if (this.cutT > DNF_AFTER) { this.phase = 'done'; this.dnf = true; this.dj.finish(); this.g.bigText('TIME UP', 1500); this.maybeSoloResults(true); }
+    }
+  }
+  maybeSoloResults(force) {
+    if (this.resultShown || (!force && !this.ai.every((a) => a.tr.finished))) return;
+    if (!this.dj.finished) this.dj.finish();
+    for (const a of this.ai) if (!a.dj.finished) a.dj.finish();
+    const c = this.g.car;
+    const all = [{ name: this.g.app.settings.playerName, me: true, tr: this.tracker, x: c.x, z: c.z, drift: this.myDrift() },
+      ...this.ai.map((a) => ({ name: a.name, cpu: true, tr: a.tr, x: a.v.x, z: a.v.z, drift: this.aiDrift(a) }))];
+    const rows = driftRaceRank(all.map((r) => ({ name: r.name, me: r.me, cpu: r.cpu, finished: r.tr.finished, time: r.tr.finishTime, best: r.tr.best, laps: r.tr.lap, prog: r.tr.progress(r.x, r.z), drift: r.drift })), this.laps);
+    const mine = rows.find((r) => r.me);
+    this.g.app.saveRecord('driftrace', { map: this.g.opts.mapId, laps: this.laps, score: mine.total, drift: mine.drift, bonus: mine.bonus, racePos: mine.racePos, pos: mine.pos, field: rows.length, finished: mine.finished });
+    this.showResults(this.resultsHtml(rows, true), { solo: true });
+  }
+  onServerResult(m) {
+    if (m.mode !== 'driftrace') return;
+    this.phase = 'done'; if (!this.dj.finished) this.dj.finish();
+    const rows = m.rows.map((r) => ({ ...r, laps: r.lap, me: r.id === this.net.id }));
+    const mine = rows.find((r) => r.me);
+    if (mine && !this._saved) { this._saved = true; this.g.app.saveRecord('driftrace', { map: this.g.opts.mapId, laps: m.laps, score: mine.total, drift: mine.drift, bonus: mine.bonus, racePos: mine.racePos, pos: mine.pos, field: rows.length, finished: mine.finished }); }
+    this.showResults(this.resultsHtml(rows, false), { solo: false });
+  }
+  resultsHtml(rows, solo) {
+    const w = rows[0], mi = rows.findIndex((r) => r.me);
+    return `<div class="res-kicker">Drift Race · ${esc(this.route.name)} · ${this.laps} lap${this.laps === 1 ? '' : 's'}${solo ? ` · ${AI_SKILL[this.cfg.difficulty || 'medium'].name} CPU` : ''}</div>
+      <h2>${w && w.total > 0 ? `🏆 ${esc(w.name)} wins with ${fmt(w.total)}` : 'No score'}${mi >= 0 ? ` · you placed #${mi + 1}` : ''}</h2>
+      <table class="res-table dr-res"><tr><th>#</th><th>Driver</th><th>Race</th><th>Drift pts</th><th></th><th>Position bonus</th><th></th><th>Total</th></tr>
+      ${rows.map((r, i) => `<tr class="${r.me ? 'me' : ''} ${i === 0 && r.total > 0 ? 'win' : ''}"><td>${i + 1}</td><td>${esc(r.name)}${r.cpu ? ' <i class="cpu-tag">CPU</i>' : ''}${r.left ? ' <i class="cpu-tag">left</i>' : ''}</td>
+        <td>${r.finished ? `P${r.racePos} · ${fmtTime(r.time)}` : `DNF · lap ${Math.min(this.laps, r.laps + 1)}/${this.laps}`}</td><td>${fmt(r.drift)}</td><td class="op">+</td><td>${r.bonus ? fmt(r.bonus) : '—'}</td><td class="op">=</td><td><b>${fmt(r.total)}</b></td></tr>`).join('')}</table>
+      <p class="muted">Position bonus per lap: ${DRIFT_RACE.bonusPerLap.slice(0, 5).map((b, i) => `P${i + 1} ${fmt(b)}`).join(' · ')}… (× ${this.laps} lap${this.laps === 1 ? '' : 's'}). Unfinished drivers get no bonus. ${solo ? 'CPU drift points are estimated from how hard they corner.' : 'Official drift points and positions computed by the server.'}</p>`;
+  }
+  // live standings: race order, each with drift points and the bonus they'd get finishing there
+  drStandings() {
+    let rows;
+    if (this.mp && this.standings.length) rows = this.standings.map((r) => ({ name: r.name, me: r.id === this.net.id, lap: r.lap, finished: r.finished, time: r.time, drift: (r.drift || 0) + (r.live || 0), racePos: r.pos }));
+    else {
+      const c = this.g.car;
+      rows = [{ name: this.g.app.settings.playerName, me: true, tr: this.tracker, x: c.x, z: c.z, drift: this.myDrift() }, ...this.ai.map((a) => ({ name: a.name, tr: a.tr, x: a.v.x, z: a.v.z, drift: this.aiDrift(a) }))]
+        .map((r) => ({ name: r.name, me: r.me, p: r.tr.progress(r.x, r.z), lap: r.tr.lap, finished: r.tr.finished, time: r.tr.finishTime, drift: r.drift }))
+        .sort((a, b) => b.p - a.p).map((r, i) => ({ ...r, racePos: i + 1 }));
+    }
+    for (const r of rows) { r.bonus = this.dnf && r.me ? 0 : driftRaceBonus(r.racePos, this.laps, true); r.score = r.drift + r.bonus; }
+    return rows;
+  }
+  hud() {
+    const t = this.tracker, rows = this.drStandings(), me = rows.find((r) => r.me) || { racePos: 1, drift: 0, bonus: 0, score: 0 };
+    const lap = Math.min(this.laps, (this.mp && this.serverMe ? this.serverMe.lap : t.lap) + 1);
+    const time = this.phase === 'running' ? this.t : this.phase === 'done' ? (t.finishTime || this.t) : 0;
+    const cp = t.started ? (t.next === 0 ? t.gateCount : t.next) : 0;
+    const sc = this.dj.scorer, combo = sc.chain > 0 ? Math.round(sc.liveScore) : 0;
+    const drift = this.myDrift(); // local judge: instant feedback (online the server's numbers rank you)
+    const board = [...rows].sort((a, b) => b.score - a.score).slice(0, 8)
+      .map((r, i) => `<div class="lb-row ${r.me ? 'me' : ''}"><span>${i + 1}</span><b>${esc(r.name)} <i class="dr-pos">P${r.racePos}</i></b><em>${fmt(r.score)}</em></div>`).join('');
+    // the live combo itself is the big drift counter under this panel (#hud-drift)
+    this.hudBox(`<div class="race-top"><div class="pos">P${me.racePos}<small>/${rows.length}</small></div>
+      <div class="lap">LAP <b>${t.finished ? this.laps : lap}</b>/${this.laps}</div></div>
+      <div class="cstats dr-stats"><span>Drift pts <b class="${combo ? 'dr-live' : ''}">${fmt(drift)}</b></span><span>P${me.racePos} bonus <b>+${fmt(me.bonus)}</b></span><span>Score <b>${fmt(drift + me.bonus)}</b></span><span>Time <b>${fmtTime(Math.max(0, time))}</b></span></div>
+      <div class="cpbar" title="Checkpoints this lap"><i style="width:${(cp / t.gateCount) * 100}%"></i><span>Checkpoint ${cp}/${t.gateCount}</span></div>
+      ${this.warn ? `<div class="cwarn">${this.warn}</div>` : ''}${this.cutLeft != null && this.phase === 'running' && !this.mp ? `<div class="cwarn">Finish in ${Math.ceil(this.cutLeft)} s or DNF</div>` : ''}`,
+      board, 'Drift Race · points');
+  }
 }
 
 // ======================================================================= DRIFT BATTLE
@@ -7430,6 +7608,11 @@ class App {
       const r = ((R.race = R.race || {})[d.map] = R.race[d.map] || { total: {} });
       if (d.time && (!r.total[d.laps] || d.time < r.total[d.laps])) r.total[d.laps] = d.time;
       if (d.best && (!r.lap || d.best < r.lap)) r.lap = d.best;
+      r.races = (r.races || 0) + 1; if (d.pos === 1 && d.field > 1) r.wins = (r.wins || 0) + 1;
+    } else if (type === 'driftrace') {
+      const r = ((R.driftrace = R.driftrace || {})[d.map] = R.driftrace[d.map] || { score: {} });
+      if (d.finished && d.score > (r.score[d.laps] || 0)) r.score[d.laps] = d.score;
+      r.drift = Math.max(r.drift || 0, d.drift || 0);
       r.races = (r.races || 0) + 1; if (d.pos === 1 && d.field > 1) r.wins = (r.wins || 0) + 1;
     } else if (type === 'battle') {
       const b = (R.battle = R.battle || {});

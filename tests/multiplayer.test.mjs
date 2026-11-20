@@ -325,6 +325,107 @@ await test('static files: no access outside public/', async () => {
   eq((await fetch(`http://localhost:${P}/`)).status, 200, 'index served');
 });
 
+// ---------------------------------------------------------------- Drift Race
+const TR = await import(path.join(ROOT, 'public', 'js', 'tracks.js'));
+const JD = await import(path.join(ROOT, 'public', 'js', 'judge.js'));
+const DRIFT = { mode: 'driftrace', map: 'city', laps: 1, isPublic: false };
+// scripted driver: follows the race line from its grid slot at `speed` m/s, sending 20 Hz samples in real time.
+// angle(t) = heading offset from the direction of travel (radians); drifting flag set when it's non-zero.
+function driveRoute(cl, map, grid, { speed = 40, angle = () => 0, startAt }) {
+  const route = TR.raceRoute(map), P = route.path, n = P.n, row = Math.floor(grid / 2), lane = grid % 2 ? -1 : 1, off = lane * route.width * 0.22;
+  let idx = -(3 + row * 3), k = 0, stop = false;
+  const at = (fi) => { const i0 = Math.floor(fi), f = fi - i0, a = ((i0 % n) + n) % n, b = (a + 1) % n; return { x: P.x[a] + (P.x[b] - P.x[a]) * f - P.tz[a] * off, z: P.z[a] + (P.z[b] - P.z[a]) * f + P.tx[a] * off }; };
+  const tick = () => {
+    if (stop) return;
+    const t = (Date.now() - startAt) / 1000, go = t >= 0;
+    const a = at(idx), b = at(idx + 0.5), dir = Math.atan2(b.x - a.x, b.z - a.z), v = go ? speed : 0;
+    const ang = go ? angle(t) : 0;
+    cl.send({ t: 'st', k: ++k, p: [a.x, 0, a.z], h: dir + ang, vx: Math.sin(dir) * v, vz: Math.cos(dir) * v, f: ang ? 1 : 0, sl: ang });
+    if (go) idx += (speed * 0.05) / 3;
+  };
+  const id = setInterval(tick, 50);
+  return { stop: () => { stop = true; clearInterval(id); } };
+}
+async function driftRoom(port, settings = DRIFT) {
+  const host = await client(port, 'Host'), friend = await client(port, 'Friend');
+  host.send({ t: 'create', settings }); const j = await host.wait('joined');
+  friend.send({ t: 'join', code: j.room.code }); await friend.wait('joined');
+  await host.wait((m) => m.t === 'room' && m.room.players.length === 2, 3000, 'room with 2 players');
+  return { host, friend, code: j.room.code };
+}
+
+await test('drift race room: stays Drift Race when a friend joins, on start, and after back to lobby', async () => {
+  const { host, friend } = await driftRoom(P, { ...DRIFT, map: 'track', laps: 4 });
+  eq(friend.room.mode, 'driftrace', 'friend sees Drift Race'); eq(host.room.mode, 'driftrace', 'host still Drift Race after join'); eq(host.room.laps, 4, 'laps kept');
+  host.send({ t: 'start' });
+  const gs = await friend.wait('gameStart'); eq(gs.mode, 'driftrace', 'gameStart mode'); eq(gs.comp.laps, 4, 'laps sent'); eq(gs.spectator, false, 'friend competes');
+  eq((await host.wait('gameStart')).mode, 'driftrace', 'host gameStart');
+  host.send({ t: 'ready' }); friend.send({ t: 'ready' });
+  eq((await host.wait('mStart')).mode, 'driftrace', 'match started as Drift Race');
+  const st = await host.wait((m) => m.t === 'mState', 3000, 'mState'); eq(st.mode, 'driftrace', 'live state mode'); ok(st.rows.every((r) => 'drift' in r), 'rows carry drift points');
+  host.send({ t: 'end' }); await friend.wait('gameEnd');
+  eq((await friend.wait((m) => m.t === 'room' && m.room.status === 'lobby')).room.mode, 'driftrace', 'back in the lobby: still Drift Race');
+  const late = await client(P, 'Late'); late.send({ t: 'join', code: host.room.code });
+  eq((await late.wait('joined')).room.mode, 'driftrace', 'a third player joining the lobby sees Drift Race');
+  eq((await host.wait((m) => m.t === 'room' && m.room.players.length === 3)).room.mode, 'driftrace', 'host still Drift Race');
+  host.send({ t: 'settings', settings: { laps: 2 } });
+  eq((await friend.wait((m) => m.t === 'room' && m.room.laps === 2)).room.mode, 'driftrace', 'host can change laps; mode unchanged');
+  host.close(); friend.close(); late.close();
+});
+
+await test('drift race: a map without a circuit is refused like Speed Race', async () => {
+  const a = await client(P, 'A'); a.send({ t: 'create', settings: { ...DRIFT, map: 'mountain' } }); await a.wait('joined');
+  a.send({ t: 'start' }); ok(/race circuit/.test((await a.wait('error')).msg), 'explains why');
+  a.close();
+});
+
+await test('drift race results: drift points + position bonus (a drifter finishing 2nd beats a grip racer finishing 1st)', async () => {
+  const R = await startServer({ RACE_REST_MS: '8000' });
+  const { host, friend } = await driftRoom(R.port);
+  host.send({ t: 'start' });
+  const gh = await host.wait('gameStart'), gf = await friend.wait('gameStart');
+  host.send({ t: 'ready' }); friend.send({ t: 'ready' });
+  const ms = await host.wait('mStart');
+  // host = grip racer (faster); friend = drifter (slower, holds a steady 30° slide)
+  const d1 = driveRoute(host, 'city', gh.grid, { speed: 46, startAt: ms.startAt });
+  const d2 = driveRoute(friend, 'city', gf.grid, { speed: 43, startAt: ms.startAt, angle: () => 0.52 });
+  const res = await host.wait('mResult', 60000, 'drift race result');
+  d1.stop(); d2.stop();
+  eq(res.mode, 'driftrace', 'result mode');
+  const H = res.rows.find((r) => r.id === host.id), Fr = res.rows.find((r) => r.id === friend.id);
+  ok(H.finished && Fr.finished, 'both finished');
+  eq(H.racePos, 1, 'racer crossed the line first'); eq(Fr.racePos, 2, 'drifter second');
+  eq(H.drift, 0, 'no drift points without drifting');
+  ok(Fr.drift > 0, `drifter earned drift points (${Fr.drift})`);
+  eq(H.bonus, JD.driftRaceBonus(1, 1, true), 'P1 bonus'); eq(Fr.bonus, JD.driftRaceBonus(2, 1, true), 'P2 bonus');
+  eq(H.total, H.drift + H.bonus, 'total = drift + bonus'); eq(Fr.total, Fr.drift + Fr.bonus, 'total = drift + bonus');
+  ok(Fr.drift <= JD.driftRateCap(Fr.time + 1), 'within the rate cap');
+  eq(res.rows[0].id, friend.id, 'the drifter wins overall'); eq(res.winnerId, friend.id, 'winnerId');
+  eq((await friend.wait('mResult')).winnerId, friend.id, 'friend sees the same result');
+  const recs = await (await fetch(`http://localhost:${R.port}/records`)).json();
+  ok(recs.driftrace && recs.driftrace.city && recs.driftrace.city.score['1'].length === 2, 'online Drift Race records saved');
+  // host goes back to the lobby: the room is still Drift Race
+  host.send({ t: 'end' }); eq((await friend.wait((m) => m.t === 'room' && m.room.status === 'lobby')).room.mode, 'driftrace', 'still Drift Race');
+  host.close(); friend.close(); await R.stop();
+});
+
+await test('drift race anti-cheat: absurd drift reports are clamped to a sane rate', async () => {
+  const a = await client(P, 'Cheater');
+  a.send({ t: 'create', settings: { ...DRIFT, laps: 3 } }); await a.wait('joined');
+  a.send({ t: 'start' }); const gs = await a.wait('gameStart'); a.send({ t: 'ready' });
+  const ms = await a.wait('mStart');
+  a.send({ t: 'sc', total: 1e300, best: 1e300, chain: 1e300 }); // free-play score reports are ignored here
+  // spoofed samples: spinning 2 turns a second at speed (each 360 is a big trick bonus)
+  const d = driveRoute(a, 'city', gs.grid, { speed: 22, startAt: ms.startAt, angle: (t) => (t * 12) % (Math.PI * 2) - Math.PI });
+  await sleep(Math.max(0, ms.startAt - Date.now()) + 7000);
+  const st = await a.wait((m) => m.t === 'mState' && m.rows[0].capped, 3000, 'capped state');
+  const me = st.rows[0], secs = (Date.now() - ms.startAt) / 1000;
+  ok(me.capped, 'flagged as capped');
+  ok(me.drift + me.live <= JD.driftRateCap(secs) + 1, `drift ${me.drift}+${me.live} within cap ${JD.driftRateCap(secs)}`);
+  ok(Number.isFinite(me.drift) && me.drift < 1e6, 'finite and small');
+  d.stop(); a.send({ t: 'leave' }); a.close();
+});
+
 ok(S.alive(), 'main server survived all tests');
 await S.stop();
 const failed = results.filter((r) => !r[0]);

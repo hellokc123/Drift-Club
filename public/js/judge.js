@@ -40,11 +40,14 @@ class Kinematics {
 // tandem, combo chains) and adds drift distance, smoothness, collision and off-track penalties,
 // and the stats the results screen needs.
 export const PENALTY = { crash: 250, offtrack: 150 };
+// opts (Drift Race): maxMult caps the combo multiplier, pace scales every point gained by the car's
+// speed (slow drifting earns little), noDeduct = crashes / leaving the track only cost the live combo.
 export class CompDriftJudge {
-  constructor(mapId, onEvent = () => {}) {
+  constructor(mapId, onEvent = () => {}, opts = {}) {
     this.geo = new TrackGeo(mapId);
-    this.onEvent = onEvent;
+    this.onEvent = onEvent; this.opts = opts;
     this.scorer = new DriftScorer((t, d) => this.onEvent(t, d));
+    if (opts.maxMult) this.scorer.maxMult = opts.maxMult;
     this.kin = new Kinematics();
     this.offTrack = false; this.penalties = 0; this.penaltyCount = { crash: 0, offtrack: 0 };
     this.maxMult = 1; this.maxCombo = 0; this.bestAngle = 0;
@@ -57,7 +60,7 @@ export class CompDriftJudge {
     if (this.finished) return;
     const c = this.kin.push(s), sc = this.scorer;
     // --- collisions: reported impact OR a sudden stop the server can see for itself
-    if ((c.impact || c.decel > 14) && c.speed < 30) this.penalize('crash');
+    if ((c.impact || (c.decel > 14 && !this.opts.noDecelCrash)) && c.speed < 30) this.penalize('crash');
     // --- leaving the track
     const edge = this.geo.edge(s.x, s.z);
     const off = edge > OFF_TRACK_MARGIN;
@@ -79,6 +82,7 @@ export class CompDriftJudge {
       this.angEma += (Math.min(85, sc.angle) - this.angEma) * 0.15;
       if (this.smooth > 0.8) this.bestAngle = Math.max(this.bestAngle, this.angEma);
     } else this.angEma *= 0.8;
+    if (this.opts.pace && sc.chain > before) sc.chain = before + (sc.chain - before) * paceFactor(c.speed);
     // drift length = distance covered while a drift chain is alive and the car is sliding
     if (sc.chain > 0 && car.mode !== 'grip') { this.distance += c.speed * c.dt; this.curDrift += c.speed * c.dt; this.longest = Math.max(this.longest, this.curDrift); }
     if (sc.chain === 0) this.curDrift = 0;
@@ -87,9 +91,9 @@ export class CompDriftJudge {
   }
   penalize(kind) {
     this.penaltyCount[kind]++;
-    this.penalties += PENALTY[kind];
+    if (!this.opts.noDeduct) this.penalties += PENALTY[kind];
     if (this.scorer.chain > 0) this.scorer.crash(kind === 'offtrack' ? 'offtrack' : 'crash');
-    this.onEvent('penalty', { kind, points: PENALTY[kind] });
+    this.onEvent('penalty', { kind, points: this.opts.noDeduct ? 0 : PENALTY[kind] });
   }
   finish() { if (!this.finished) { this.scorer.bank(); this.finished = true; } return this.summary(); }
   summary() {
@@ -99,6 +103,45 @@ export class CompDriftJudge {
       penalties: this.penalties, crashes: this.penaltyCount.crash, offtracks: this.penaltyCount.offtrack, tricks: { ...this.scorer.stats },
     };
   }
+}
+// ==================================================================== DRIFT RACE
+// A race on the Speed Race circuit where drifting AND finishing well both count.
+//   final score = drift points (earned until you finish) + finishing-position bonus
+// Drift points use the Drift Challenge judge with race tuning: combo multiplier capped at ×4,
+// the live combo banks automatically at every lap line, every point is scaled by speed
+// (paceFactor: nothing below 10 m/s ≈ 36 km/h, full value from 24 m/s ≈ 86 km/h) so slow "parking-lot" drifting at the
+// back can't out-score racing, and crashes / leaving the track only cost the live combo.
+export const DRIFT_RACE = {
+  judge: { maxMult: 4, pace: true, noDeduct: true },
+  // bonus per lap for each finishing position (P1, P2, …); DNF earns no bonus
+  bonusPerLap: [40000, 30000, 22000, 16000, 11000, 7500, 5000, 3000, 2000, 1500, 1000, 500],
+  maxRate: 3500, // anti-cheat: drift points can't average more than this per second of racing (+ slack)
+  slack: 6000,
+};
+export const paceFactor = (speed) => clamp((speed - 10) / 14, 0, 1.25);
+export const driftRaceBonus = (pos, laps, finished) => (finished && pos >= 1 ? (DRIFT_RACE.bonusPerLap[pos - 1] ?? 0) * Math.max(1, laps) : 0);
+export const driftRateCap = (secs) => Math.round(Math.max(0, secs) * DRIFT_RACE.maxRate + DRIFT_RACE.slack);
+// rank rows {finished, time, prog, drift}: race positions first (finishers by time, then by progress), then
+// add the bonus and sort by total. Ties on total go to the better race position.
+export function driftRaceRank(rows, laps) {
+  const byRace = [...rows].sort((a, b) => (b.finished - a.finished) || (a.finished ? a.time - b.time : b.prog - a.prog));
+  byRace.forEach((r, i) => { r.racePos = i + 1; r.drift = Math.max(0, Math.round(r.drift || 0)); r.bonus = driftRaceBonus(i + 1, laps, r.finished); r.total = r.drift + r.bonus; });
+  return byRace.sort((a, b) => b.total - a.total || a.racePos - b.racePos).map((r, i) => ({ ...r, pos: i + 1 }));
+}
+// CPU drivers race on grip, so their drift points are ESTIMATED from how hard they corner: the same judge
+// is fed a virtual slip angle that grows with lateral acceleration (skill sets how bold they are).
+// The estimate is then scaled by skill (AI_DRIFT) so CPUs are beatable but never score zero.
+export const AI_DRIFT = { easy: 0.25, medium: 0.4, hard: 0.55 };
+export const AI_JUDGE = { ...DRIFT_RACE.judge, pace: false, noDecelCrash: true };
+export function aiDriftSample(s, prevVelYaw, dt) {
+  const speed = Math.hypot(s.vx, s.vz); if (speed < 1.2) return { s, velYaw: prevVelYaw };
+  const velYaw = Math.atan2(s.vx, s.vz);
+  const rate = prevVelYaw == null ? 0 : wrapAngle(velYaw - prevVelYaw) / dt;
+  const lat = Math.abs(rate) * speed; // m/s² of cornering
+  const ang = clamp((lat - 4) * 4.2, 0, 42); // degrees
+  if (ang < 13 || speed < 7.5) return { s: { ...s, f: s.f & ~1 }, velYaw };
+  const rel = (rate >= 0 ? 1 : -1) * ang / 57.3; // nose points to the inside of the corner
+  return { s: { ...s, h: round2(wrapAngle(velYaw + rel)), f: s.f | 1, sl: round2(rel) }, velYaw };
 }
 // challenge variants: 'attack' = best single drift chain wins, 'timed' = total points in the time limit
 export const CHALLENGE_VARIANTS = { timed: { name: 'Timed Challenge', defaultTime: 120 }, attack: { name: 'Score Attack', defaultTime: 180 } };

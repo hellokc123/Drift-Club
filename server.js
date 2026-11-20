@@ -14,8 +14,9 @@ const PORT = Number(process.env.PORT) || 3000;
 const PUB = path.join(__dirname, 'public');
 
 const MAPS = ['track', 'desert', 'mountain', 'forest', 'city'];
-const MODES = ['endless', 'standard', 'chill', 'competitive', 'challenge', 'race', 'battle'];
-const COMP_MODES = ['challenge', 'race', 'battle'];
+const MODES = ['endless', 'standard', 'chill', 'competitive', 'challenge', 'race', 'driftrace', 'battle'];
+const COMP_MODES = ['challenge', 'race', 'driftrace', 'battle'];
+const RACE_MODES = ['race', 'driftrace']; // modes run on the race circuits (grid, laps, checkpoints)
 const SNAPSHOT_HZ = 20;
 const MAX_PAYLOAD = 64 * 1024;
 const RESUME_GRACE_MS = 30000; // a dropped player keeps their slot this long (Wi-Fi blips, page refresh)
@@ -24,7 +25,7 @@ const FLOOD_LIMIT = 60; // messages per half second per connection (the game sen
 const RESULTS_AUTO_LOBBY_MS = Number(process.env.RESULTS_AUTO_LOBBY_MS) || 120000; // a finished match goes back to the lobby by itself after this
 const RACE_REST_MS = Number(process.env.RACE_REST_MS) || 60000; // after the first finisher, the others get this long
 const BOOT_ID = crypto.randomBytes(4).toString('hex'); // changes on every server restart
-const MODE_NAMES = { endless: 'Endless', standard: 'Standard', chill: 'Chill', competitive: 'Competitive', challenge: 'Drift Challenge', race: 'Speed Race', battle: 'Drift Battle' };
+const MODE_NAMES = { endless: 'Endless', standard: 'Standard', chill: 'Chill', competitive: 'Competitive', challenge: 'Drift Challenge', race: 'Speed Race', driftrace: 'Drift Race', battle: 'Drift Battle' };
 // per-message-type limits: [messages per second, burst]
 const RATE = { chat: [2, 3], create: [1, 2], join: [2, 3], peek: [2, 3], list: [2, 3], records: [1, 2], settings: [5, 8], start: [1, 2], rematch: [1, 2] };
 
@@ -44,7 +45,7 @@ const ready = (async () => {
 // -------------------------------------------------------------
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const REC_FILE = path.join(DATA_DIR, 'records.json');
-let records = { challenge: {}, race: {}, battle: { players: {} }, matches: [] };
+let records = { challenge: {}, race: {}, driftrace: {}, battle: { players: {} }, matches: [] };
 try { records = { ...records, ...JSON.parse(fs.readFileSync(REC_FILE, 'utf8')) }; } catch { /* first run */ }
 let recSaveT = null;
 function saveRecords() {
@@ -441,8 +442,9 @@ function endGame(r) {
 // 20 Hz samples, using the same rules code as the browser (tracks.js / judge.js).
 // -------------------------------------------------------------
 function startMatch(r) {
-  const valid = r.mode === 'race' ? SH.RACE_MAPS : r.mode === 'battle' ? SH.BATTLE_MAPS : MAPS;
-  if (!valid.includes(r.map)) return r.mode === 'race' ? 'Pick a map with a race circuit (Apex Circuit, Dune Valley, Pinewood Trails or City Nights)' : 'Pick a map with a battle course (Apex Circuit, Dune Valley, Kurogane Pass or Pinewood Trails)';
+  const isRace = RACE_MODES.includes(r.mode);
+  const valid = isRace ? SH.RACE_MAPS : r.mode === 'battle' ? SH.BATTLE_MAPS : MAPS;
+  if (!valid.includes(r.map)) return isRace ? 'Pick a map with a race circuit (Apex Circuit, Dune Valley, Pinewood Trails or City Nights)' : 'Pick a map with a battle course (Apex Circuit, Dune Valley, Kurogane Pass or Pinewood Trails)';
   const present = [...r.players].filter((id) => !clients.get(id).suspended);
   if (r.mode === 'battle' && present.length < 2) return 'Drift Battle needs 2 players in the room (solo players can battle their own ghost from Play → Drift Battle)';
   clearTimers(r);
@@ -452,7 +454,7 @@ function startMatch(r) {
     competitors: r.mode === 'battle' ? present.slice(0, 2) : present, ready: new Set(), p: {},
     variant: r.variant, time: r.matchTime, laps: r.laps, results: [], mStart: null, result: null, round: null,
   };
-  const slots = r.mode === 'race' ? SH.gridSlots(SH.raceRoute(r.map), Math.max(12, M.competitors.length)) : null;
+  const slots = isRace ? SH.gridSlots(SH.raceRoute(r.map), Math.max(12, M.competitors.length)) : null;
   // each competitor's car is locked in at the start: its speed limit comes from the validated setup + room rules
   M.competitors.forEach((id, i) => { const c = clients.get(id); c.state = null; M.p[id] = { grid: i, name: c.name, slot: slots ? slots[i] : null, car: c.car, vmax: speedCap(c.car, r.rules), fast: 0 }; });
   for (const id of r.players) sendGameStart(r, clients.get(id));
@@ -475,7 +477,10 @@ function begin(r) {
     later(r, M.endAt - now + 900, () => finishChallenge(r));
   } else {
     const route = SH.raceRoute(M.map);
-    for (const id of M.competitors) M.p[id].tracker = new SH.RaceTracker(route, M.laps);
+    for (const id of M.competitors) {
+      M.p[id].tracker = new SH.RaceTracker(route, M.laps);
+      if (M.mode === 'driftrace') M.p[id].judge = new SH.CompDriftJudge(M.map, () => {}, SH.DRIFT_RACE.judge);
+    }
     later(r, 4000 + Math.max(10, M.laps * 6) * 60000, () => finishRace(r)); // hard cap
   }
   later(r, 4000, () => { if (M.phase === 'countdown') M.phase = 'running'; });
@@ -504,11 +509,16 @@ function matchSample(r, c, m) {
   if (P.dq) return;
   if (M.mode === 'challenge') {
     if (M.phase === 'running' && now <= M.endAt) P.judge.push(s, { tandem: tandemFor(M, c.id, s, now) });
-  } else if (M.mode === 'race') {
+  } else if (RACE_MODES.includes(M.mode)) {
     const t = (now - M.startAt) / 1000;
     if (t < 0 && P.slot && !P.jump && Math.hypot(s.x - P.slot.x, s.z - P.slot.z) > 6) { P.jump = true; P.penalty = 3; send(c, { t: 'error', msg: 'Jump start: +3 s penalty' }); }
+    // Drift Race: the server judges every competitor's drifting itself from the samples (the browser's
+    // numbers are only its live HUD). Points count from GO until the competitor crosses the finish line.
+    const J = P.judge, judging = J && M.phase === 'running' && t >= 0 && !P.tracker.finished;
+    if (judging) J.push(s, { tandem: tandemFor(M, c.id, s, now) });
     const ev = P.tracker.update({ t, x: s.x, z: s.z, vx: s.vx, vz: s.vz, teleport: !!(s.f & 256) });
-    if (ev && ev.type === 'finish') { P.finishT = ev.t + (P.penalty || 0); checkRaceEnd(r); }
+    if (J && ev && (ev.type === 'lap' || ev.type === 'finish')) J.scorer.bank(); // the combo banks at every lap line
+    if (ev && ev.type === 'finish') { P.finishT = ev.t + (P.penalty || 0); if (J) { J.finish(); P.driftT = t; } checkRaceEnd(r); }
   } else if (M.mode === 'battle') {
     const R = M.round; if (!R || R.ended) return;
     const t = (now - R.startAt) / 1000;
@@ -542,8 +552,19 @@ function finishChallenge(r) {
 function raceRows(M) {
   return M.competitors.map((id) => {
     const P = M.p[id], T = P.tracker, L = P.last;
-    return { id, name: P.name, lap: T ? T.lap : 0, next: T ? T.next : 0, gates: T ? T.gateCount : 0, finished: !!(T && T.finished), time: P.finishT ?? null, best: T ? T.best : null, left: !!P.left, prog: T ? T.progress(L ? L.x : 0, L ? L.z : 0) : 0, penalty: P.penalty || 0 };
+    const row = { id, name: P.name, lap: T ? T.lap : 0, next: T ? T.next : 0, gates: T ? T.gateCount : 0, finished: !!(T && T.finished), time: P.finishT ?? null, best: T ? T.best : null, left: !!P.left, prog: T ? T.progress(L ? L.x : 0, L ? L.z : 0) : 0, penalty: P.penalty || 0 };
+    if (M.mode === 'driftrace') Object.assign(row, driftOf(M, P));
+    return row;
   }).sort((a, b) => (b.finished - a.finished) || (a.finished ? a.time - b.time : b.prog - a.prog)).map((x, i) => ({ ...x, pos: i + 1 }));
+}
+// Drift Race points of one competitor, clamped to a sane rate: no more than DRIFT_RACE.maxRate points
+// per second of racing (+ slack), whatever the samples claimed. Disqualified drivers score nothing.
+function driftOf(M, P) {
+  const J = P.judge; if (!J || P.dq) return { drift: 0, live: 0, mult: 1, capped: false };
+  const secs = P.driftT ?? Math.max(0, (Math.min(Date.now(), M.endedAt || Infinity) - M.startAt) / 1000);
+  const cap = SH.driftRateCap(secs), raw = J.total, live = J.finished ? 0 : J.live;
+  const drift = Math.min(raw, cap);
+  return { drift: Math.round(drift), live: Math.round(Math.max(0, Math.min(live, cap - drift))), mult: J.scorer.mult, combo: J.scorer.combo, capped: raw > cap || raw + live > cap };
 }
 function checkRaceEnd(r) {
   const M = r.match; if (!M || M.phase === 'results') return;
@@ -555,7 +576,14 @@ function checkRaceEnd(r) {
 }
 function finishRace(r) {
   const M = r.match; if (!M || M.phase === 'results') return;
-  M.phase = 'results';
+  M.phase = 'results'; M.endedAt = Date.now();
+  if (M.mode === 'driftrace') {
+    for (const id of M.competitors) { const J = M.p[id].judge; if (J && !J.finished) J.finish(); } // DNF: drift points banked so far still count
+    const rows = SH.driftRaceRank(raceRows(M), M.laps);
+    M.result = { t: 'mResult', mode: 'driftrace', laps: M.laps, rows, winnerId: rows[0] && rows[0].total > 0 ? rows[0].id : null, matchId: M.id };
+    broadcast(r, M.result); broadcastRoom(r); autoLobby(r);
+    return recordResult(M);
+  }
   const rows = raceRows(M);
   M.result = { t: 'mResult', mode: 'race', laps: M.laps, rows, winnerId: rows[0] && rows[0].finished ? rows[0].id : null, matchId: M.id };
   broadcast(r, M.result); broadcastRoom(r); autoLobby(r);
@@ -611,7 +639,7 @@ function competitorLeft(r, id) {
   const M = r.match; if (!M || M.phase === 'results') return;
   M.p[id].left = true;
   if (M.mode === 'battle') finishBattle(r, id);
-  else if (M.mode === 'race') checkRaceEnd(r);
+  else if (RACE_MODES.includes(M.mode)) checkRaceEnd(r);
   else if (M.competitors.every((x) => M.p[x].left)) finishChallenge(r);
 }
 // periodic match state (4 Hz)
@@ -621,7 +649,7 @@ setInterval(() => {
     if (M.mode === 'challenge') {
       const rows = M.competitors.filter((id) => M.p[id].judge).map((id) => { const J = M.p[id].judge; const best = Math.max(J.scorer.best, J.live); return { id, name: M.p[id].name, score: Math.round(M.variant === 'attack' ? best : J.total + J.live), total: Math.round(J.total), best: Math.round(J.scorer.best), mult: J.scorer.mult }; });
       broadcast(r, { t: 'mState', mode: 'challenge', rows });
-    } else if (M.mode === 'race') broadcast(r, { t: 'mState', mode: 'race', rows: raceRows(M) });
+    } else if (RACE_MODES.includes(M.mode)) broadcast(r, { t: 'mState', mode: M.mode, rows: raceRows(M) });
   } catch (e) { console.error(`room ${r.code} state error`, e); }
 }, 250);
 
@@ -645,6 +673,13 @@ function recordResult(M) {
       top(T.total[M.laps] = T.total[M.laps] || [], { name: x.name, time: Math.round(x.time * 1000) / 1000, date }, 'time', 10, true);
       if (x.best) top(T.lap, { name: x.name, time: Math.round(x.best * 1000) / 1000, date }, 'time', 10, true);
     }
+  } else if (M.mode === 'driftrace') {
+    const T = records.driftrace[M.map] = records.driftrace[M.map] || { score: {}, drift: [] };
+    for (const x of R.rows) {
+      if (!x.finished || x.left) continue;
+      top(T.score[M.laps] = T.score[M.laps] || [], { name: x.name, score: x.total, drift: x.drift, bonus: x.bonus, date }, 'score');
+      if (x.drift > 0) top(T.drift, { name: x.name, score: x.drift, laps: M.laps, date }, 'score');
+    }
   } else if (M.mode === 'battle') {
     for (const [P, won] of [[R.a, R.winnerId === R.a.id], [R.b, R.winnerId === R.b.id]]) {
       const e = records.battle.players[P.name] = records.battle.players[P.name] || { wins: 0, losses: 0, draws: 0, points: 0, matches: 0 };
@@ -657,7 +692,7 @@ function recordResult(M) {
 function publicRecords() {
   const battle = Object.entries(records.battle.players).map(([name, e]) => ({ name, ...e, winPct: e.matches ? Math.round((e.wins / e.matches) * 100) : 0 }))
     .sort((a, b) => b.wins - a.wins || b.winPct - a.winPct || b.points - a.points).slice(0, 20);
-  return { challenge: records.challenge, race: records.race, battle };
+  return { challenge: records.challenge, race: records.race, driftrace: records.driftrace || {}, battle };
 }
 
 // -------------------------------------------------------------
