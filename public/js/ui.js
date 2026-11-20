@@ -67,7 +67,7 @@ export class UI {
     $('#mode-cards').innerHTML = FREE_MODES.map((m) => `<button class="card mode ${m.id === this.playSel.mode ? 'sel' : ''}" data-mode="${m.id}"><i>${m.icon}</i><b>${m.name}</b><span>${m.desc}</span></button>`).join('');
     $('#map-cards').innerHTML = MAP_LIST.map((m) => {
       const best = S.bests[`${m.id}:${this.playSel.mode}`];
-      return `<button class="card map ${m.id === this.playSel.map ? 'sel' : ''}" data-map="${m.id}" style="--accent:${m.accent}"><div class="map-thumb t-${m.id}"></div><small>${m.type}</small><b>${m.name}</b><span>${m.desc}</span>${best ? `<em>Best ${fmt(best)}</em>` : ''}</button>`;
+      return `<button class="card map ${m.id === this.playSel.map ? 'sel' : ''}" data-map="${m.id}" style="--map-accent:${m.accent}"><div class="map-thumb t-${m.id}"></div><small>${m.type}</small><b>${m.name}</b><span>${m.desc}</span>${best ? `<em>Best ${fmt(best)}</em>` : ''}</button>`;
     }).join('');
     $$('#mode-cards .card').forEach((b) => (b.onclick = () => { this.click(); this.playSel.mode = b.dataset.mode; this.renderPlay(); }));
     $$('#map-cards .card').forEach((b) => (b.onclick = () => { this.click(); this.playSel.map = b.dataset.map; this.renderPlay(); }));
@@ -90,7 +90,7 @@ export class UI {
     const mapCards = this.compMaps(mode).map((id) => {
       const m = MAP_LIST.find((x) => x.id === id), sub = mode === 'race' ? RACE[id].name : mode === 'battle' ? BATTLE[id].name : m.type;
       const pb = this.personalBest(mode, id, C);
-      return `<button class="card map ${id === C.map ? 'sel' : ''}" data-cmap="${id}" style="--accent:${m.accent}"><div class="map-thumb t-${id}"></div><small>${sub}</small><b>${m.name}</b>${pb ? `<em>${pb}</em>` : ''}</button>`;
+      return `<button class="card map ${id === C.map ? 'sel' : ''}" data-cmap="${id}" style="--map-accent:${m.accent}"><div class="map-thumb t-${id}"></div><small>${sub}</small><b>${m.name}</b>${pb ? `<em>${pb}</em>` : ''}</button>`;
     }).join('');
     let h = '';
     if (mode === 'challenge') {
