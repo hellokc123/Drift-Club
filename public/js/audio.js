@@ -55,7 +55,12 @@ export class AudioEngine {
     this.stopEngine();
     const c = this.ctx, e = this.eng = { p, nodes: [] };
     const out = c.createGain(); out.gain.value = 0; out.connect(this.sfx); e.out = out;
-    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 2.5; lp.connect(out); e.lp = lp;
+    // rev limiter: a low square-wave LFO chops the engine volume when it hits the limiter
+    const lim = c.createGain(); lim.gain.value = 1; lim.connect(out);
+    const lfo = c.createOscillator(); lfo.type = 'square'; lfo.frequency.value = 16;
+    const lfoDepth = c.createGain(); lfoDepth.gain.value = 0; lfo.connect(lfoDepth); lfoDepth.connect(lim.gain); lfo.start();
+    e.lfoDepth = lfoDepth; e.nodes.push(lfo); e.gear = 1; e.lastThr = 0;
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 2.5; lp.connect(lim); e.lp = lp;
     const shaper = c.createWaveShaper(); const k = 4 + p.grit * 30, curve = new Float32Array(1024);
     for (let i = 0; i < 1024; i++) { const x = (i / 1023) * 2 - 1; curve[i] = ((1 + k) * x) / (1 + k * Math.abs(x)); }
     shaper.curve = curve; shaper.connect(lp);
@@ -83,21 +88,52 @@ export class AudioEngine {
     for (const g of [e.out, e.tire, e.rumble, e.wind, e.boost]) g.gain.setTargetAtTime(0, t, 0.05);
     setTimeout(() => e.nodes.forEach((n) => { try { n.stop(); } catch { /* */ } }), 300);
   }
-  // s: {rpm 0..1, throttle, speed m/s, slip rad, drifting, rumble 0..1, boosting, paused}
+  // s: {gear, rpm 0..1, throttle, speed m/s, slip rad, drifting, rumble 0..1, boosting, paused}
   updateEngine(s) {
     const e = this.eng; if (!e) return;
     const t = this.ctx.currentTime, p = e.p;
-    if (s.paused) { for (const g of [e.out, e.tire, e.rumble, e.wind, e.boost]) g.gain.setTargetAtTime(0, t, 0.1); return; }
+    if (s.paused) { for (const g of [e.out, e.tire, e.rumble, e.wind, e.boost]) g.gain.setTargetAtTime(0, t, 0.1); e.lfoDepth.gain.setTargetAtTime(0, t, 0.05); return; }
     const f = (26 + s.rpm * 165) * p.pitch * (p.cyl >= 8 ? 0.85 : 1);
     for (const { o, mult } of e.oscs) o.frequency.setTargetAtTime(f * mult, t, 0.03);
     e.lp.frequency.setTargetAtTime(350 + s.throttle * 1600 + s.rpm * 1700, t, 0.05);
-    e.out.gain.setTargetAtTime(0.12 + s.throttle * 0.14 + s.rpm * 0.06, t, 0.05);
+    let vol = 0.12 + s.throttle * 0.14 + s.rpm * 0.06;
+    // gear change: the engine note dips for a moment (and a sharp "chuff" on upshifts at high revs)
+    const gear = s.gear || 1;
+    if (gear > e.gear && e.gear >= 1 && s.throttle > 0.5) { e.shiftUntil = t + 0.07; if (s.rpm > 0.5) this.puff(0.05 + p.grit * 0.04, 1800); }
+    e.gear = gear;
+    if (t < (e.shiftUntil || 0)) vol *= 0.35;
+    e.out.gain.setTargetAtTime(vol, t, t < (e.shiftUntil || 0) ? 0.01 : 0.05);
+    // rev limiter bounce when the engine is flat out at the top of a gear
+    e.lfoDepth.gain.setTargetAtTime(s.rpm > 0.97 && s.throttle > 0.8 ? 0.45 : 0, t, 0.02);
+    // lifting off at high revs: a few exhaust pops / crackles (louder on rough, gritty engines)
+    if (e.lastThr > 0.7 && s.throttle < 0.15 && s.rpm > 0.55) {
+      const n = 2 + Math.floor(Math.random() * 3 + p.grit * 3);
+      for (let i = 0; i < n; i++) this.pop(t + 0.04 + Math.random() * 0.45, 0.05 + p.grit * 0.08);
+    }
+    e.lastThr = s.throttle;
     const sq = Math.min(1, Math.max(0, (Math.abs(s.slip) - 0.12) * 2.2)) * Math.min(1, s.speed / 12) * (s.paved ? 1 : 0.25);
     e.tire.gain.setTargetAtTime(sq * 0.22, t, 0.06);
     e.tireBp.frequency.setTargetAtTime(1000 + Math.abs(s.slip) * 500 + Math.sin(t * 13) * 40, t, 0.05);
     e.rumble.gain.setTargetAtTime(s.rumble * Math.min(1, s.speed / 8) * 0.35, t, 0.05);
     e.wind.gain.setTargetAtTime(Math.min(0.18, (s.speed / 70) ** 2 * 0.18), t, 0.2);
     e.boost.gain.setTargetAtTime(s.boosting ? 0.08 : 0, t, 0.08);
+  }
+
+  // exhaust pop: a tiny low noise burst
+  pop(when, vol) {
+    if (!this.ctx) return;
+    const c = this.ctx, n = this.noise(false), bp = c.createBiquadFilter(), g = c.createGain();
+    bp.type = 'bandpass'; bp.frequency.value = 350 + Math.random() * 500; bp.Q.value = 1.2;
+    g.gain.setValueAtTime(vol, when); g.gain.exponentialRampToValueAtTime(0.001, when + 0.06);
+    n.connect(bp); bp.connect(g); g.connect(this.sfx); n.start(when); n.stop(when + 0.08);
+  }
+  // short air "chuff" (gear change / blow-off)
+  puff(vol, freq) {
+    if (!this.ctx) return;
+    const c = this.ctx, t = c.currentTime, n = this.noise(false), hp = c.createBiquadFilter(), g = c.createGain();
+    hp.type = 'bandpass'; hp.frequency.setValueAtTime(freq, t); hp.frequency.exponentialRampToValueAtTime(freq * 0.5, t + 0.12); hp.Q.value = 0.8;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+    n.connect(hp); hp.connect(g); g.connect(this.sfx); n.start(t); n.stop(t + 0.16);
   }
 
   impact(strength) {

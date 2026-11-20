@@ -439,11 +439,14 @@ export class Game {
       if (front && intensity < 0.7) continue;
       const y = this.world.heightAt(X, Z) + 0.3;
       if (intensity > 0.1 && (speed > 2 || burn)) {
-        const rate = (surf.dust ? 14 : 22) * intensity * (front ? 0.4 : 1);
+        // throttle spins the rear tyres: more and thicker smoke when the driver is on the power
+        const thr = st.throttle ?? (st.drifting ? 0.7 : 0.3), power = front ? 0.4 : 0.6 + 0.6 * thr;
+        const rate = (surf.dust ? 14 : 24) * intensity * power;
         if (Math.random() < rate * dt) {
           const a = (surf.dust ? 0.28 : 0.2) * Math.min(1, intensity + 0.4);
           const c = surf.dust ? [...surf.dust, a] : [...(surf.smoke || [0.9, 0.9, 0.92]), a];
-          E.emit(X, y, Z, st.vx * 0.25 + (Math.random() - 0.5) * 2, 0.5 + Math.random() * 0.8, st.vz * 0.25 + (Math.random() - 0.5) * 2, c, 0.6, 1.5 + Math.random() * 1.0, 1.9);
+          const big = 0.5 + 0.35 * intensity * power;
+          E.emit(X, y, Z, st.vx * 0.25 + (Math.random() - 0.5) * 2, 0.5 + Math.random() * 0.8, st.vz * 0.25 + (Math.random() - 0.5) * 2, c, big, 1.5 + Math.random() * (0.8 + intensity), 1.6 + 0.8 * intensity);
         }
       } else if (surf.dust && speed > 9 && Math.random() < dt * 14 * Math.min(1, speed / 30)) {
         E.emit(X, y, Z, -st.vx * 0.1, 0.4, -st.vz * 0.1, [...surf.dust, 0.25], 0.6, 1.2, 2);
@@ -467,7 +470,7 @@ export class Game {
     const E = this.effects; E.begin();
     const items = this.world.statics.slice();
     const hideOwn = VIEWS[this.cam.view].hood;
-    const local = { x: rs.x, y: rs.y, z: rs.z, h: rs.h, vx: c.vx, vz: c.vz, speed: c.speed, rel: c.rel, mode: c.mode, drifting: c.drifting, handbrake: c.handbrake, braking: c.brakeOn, boosting: c.boosting, burnout: c.mode !== 'grip' && c.throttle > 0.8 && c.speed < 9 };
+    const local = { x: rs.x, y: rs.y, z: rs.z, h: rs.h, vx: c.vx, vz: c.vz, speed: c.speed, rel: c.rel, mode: c.mode, drifting: c.drifting, handbrake: c.handbrake, braking: c.brakeOn, boosting: c.boosting, burnout: c.mode !== 'grip' && c.throttle > 0.8 && c.speed < 9, throttle: c.throttle };
     if (!hideOwn && !this.spectator) carDrawItems(this.model, { x: rs.x, y: rs.y, z: rs.z, yaw: rs.h, pitch: rs.pitch, roll: rs.roll, bodyPitch: c.bodyPitch, bodyRoll: c.bodyRoll, wheelOffset: c.wheelOffset, steer: c.wheelAngle, spin: c.spin, brake: c.brakeOn || c.handbrake, reverse: c.reversing, lights: this.env.night }, items);
     if (!this.spectator) this.carFx(local, this.model, this.model.meshes.dims, 'me', dt, true);
     for (const r of this.remotes.values()) {

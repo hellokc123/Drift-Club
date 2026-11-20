@@ -225,10 +225,11 @@ export class Vehicle {
     // ---------------- drift entry by technique (only from normal grip driving)
     // clutch kick: a quick lift (< 0.3 s) from full throttle, then floor it again while turning
     this.thrHighT = thr > 0.8 ? 0 : this.thrHighT + dt;
-    if (thr < 0.2 && this.liftT > 5) { this.liftT = 0; this.liftFromPower = this.thrHighT < 0.25; } // a lift starts
+    if (thr < 0.2 && this.liftT > 5) { this.liftT = 0; this.liftFromPower = this.thrHighT < 0.25; this.liftBraked = false; } // a lift starts
+    if (inp.brake > 0.1) this.liftBraked = true; // braking in between = normal driving, not a kick
     if (this.liftT <= 5) this.liftT += dt;
     if (thr > 0.9 && this.throttle <= 0.9) { // throttle floored again
-      if (this.mode === 'grip' && this.liftFromPower && this.liftT < 0.45 && Math.abs(inp.steer) > 0.5 && vf > 8 && speed < 40) {
+      if (this.mode === 'grip' && this.liftFromPower && !this.liftBraked && this.liftT < 0.45 && Math.abs(inp.steer) > 0.5 && vf > 8 && speed < 40) {
         const k = Math.sign(inp.steer);
         this.enterDrift(k); this.w += k * (0.7 + 0.35 * d.driftPower) * (S.stability ? 0.6 : 1); this.wheelspin = 0.6;
       }
@@ -399,7 +400,7 @@ export class Vehicle {
   // squats when accelerating and dives when braking, with a little overshoot on quick direction changes.
   bodyLean(dt, speed) {
     const soft = (this.T.cgH / 0.42) * Math.min(1.4, (this.dims.H || 1.3) / 1.3) / Math.sqrt(this.T.susK);
-    const rollT = clamp(this.w * speed * 0.0045 * soft, -0.085, 0.085) * this.contact;
+    const rollT = clamp(this.w * speed * 0.0038 * soft, -0.065, 0.065) * this.contact;
     const pitchT = clamp(-this.load * 0.045 * soft, -0.05, 0.05) * this.contact;
     const om = 13, ze = 2 * 0.45 * om; // spring frequency (rad/s) and damping
     this.bodyRollVel += ((rollT - this.bodyRoll) * om * om - this.bodyRollVel * ze) * dt;
