@@ -514,11 +514,11 @@ function matchSample(r, c, m) {
     if (t < 0 && P.slot && !P.jump && Math.hypot(s.x - P.slot.x, s.z - P.slot.z) > 6) { P.jump = true; P.penalty = 3; send(c, { t: 'error', msg: 'Jump start: +3 s penalty' }); }
     // Drift Race: the server judges every competitor's drifting itself from the samples (the browser's
     // numbers are only its live HUD). Points count from GO until the competitor crosses the finish line.
-    const J = P.judge, judging = J && M.phase === 'running' && t >= 0 && !P.tracker.finished;
+    const J = P.judge, judging = J && M.phase === 'running' && t >= 0 && !P.tracker.finished && !(M.firstFinishT !== undefined && t > M.firstFinishT + SH.DRIFT_RACE.lateWindow);
     if (judging) J.push(s, { tandem: tandemFor(M, c.id, s, now) });
     const ev = P.tracker.update({ t, x: s.x, z: s.z, vx: s.vx, vz: s.vz, teleport: !!(s.f & 256) });
     if (J && ev && (ev.type === 'lap' || ev.type === 'finish')) J.scorer.bank(); // the combo banks at every lap line
-    if (ev && ev.type === 'finish') { P.finishT = ev.t + (P.penalty || 0); if (J) { J.finish(); P.driftT = t; } checkRaceEnd(r); }
+    if (ev && ev.type === 'finish') { if (M.firstFinishT === undefined) M.firstFinishT = ev.t; P.finishT = ev.t + (P.penalty || 0); if (J) { J.finish(); P.driftT = t; } checkRaceEnd(r); }
   } else if (M.mode === 'battle') {
     const R = M.round; if (!R || R.ended) return;
     const t = (now - R.startAt) / 1000;

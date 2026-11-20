@@ -119,7 +119,10 @@ export const DRIFT_RACE = {
   // bonus per lap for each finishing position (P1, P2, …), about one strong lap of drifting; DNF earns no bonus
   bonusPerLap: [60000, 45000, 33000, 24000, 17000, 12000, 8000, 5000, 3000, 2000, 1000, 500],
   posFactor: [1, 0.9, 0.8, 0.68, 0.56, 0.45],
-  gapWindow: 60, minGap: 0.35,
+  gapWindow: 60, minGap: 0.2,
+  // drift points stop counting this many seconds after the winner crosses the line, so a slow car can't
+  // farm points just by being on track longer
+  lateWindow: 10,
   maxRate: 3500, // anti-cheat: drift points can't average more than this per second of racing (+ slack)
   slack: 6000,
 };

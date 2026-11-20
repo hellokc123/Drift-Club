@@ -324,9 +324,15 @@ class DriftRaceComp extends RaceComp {
   }
   aiDrift(a) { return Math.round((a.dj.total + a.dj.live) * this.aiF); }
   myDrift() { return Math.round(this.dj.total + this.dj.live); }
+  // drift stops counting DRIFT_RACE.lateWindow s after the first car (player or CPU) crosses the line
+  lateCut(t) {
+    let first = this.tracker.finished ? this.tracker.finishTime : Infinity;
+    for (const a of this.ai) if (a.tr.finished) first = Math.min(first, a.tr.finishTime);
+    return t > first + DRIFT_RACE.lateWindow;
+  }
   onSample(s, ctx) {
     // judge first, then the tracker (same order as the server): a lap line banks the combo
-    if (this.phase === 'running' && this.t >= 0 && !this.tracker.finished) this.dj.push(s, ctx);
+    if (this.phase === 'running' && this.t >= 0 && !this.tracker.finished && !this.lateCut(this.t)) this.dj.push(s, ctx);
     super.onSample(s, ctx);
   }
   // CPU drift estimates are sampled every 0.05 s of SIMULATED time (not per rendered frame), so a slow
@@ -342,6 +348,7 @@ class DriftRaceComp extends RaceComp {
   aiSample(a) {
     if (a.tr.lap > a.lastLap) { a.lastLap = a.tr.lap; a.dj.scorer.bank(); } // lap line banks the combo
     if (a.tr.finished) { if (!a.dj.finished) a.dj.finish(); return; }
+    if (this.lateCut(this.t)) return;
     const v = a.v, jump = a.px !== undefined && Math.hypot(v.x - a.px, v.z - a.pz) > 8; // stuck-reset
     a.px = v.x; a.pz = v.z;
     const s = { k: ++a.sk, x: round2(v.x), z: round2(v.z), h: round2(v.h), vx: round2(v.vx), vz: round2(v.vz), f: (v.drifting ? 1 : 0) | (jump ? 256 : 0), sl: round2(v.rel) };
@@ -389,7 +396,7 @@ class DriftRaceComp extends RaceComp {
       <table class="res-table dr-res"><tr><th>#</th><th>Driver</th><th>Race</th><th>Drift pts</th><th></th><th>Pos.</th><th></th><th>Bonus</th><th></th><th>Gap</th><th></th><th>Total</th></tr>
       ${rows.map((r, i) => `<tr class="${r.me ? 'me' : ''} ${i === 0 && r.total > 0 ? 'win' : ''}"><td>${i + 1}</td><td>${esc(r.name)}${r.cpu ? ' <i class="cpu-tag">CPU</i>' : ''}${r.left ? ' <i class="cpu-tag">left</i>' : ''}</td>
         <td>${r.finished ? `P${r.racePos} · ${fmtTime(r.time)}` : `DNF · lap ${Math.min(this.laps, r.laps + 1)}/${this.laps}`}</td><td>${fmt(r.drift)}</td><td class="op">×</td><td>${r.posF.toFixed(2)}</td><td class="op">+</td><td>${r.bonus ? fmt(r.bonus) : '—'}</td><td class="op">×</td><td title="${r.finished ? (r.gap ? `${r.gap.toFixed(1)} s behind the winner` : 'winner') : 'did not finish'}">${r.gapF.toFixed(2)}${r.finished && r.gap ? ` <small class="muted">+${r.gap.toFixed(1)}s</small>` : ''}</td><td class="op">=</td><td><b>${fmt(r.total)}</b></td></tr>`).join('')}</table>
-      <p class="muted">Total = (drift pts × position factor + position bonus) × gap factor. Position factor P1 1.0 · P2 0.9 · P3 0.8 · P4 0.68 · P5 0.56 · P6+ 0.45. Gap factor loses 1/60 per second behind the winner (min 0.35; DNF 0.35). Bonus per lap: ${DRIFT_RACE.bonusPerLap.slice(0, 5).map((b, i) => `P${i + 1} ${fmt(b)}`).join(' · ')}… (× ${this.laps}). No bonus without finishing. ${solo ? 'CPU drift points are estimated from how hard they corner.' : 'Official drift points and positions computed by the server.'}</p>`;
+      <p class="muted">Total = (drift pts × position factor + position bonus) × gap factor. Position factor P1 1.0 · P2 0.9 · P3 0.8 · P4 0.68 · P5 0.56 · P6+ 0.45. Gap factor loses 1/60 per second behind the winner (min ${DRIFT_RACE.minGap}; DNF ${DRIFT_RACE.minGap}). Drift stops counting ${DRIFT_RACE.lateWindow} s after the winner finishes. Bonus per lap: ${DRIFT_RACE.bonusPerLap.slice(0, 5).map((b, i) => `P${i + 1} ${fmt(b)}`).join(' · ')}… (× ${this.laps}). No bonus without finishing. ${solo ? 'CPU drift points are estimated from how hard they corner.' : 'Official drift points and positions computed by the server.'}</p>`;
   }
   // live standings: race order, each with drift points and the bonus they'd get finishing there
   drStandings() {

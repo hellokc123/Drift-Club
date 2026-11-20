@@ -373,25 +373,27 @@ await test('drift race room: stays Drift Race when a friend joins, on start, and
   host.close(); friend.close(); late.close();
 });
 
-await test('drift race: a map without a circuit is refused like Speed Race', async () => {
-  const a = await client(P, 'A'); a.send({ t: 'create', settings: { ...DRIFT, map: 'mountain' } }); await a.wait('joined');
-  a.send({ t: 'start' }); ok(/race circuit/.test((await a.wait('error')).msg), 'explains why');
-  a.close();
+await test('drift race: every map has a circuit now, including Kurogane Pass and Ironbay Drift Park', async () => {
+  for (const map of ['mountain', 'drift']) {
+    const a = await client(P, 'A'); a.send({ t: 'create', settings: { ...DRIFT, map } }); await a.wait('joined');
+    a.send({ t: 'start' }); const gs = await a.wait('gameStart'); eq(gs.mode || 'driftrace', 'driftrace', `${map} starts a Drift Race`);
+    a.send({ t: 'end' }); a.close();
+  }
 });
 
 const drTotal = (r) => Math.round((r.drift * r.posF + r.bonus) * r.gapF);
-async function driftRace(port, drivers) { // drivers: [{ name, speed, angle }] or null = joins but never moves (DNF)
+async function driftRace(port, drivers, map = 'track') { // drivers: [{ name, speed, angle }] or null = joins but never moves (DNF)
   const cls = [];
   for (const d of drivers) cls.push(await client(port, d ? d.name : 'Parked'));
-  cls[0].send({ t: 'create', settings: DRIFT }); const j = await cls[0].wait('joined');
+  cls[0].send({ t: 'create', settings: { ...DRIFT, map } }); const j = await cls[0].wait('joined');
   for (const c of cls.slice(1)) { c.send({ t: 'join', code: j.room.code }); await c.wait('joined'); }
   await cls[0].wait((m) => m.t === 'room' && m.room.players.length === cls.length, 3000, 'everyone in');
   cls[0].send({ t: 'start' });
   const gs = []; for (const c of cls) gs.push(await c.wait('gameStart'));
   cls.forEach((c) => c.send({ t: 'ready' }));
   const ms = await cls[0].wait('mStart');
-  const runs = drivers.map((d, i) => (d ? driveRoute(cls[i], 'city', gs[i].grid, { speed: d.speed, angle: d.angle || (() => 0), startAt: ms.startAt }) : null));
-  const res = await cls[0].wait('mResult', 120000, 'drift race result');
+  const runs = drivers.map((d, i) => (d ? driveRoute(cls[i], map, gs[i].grid, { speed: d.speed, angle: d.angle || (() => 0), startAt: ms.startAt }) : null));
+  const res = await cls[0].wait('mResult', 220000, 'drift race result');
   runs.forEach((r) => r && r.stop());
   const row = (i) => res.rows.find((r) => r.id === cls[i].id);
   console.log('       ' + res.rows.map((r) => `${r.name}: P${r.racePos} gap ${r.gap ?? 'DNF'} (${r.drift} ×${r.posF} + ${r.bonus}) ×${r.gapF} = ${r.total}`).join(' | '));
@@ -400,7 +402,7 @@ async function driftRace(port, drivers) { // drivers: [{ name, speed, angle }] o
 
 await test('drift race (a)+(c): a strong drifter finishing 2nd a few s behind beats a grip racer finishing 1st; DNF gets no bonus', async () => {
   const R = await startServer({ RACE_REST_MS: '8000' });
-  const { cls, res, row } = await driftRace(R.port, [{ name: 'Racer', speed: 46 }, { name: 'Drifter', speed: 43, angle: () => 0.52 }, null]);
+  const { cls, res, row } = await driftRace(R.port, [{ name: 'Racer', speed: 46 }, { name: 'Drifter', speed: 44, angle: () => 0.52 }, null]);
   eq(res.mode, 'driftrace', 'result mode');
   const H = row(0), Fr = row(1), D = row(2);
   ok(H.finished && Fr.finished, 'both finished');
@@ -415,7 +417,7 @@ await test('drift race (a)+(c): a strong drifter finishing 2nd a few s behind be
   ok(!D.finished, 'parked player did not finish'); eq(D.bonus, 0, '(c) DNF gets no bonus'); eq(D.gapF, JD.DRIFT_RACE.minGap, 'DNF gap factor');
   eq((await cls[1].wait('mResult')).winnerId, cls[1].id, 'drifter sees the same result');
   const recs = await (await fetch(`http://localhost:${R.port}/records`)).json();
-  const L = recs.driftrace && recs.driftrace.city && recs.driftrace.city.score['1'];
+  const L = recs.driftrace && recs.driftrace.track && recs.driftrace.track.score['1'];
   ok(L && L.some((e) => e.name === 'Drifter' && e.score === Fr.total) && !L.some((e) => e.name === 'Parked'), 'online Drift Race records saved (finishers only)');
   cls[0].send({ t: 'end' }); eq((await cls[1].wait((m) => m.t === 'room' && m.room.status === 'lobby')).room.mode, 'driftrace', 'still Drift Race');
   cls.forEach((c) => c.close()); await R.stop();
@@ -424,7 +426,7 @@ await test('drift race (a)+(c): a strong drifter finishing 2nd a few s behind be
 await test('drift race (b): drifting all race but finishing last, far behind, loses to a top-3 finisher who drifts some', async () => {
   const R = await startServer({ RACE_REST_MS: '60000' });
   const some = (t) => (t % 6 < 2.5 ? 0.4 : 0); // drifts ~40 % of the time
-  const { res, row, cls } = await driftRace(R.port, [{ name: 'Fast', speed: 47 }, { name: 'Decent', speed: 44, angle: some }, { name: 'SlowDrifter', speed: 21, angle: () => 0.6 }]);
+  const { res, row, cls } = await driftRace(R.port, [{ name: 'Fast', speed: 47 }, { name: 'Decent', speed: 44, angle: some }, { name: 'SlowDrifter', speed: 29, angle: () => 0.6 }]);
   const Dc = row(1), S2 = row(2);
   ok(S2.finished && S2.racePos === 3 && S2.gap > 30, `drifter finished last, far behind (gap ${S2.gap})`);
   ok(Dc.racePos <= 3 && Dc.drift > 0, 'decent driver finished top-3 and drifted some');
