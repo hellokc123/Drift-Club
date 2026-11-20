@@ -6,6 +6,8 @@ import { hexToRgb, mat4 } from './engine/math.js';
 export const CATEGORIES = [
   { id: 'basic', name: 'Basic' }, { id: 'sports', name: 'Sports' }, { id: 'super', name: 'Supercars' },
   { id: 'drift', name: 'Drift' }, { id: 'muscle', name: 'Muscle' }, { id: 'pickup', name: 'Pickups' }, { id: 'suv', name: 'SUVs' },
+  // hidden until unlocked with the secret code (see secret.js); its cars are still valid ids online
+  { id: 'creator', name: 'Creator', secret: true },
 ];
 
 // accel m/s², top m/s, grip = lateral grip rate, lat = max cornering accel (m/s²), steer = max wheel angle (rad),
@@ -26,6 +28,23 @@ export const CARS = [
   { id: 'hauler', name: 'Hauler HD', cat: 'pickup', style: 'pickup', paint: '#3d405b', accel: 6.1, top: 48, grip: 7.5, lat: 8.5, steer: 0.55, wb: 3.4, driftGrip: 1.9, driftPower: 1.0, driftSteer: 1.7, momentum: 0.4, powerOver: 0.3, mass: 1.7, engine: { pitch: 0.65, cyl: 8, grit: 0.8 }, scale: 1.06 },
   { id: 'trail', name: 'Trailblazer', cat: 'suv', style: 'suv', paint: '#a0622b', accel: 6.7, top: 52, grip: 8.5, lat: 9.5, steer: 0.58, wb: 2.8, driftGrip: 1.9, driftPower: 1.0, driftSteer: 1.8, momentum: 0.42, powerOver: 0.2, mass: 1.45, engine: { pitch: 0.9, cyl: 6, grit: 0.45 } },
   { id: 'atlas', name: 'Atlas X', cat: 'suv', style: 'suv', paint: '#26292c', accel: 7.7, top: 58, grip: 9, lat: 10, steer: 0.57, wb: 2.9, driftGrip: 1.8, driftPower: 1.1, driftSteer: 1.9, momentum: 0.44, powerOver: 0.25, mass: 1.5, engine: { pitch: 1.0, cyl: 8, grit: 0.4 } },
+  // --- second wave: one lighter / twitchier and one heavier / steadier car per category
+  { id: 'pipa', name: 'Pipa Dot', cat: 'basic', style: 'hatch', paint: '#6f8a6b', livery: 1, liveryColor: '#eeeeea', accel: 6.3, top: 46, grip: 9.5, lat: 10.2, steer: 0.66, wb: 2.3, driftGrip: 2.05, driftPower: 0.9, driftSteer: 2.2, momentum: 0.4, powerOver: 0.08, mass: 0.88, engine: { pitch: 1.35, cyl: 3, grit: 0.35 } },
+  { id: 'brenna', name: 'Brenna Estate', cat: 'basic', style: 'wagon', paint: '#7a5c45', accel: 5.9, top: 51, grip: 9, lat: 9.8, steer: 0.56, wb: 2.8, driftGrip: 1.85, driftPower: 1.0, driftSteer: 1.9, momentum: 0.46, powerOver: 0.18, mass: 1.2, engine: { pitch: 0.95, cyl: 4, grit: 0.2 } },
+  { id: 'selene', name: 'Selene Spyder', cat: 'sports', style: 'roadster', paint: '#2f4f3e', accel: 8.6, top: 60, grip: 12, lat: 12.8, steer: 0.62, wb: 2.35, driftGrip: 1.7, driftPower: 1.15, driftSteer: 2.25, momentum: 0.48, powerOver: 0.25, mass: 0.9, engine: { pitch: 1.45, cyl: 4, grit: 0.4 } },
+  { id: 'ostra', name: 'Ostra Velo', cat: 'sports', style: 'sedan', paint: '#4b5d73', accel: 8.0, top: 66, grip: 11.5, lat: 12, steer: 0.55, wb: 2.8, driftGrip: 1.75, driftPower: 1.1, driftSteer: 1.95, momentum: 0.5, powerOver: 0.2, mass: 1.2, engine: { pitch: 1.1, cyl: 6, grit: 0.3 } },
+  { id: 'strale', name: 'Strale R', cat: 'super', style: 'wedge', paint: '#9e2a2b', accel: 11.0, top: 80, grip: 13, lat: 14.2, steer: 0.55, wb: 2.6, driftGrip: 1.65, driftPower: 1.3, driftSteer: 2.15, momentum: 0.5, powerOver: 0.32, mass: 1.0, engine: { pitch: 1.8, cyl: 6, grit: 0.5 } },
+  { id: 'halcyon', name: 'Halcyon GTS', cat: 'super', style: 'coupe', paint: '#2b3a55', accel: 10.3, top: 85, grip: 12.5, lat: 13.2, steer: 0.5, wb: 2.85, driftGrip: 1.85, driftPower: 1.15, driftSteer: 1.9, momentum: 0.54, powerOver: 0.2, mass: 1.3, engine: { pitch: 1.3, cyl: 12, grit: 0.3 } },
+  { id: 'tenko', name: 'Tenko S', cat: 'drift', style: 'coupe', paint: '#a33b20', accel: 7.6, top: 56, grip: 10, lat: 11, steer: 0.72, wb: 2.35, driftGrip: 1.1, driftPower: 1.4, driftSteer: 2.65, momentum: 0.6, powerOver: 0.7, mass: 0.88, engine: { pitch: 1.5, cyl: 4, grit: 0.5 } },
+  { id: 'ronin', name: 'Ronin V8', cat: 'drift', style: 'sedan', paint: '#3e4447', accel: 9.2, top: 64, grip: 10, lat: 11, steer: 0.66, wb: 2.75, driftGrip: 1.25, driftPower: 1.55, driftSteer: 2.35, momentum: 0.6, powerOver: 0.55, mass: 1.15, engine: { pitch: 0.85, cyl: 8, grit: 0.75 } },
+  { id: 'jackal', name: 'Jackal 350', cat: 'muscle', style: 'muscle', paint: '#b5651d', accel: 9.3, top: 64, grip: 9, lat: 10.5, steer: 0.58, wb: 2.7, driftGrip: 1.35, driftPower: 1.45, driftSteer: 2.1, momentum: 0.52, powerOver: 0.6, mass: 1.15, engine: { pitch: 0.85, cyl: 8, grit: 0.75 } },
+  { id: 'behemoth', name: 'Behemoth SS', cat: 'muscle', style: 'muscle', paint: '#5c6b73', accel: 10.4, top: 72, grip: 9, lat: 10.2, steer: 0.52, wb: 3.0, driftGrip: 1.5, driftPower: 1.4, driftSteer: 1.85, momentum: 0.54, powerOver: 0.45, mass: 1.42, engine: { pitch: 0.6, cyl: 8, grit: 0.95 } },
+  { id: 'wren', name: 'Wren Ute', cat: 'pickup', style: 'pickup', paint: '#c2b28a', accel: 6.9, top: 51, grip: 8.5, lat: 9.5, steer: 0.62, wb: 2.95, driftGrip: 1.75, driftPower: 1.15, driftSteer: 1.95, momentum: 0.44, powerOver: 0.4, mass: 1.3, engine: { pitch: 1.0, cyl: 4, grit: 0.45 } },
+  { id: 'mammoth', name: 'Mammoth HD', cat: 'pickup', style: 'pickup', paint: '#a8a39a', accel: 6.4, top: 52, grip: 7.8, lat: 8.6, steer: 0.52, wb: 3.5, driftGrip: 1.95, driftPower: 0.95, driftSteer: 1.6, momentum: 0.42, powerOver: 0.25, mass: 1.85, engine: { pitch: 0.55, cyl: 8, grit: 0.95 }, scale: 1.03 },
+  { id: 'fennec', name: 'Fennec XC', cat: 'suv', style: 'suv', paint: '#6c7a89', accel: 7.0, top: 54, grip: 9, lat: 10, steer: 0.6, wb: 2.6, driftGrip: 1.85, driftPower: 1.05, driftSteer: 1.95, momentum: 0.43, powerOver: 0.2, mass: 1.3, engine: { pitch: 1.1, cyl: 4, grit: 0.35 } },
+  { id: 'castellan', name: 'Castellan Grand', cat: 'suv', style: 'suv', paint: '#2b3530', accel: 7.2, top: 57, grip: 8.8, lat: 9.6, steer: 0.54, wb: 3.05, driftGrip: 1.9, driftPower: 1.0, driftSteer: 1.75, momentum: 0.45, powerOver: 0.2, mass: 1.7, engine: { pitch: 0.8, cyl: 8, grit: 0.3 } },
+  // --- secret: the creator's car. Hidden in the garage until unlocked; satin black with gold accents.
+  { id: 'creator', name: 'Nocturne Aurum', cat: 'creator', style: 'wedge', paint: '#1d1d1f', wheel: '#b8975a', livery: 2, liveryColor: '#c9a24a', satin: true, accel: 11.5, top: 88, grip: 13.5, lat: 14.3, steer: 0.64, wb: 2.6, driftGrip: 1.2, driftPower: 1.5, driftSteer: 2.5, momentum: 0.6, powerOver: 0.5, mass: 1.05, engine: { pitch: 1.45, cyl: 10, grit: 0.55 } },
 ];
 export const carById = (id) => CARS.find((c) => c.id === id) || CARS[0];
 
@@ -84,8 +103,8 @@ const LIGHT = [null, [1.05, 1.18, 1.5], [1.35, 1.12, 0.45], [0.55, 0.55, 0.58]];
 export function defaultConfig(id = 'hatch') {
   const c = carById(id);
   return {
-    id: c.id, paint: c.paint, wheel: '#cccccc', rim: 0, spoiler: 0, kit: 0, stripes: 0, stripeColor: '#ffffff', lowered: 0, underglow: '',
-    rimSize: 0, fbumper: 0, rbumper: 0, skirts: 0, hood: 0, tint: 0, lights: 0, exhaust: 0, livery: 0, liveryColor: '#111111', tune: null,
+    id: c.id, paint: c.paint, wheel: c.wheel || '#cccccc', rim: c.rim || 0, spoiler: 0, kit: 0, stripes: 0, stripeColor: '#ffffff', lowered: 0, underglow: '',
+    rimSize: 0, fbumper: 0, rbumper: 0, skirts: 0, hood: 0, tint: c.tint || 0, lights: 0, exhaust: 0, livery: c.livery || 0, liveryColor: c.liveryColor || '#111111', tune: null,
   };
 }
 
@@ -100,6 +119,10 @@ const STYLES = {
   muscle: { L: 4.85, W: 1.96, H: 0.68, ride: 0.17, nose: 0.86, cowl: 1.95, deck: 0.02, rearTop: 0.9, cab: [1.05, 2.0, 2.65, 1.45], ch: 0.52, cw: 0.84, wheelR: 0.35, wheelW: 0.3, fo: 1.0, ro: 1.0 },
   pickup: { L: 5.3, W: 2.0, H: 0.8, ride: 0.38, nose: 0.85, cowl: 1.6, deck: 0.0, rearTop: 1.0, cab: [2.0, 1.65, 2.15, 2.05], ch: 0.75, cw: 0.92, wheelR: 0.42, wheelW: 0.32, fo: 1.0, ro: 1.15, bed: true },
   suv: { L: 4.8, W: 2.0, H: 0.84, ride: 0.34, nose: 0.85, cowl: 1.35, deck: 0.0, rearTop: 1.0, cab: [0.15, 1.4, 1.95, 0.3], ch: 0.72, cw: 0.9, wheelR: 0.41, wheelW: 0.3, fo: 1.0, ro: 0.95, rails: true },
+  // long-roof estate: sedan nose, roof carried right to an upright tailgate
+  wagon: { L: 4.7, W: 1.82, H: 0.6, ride: 0.19, nose: 0.62, cowl: 1.3, deck: 0.0, rearTop: 0.97, cab: [0.16, 1.4, 2.12, 0.3], ch: 0.57, cw: 0.86, wheelR: 0.32, wheelW: 0.24, fo: 0.9, ro: 0.92 },
+  // open two-seater: low windscreen, no roof, cockpit with seats and roll hoops (open: true)
+  roadster: { L: 4.05, W: 1.78, H: 0.54, ride: 0.14, nose: 0.5, cowl: 1.6, deck: 0.04, rearTop: 0.9, cab: [1.25, 1.9, 2.1, 1.45], ch: 0.3, cw: 0.84, wheelR: 0.31, wheelW: 0.24, fo: 0.8, ro: 0.76, open: true },
 };
 
 // --------------------------------------------------------------------------
@@ -196,6 +219,83 @@ export const LOOKS = {
     head: 'slim', grille: 'big', tail: 'bar', hood: 'ridge', arches: 'flare', aero: 'roof', exhaust: 'quad', mirror: 'std',
     extras: ['rails', 'diffuser', 'skirts'], doors: 4,
   },
+  // ---- second wave
+  pipa: { // Pipa Dot: tiny, tall city car with a contrast roof, round tails and a pert little bonnet bulge
+    shape: { L: 3.6, W: 1.7, H: 0.62, ride: 0.2, nose: 0.6, cowl: 0.95, rearTop: 1.0, cab: [0.14, 1.0, 1.62, 0.24], ch: 0.64, cw: 0.88, crown: 0.04, taperF: 0.08, taperR: 0.05, fo: 0.64, ro: 0.58, wheelR: 0.29, wheelW: 0.22 },
+    head: 'rect', grille: 'slot', tail: 'round', n: 1, hood: 'bulge', arches: 'flare', aero: 'none', exhaust: 'offset', mirror: 'std',
+    extras: ['wiper', 'cladding'],
+  },
+  brenna: { // Brenna Estate: long-roof family wagon, roof rails, chrome trim, L-shaped tails
+    shape: { taperF: 0.05, taperR: 0.03 },
+    head: 'slim', grille: 'wide', tail: 'L', hood: 'ridge', arches: 'round', aero: 'roof', exhaust: 'dual', mirror: 'std',
+    extras: ['rails', 'beltline', 'chromeTrim'], doors: 4,
+  },
+  selene: { // Selene Spyder: open two-seat roadster, long bonnet, round lamps, ducktail and twin centre pipes
+    shape: { taperF: 0.12, taperR: 0.08 },
+    head: 'round', n: 1, grille: 'mesh', tail: 'round', hood: 'bulge', arches: 'flare', aero: 'ducktail', exhaust: 'center2', mirror: 'sport',
+    extras: ['lip', 'diffuser'],
+  },
+  ostra: { // Ostra Velo: wide-track sports saloon, flared arches, quad pipes, boot lip
+    shape: { L: 4.65, W: 1.86, H: 0.58, ride: 0.16, deck: 0.03, cab: [1.0, 1.42, 2.15, 1.5], ch: 0.54, taperF: 0.06, taperR: 0.05 },
+    head: 'swept', grille: 'mesh', tail: 'bar', hood: 'bulge', arches: 'flare', aero: 'lip', exhaust: 'quad', mirror: 'sport',
+    extras: ['splitter', 'skirts', 'diffuser'], doors: 4,
+  },
+  strale: { // Strale R: compact, featherweight track wedge with a roof scoop, canards and a fixed wing
+    shape: { L: 4.4, W: 1.98, H: 0.48, ride: 0.1, nose: 0.36, cowl: 1.2, deck: 0.05, cab: [1.4, 1.3, 2.0, 1.85], ch: 0.42, cw: 0.72, taperF: 0.22, taperR: 0.06 },
+    head: 'dots', grille: 'intake', tail: 'C', hood: 'louver', arches: 'angular', aero: 'wing', exhaust: 'center1', mirror: 'sport',
+    extras: ['roofScoop', 'sideIntake', 'canards', 'splitter', 'raceDiffuser'],
+  },
+  halcyon: { // Halcyon GTS: front-engined V12 grand tourer, very long bonnet, muscular rear hips
+    shape: { L: 4.75, W: 1.96, H: 0.52, ride: 0.12, nose: 0.46, cowl: 2.05, deck: 0.06, cab: [0.75, 2.05, 2.75, 1.05], ch: 0.46, cw: 0.76, crown: 0.03, taperF: 0.14, taperR: 0.12, wheelR: 0.35, wheelW: 0.3 },
+    head: 'slim', grille: 'big', tail: 'round', n: 2, hood: 'vents', arches: 'haunch', aero: 'ducktail', exhaust: 'quad', mirror: 'sport',
+    extras: ['sideVent', 'diffuser', 'lip'],
+  },
+  tenko: { // Tenko S: short-wheelbase notchback drift coupe, bolt-on overfenders, tow hook, ducktail
+    shape: { L: 4.1, W: 1.78, H: 0.56, ride: 0.14, nose: 0.6, cowl: 1.35, cab: [0.95, 1.38, 2.0, 1.45], ch: 0.52, taperF: 0.04, fo: 0.78, ro: 0.8 },
+    head: 'rect', grille: 'slot', tail: 'quad', hood: 'vents', arches: 'over', aero: 'ducktail', exhaust: 'offset', mirror: 'sport',
+    extras: ['towhook', 'canards', 'splitter'],
+  },
+  ronin: { // Ronin V8: four-door drift saloon, overfenders, louvred bonnet, big wing and side-exit exhaust
+    shape: { W: 1.86, H: 0.58, ride: 0.15, deck: 0.03, taperF: 0.04 },
+    head: 'rect', grille: 'mesh', tail: 'stack', hood: 'louver', arches: 'over', aero: 'wing', exhaust: 'side', mirror: 'sport',
+    extras: ['splitter', 'towhook', 'skirts'], doors: 4,
+  },
+  jackal: { // Jackal 350: compact pony-car fastback, single round lamps, hood scoop, chrome bumpers
+    shape: { L: 4.6, W: 1.9, H: 0.64, nose: 0.86, cowl: 1.85, deck: 0.03, cab: [0.75, 1.9, 2.55, 1.05], ch: 0.48, cw: 0.82, taperF: 0.03 },
+    head: 'round', n: 1, grille: 'bars', tail: 'quad', hood: 'scoop', arches: 'round', aero: 'ducktail', exhaust: 'dual', mirror: 'sport',
+    extras: ['chromeBumpers', 'sideVent'],
+  },
+  behemoth: { // Behemoth SS: huge four-door muscle saloon, power-dome bonnet, wide hips, full-width tail bar
+    shape: { L: 5.05, W: 2.0, H: 0.7, nose: 0.92, cowl: 1.75, deck: 0.04, cab: [1.15, 1.75, 2.35, 1.55], ch: 0.52, cw: 0.84, taperF: 0.03, taperR: 0.03 },
+    head: 'rect', grille: 'big', tail: 'bar', hood: 'power', arches: 'haunch', aero: 'lip', exhaust: 'quad', mirror: 'std',
+    extras: ['splitter', 'diffuser'], doors: 4,
+  },
+  wren: { // Wren Ute: small single-cab ute, long bed with rails, swept lamps, fog lamps
+    shape: { L: 4.9, W: 1.86, H: 0.72, ride: 0.32, nose: 0.78, cowl: 1.4, cab: [2.1, 1.45, 1.9, 2.15], ch: 0.66, cw: 0.9, taperF: 0.06, wheelR: 0.37, wheelW: 0.27 },
+    head: 'swept', grille: 'mesh', tail: 'vertical', hood: 'flat', arches: 'flare', aero: 'none', exhaust: 'single', mirror: 'std',
+    extras: ['bedRails', 'fogs'],
+  },
+  mammoth: { // Mammoth HD: giant crew-cab heavy-duty truck, power bonnet, tow mirrors, cab marker lamps
+    shape: { L: 5.7, W: 2.06, H: 0.95, ride: 0.44, nose: 0.97, cowl: 1.8, cab: [2.25, 1.85, 2.15, 2.3], ch: 0.76, cw: 0.94, wheelR: 0.44, wheelW: 0.34 },
+    head: 'rect', grille: 'big', tail: 'pair', hood: 'power', arches: 'box', aero: 'none', exhaust: 'dual', mirror: 'tow',
+    extras: ['markers', 'mudflaps', 'skid', 'steps', 'fogs'], doors: 4,
+  },
+  fennec: { // Fennec XC: compact crossover, rugged cladding, sloping tail, roof rails
+    shape: { L: 4.4, W: 1.9, H: 0.76, ride: 0.3, nose: 0.8, cowl: 1.25, rearTop: 0.95, cab: [0.3, 1.3, 1.9, 0.5], ch: 0.62, cw: 0.88, crown: 0.03, taperF: 0.08, taperR: 0.06, wheelR: 0.37, wheelW: 0.27 },
+    head: 'swept', grille: 'mesh', tail: 'C', hood: 'flat', arches: 'square', aero: 'roof', exhaust: 'dual', mirror: 'std',
+    extras: ['cladding', 'rails', 'skid'], doors: 4,
+  },
+  castellan: { // Castellan Grand: long three-row luxury SUV, chrome slat grille, side steps
+    shape: { L: 5.15, W: 2.04, H: 0.86, ride: 0.34, nose: 0.9, cowl: 1.5, rearTop: 1.0, cab: [0.12, 1.55, 2.05, 0.22], ch: 0.74, cw: 0.92 },
+    head: 'slim', grille: 'vslat', tail: 'L', hood: 'ridge', arches: 'round', aero: 'none', exhaust: 'dual', mirror: 'std',
+    extras: ['rails', 'chromeTrim', 'beltline', 'steps'], doors: 4,
+  },
+  // ---- secret
+  creator: { // Nocturne Aurum: low, wide bubble-roof wedge, overfenders, swan-neck wing, satin black with gold accents
+    shape: { L: 4.6, W: 2.06, H: 0.5, ride: 0.1, nose: 0.34, cowl: 1.25, deck: 0.05, rearTop: 0.88, cab: [1.35, 1.3, 2.05, 1.8], ch: 0.43, cw: 0.72, crown: 0.04, taperF: 0.22, taperR: 0.08 },
+    head: 'bar', grille: 'intake', tail: 'bar', hood: 'vents', arches: 'over', aero: 'swan', exhaust: 'center2', mirror: 'sport',
+    extras: ['splitter', 'canards', 'diffuser', 'sideIntake', 'goldAccent'],
+  },
 };
 
 function shapeOf(def) { return { ...STYLES[def.style], ...((LOOKS[def.id] || {}).shape || {}) }; }
@@ -209,7 +309,7 @@ const C = {
   glass: [0.07, 0.09, 0.12], trim: [0.09, 0.09, 0.1], tire: [0.06, 0.06, 0.065], side: [0.16, 0.16, 0.17],
   head: [1, 0.97, 0.86, 1], tail: [1, 1, 1], white: [1, 1, 1], grille: [0.05, 0.05, 0.06],
   chrome: [0.62, 0.64, 0.68], metal: [0.36, 0.36, 0.38], hole: [0.02, 0.02, 0.02], plastic: [0.12, 0.12, 0.13],
-  amber: [1, 0.62, 0.12, 1], housing: [0.16, 0.16, 0.18], well: [0.03, 0.03, 0.035], rubber: [0.07, 0.07, 0.075],
+  amber: [1, 0.62, 0.12, 1], gold: [0.78, 0.6, 0.27], seat: [0.1, 0.09, 0.09], housing: [0.16, 0.16, 0.18], well: [0.03, 0.03, 0.035], rubber: [0.07, 0.07, 0.075],
 };
 
 function profiles(s, lowered) {
@@ -389,16 +489,32 @@ function buildGeometry(renderer, def, cfg) {
   const cabin = [[z0 + cbR, y1 - 0.01], [z1 - cbF, y1 - 0.01], [z1 - ctF, roofY], [z0 + ctR, roofY]];
   if (s.crown) cabin.splice(3, 0, [(z1 - ctF + z0 + ctR) / 2 + 0.1, roofY + s.crown]);
   const cabW = W * s.cw;
-  glass.extrude(cabin, cabW, 0.07, C.glass);
+  if (!s.open) glass.extrude(cabin, cabW, 0.07, C.glass);
   const cR = cabin[0], cF = cabin[1], tFp = cabin[2], tRp = cabin[cabin.length - 1];
   const roofLine = cabin.slice(2).reverse(); // rear -> front
-  for (let i = 0; i < roofLine.length - 1; i++) {
+  if (s.open) { // roadster: raked windscreen in a painted frame, open cockpit with two seats and roll hoops
+    glass.extrude([[cF[0] - 0.05, y1 - 0.01], [cF[0], y1 - 0.01], [tFp[0], roofY], [tFp[0] - 0.05, roofY]], cabW - 0.04, 0.02, C.glass);
+    paint.extrude([[tFp[0] - 0.06, roofY - 0.01], [tFp[0] + 0.01, roofY - 0.01], [tFp[0] + 0.01, roofY + 0.03], [tFp[0] - 0.06, roofY + 0.03]], cabW + 0.02, 0.015, C.white);
+    const zc0 = cR[0] + 0.05, zc1 = cF[0] - 0.02, zm = (zc0 + zc1) / 2;
+    trim.box(0, y1 - 0.02, zm, cabW * 0.96, 0.06, zc1 - zc0, C.grille); // cockpit tub
+    trim.box(0, y1 + 0.02, zc1 - 0.12, cabW * 0.96, 0.08, 0.22, C.trim); // dashboard
+    for (const sx of [-1, 1]) {
+      const sxp = sx * cabW * 0.24, sz = zc0 + 0.2;
+      trim.at(sxp, y1 + 0.13, sz, 0, 1, 1, 1, 0.25).box(0, 0, 0, 0.42, 0.34, 0.09, C.seat).reset(); // seat back
+      trim.box(sxp, y1 + 0.33, sz - 0.05, 0.22, 0.11, 0.08, C.seat); // headrest
+      trim.box(sxp, y1 + 0.0, sz + 0.24, 0.42, 0.07, 0.42, C.seat); // cushion
+      onTop(paint, sxp, zc0 - 0.32, 0.32, 0.1, 0.6, C.white); // head fairing behind each seat
+      for (const dx of [-0.16, 0.16]) trim.box(sxp + dx, y1 + 0.19, zc0 - 0.08, 0.035, 0.38, 0.035, C.metal); // roll hoop
+      trim.box(sxp, y1 + 0.38, zc0 - 0.08, 0.355, 0.035, 0.035, C.metal);
+    }
+    trim.cylinder(cabW * 0.24, y1 + 0.24, zc1 - 0.3, 0.16, 0.03, 14, C.trim, 'z', C.trim); // steering wheel
+  } else for (let i = 0; i < roofLine.length - 1; i++) {
     const a = roofLine[i], b = roofLine[i + 1], ea = i === 0 ? 0.02 : 0, eb = i === roofLine.length - 2 ? 0.02 : 0;
     paint.extrude([[a[0] - ea, a[1] - 0.03], [b[0] + eb, b[1] - 0.03], [b[0] + eb / 2, b[1] + 0.035], [a[0] - ea / 2, a[1] + 0.035]], cabW + 0.03, 0.03, C.white);
   }
   const roofAt = (z) => { for (let i = 0; i < roofLine.length - 1; i++) { const a = roofLine[i], b = roofLine[i + 1]; if (z >= a[0] && z <= b[0]) return a[1] + ((b[1] - a[1]) * (z - a[0])) / ((b[0] - a[0]) || 1); } return roofY; };
   const midZ = (cR[0] + tRp[0] + cF[0] + tFp[0]) / 4;
-  for (const sx of [-1, 1]) {
+  for (const sx of s.open ? [] : [-1, 1]) {
     paint.box(sx * (cabW / 2 - 0.01), (y1 + roofAt(midZ - 0.15)) / 2, midZ - 0.15, 0.04, roofAt(midZ - 0.15) - y1, 0.12, C.white);
     const ax = sx * (cabW / 2 - 0.02);
     const a0 = [ax - sx * 0.03, y1, cF[0]], a1 = [ax, roofY, tFp[0]];
@@ -408,6 +524,12 @@ function buildGeometry(renderer, def, cfg) {
     const c0 = [ax - sx * 0.03, y1, cR[0]], c1 = [ax, roofY, tRp[0]];
     const cdz = c1[2] - c0[2], cdy = c1[1] - c0[1];
     paint.at(ax, (c0[1] + c1[1]) / 2, (c0[2] + c1[2]) / 2, 0, 1, 1, 1, -Math.atan2(cdy, cdz)).box(0, 0, 0, 0.05, 0.05, Math.hypot(cdz, cdy), C.white).reset();
+  }
+
+  if (s.open) for (const sx of [-1, 1]) { // windscreen A-pillars
+    const ax = sx * (cabW / 2 - 0.02), a0 = [ax, y1, cF[0] - 0.02], a1 = [ax, roofY, tFp[0] - 0.02];
+    const dz = a1[2] - a0[2], dy = a1[1] - a0[1];
+    paint.at(ax, (a0[1] + a1[1]) / 2, (a0[2] + a1[2]) / 2, 0, 1, 1, 1, -Math.atan2(dy, dz)).box(0, 0, 0, 0.045, 0.045, Math.hypot(dz, dy), C.white).reset();
   }
 
   // ---- bumpers
@@ -599,7 +721,7 @@ function buildGeometry(renderer, def, cfg) {
   const deckZ = z0 + 0.25, aero = look.aero || 'none', deckFree = !(cfg.spoiler > 0) && !s.bed;
   if (aero === 'ducktail' && deckFree) paint.extrude([[deckZ - 0.22, deckY - 0.02], [deckZ + 0.12, deckY - 0.02], [deckZ - 0.2, deckY + 0.08]], hw(deckZ) * 2 * 0.95, 0.02, C.white);
   if (aero === 'lip' && deckFree) paint.extrude([[deckZ - 0.2, deckY - 0.015], [deckZ + 0.02, deckY - 0.015], [deckZ - 0.19, deckY + 0.035]], hw(deckZ) * 2 * 0.9, 0.01, C.white);
-  if (aero === 'roof' || aero === 'roofbig') {
+  if ((aero === 'roof' || aero === 'roofbig') && !s.open) {
     const big = aero === 'roofbig', rzp = tRp[0] + 0.02, ry = roofAt(tRp[0] + 0.05);
     paint.extrude([[rzp - (big ? 0.34 : 0.2), ry - 0.02], [rzp + 0.1, ry + 0.02], [rzp + 0.08, ry + 0.06], [rzp - (big ? 0.32 : 0.18), ry + (big ? 0.06 : 0.03)]], cabW * (big ? 1.02 : 0.95), 0.015, C.white);
     if (big) for (const sx of [-1, 1]) trim.box(sx * cabW * 0.51, ry + 0.01, rzp - 0.12, 0.02, 0.1, 0.36, C.plastic);
@@ -708,6 +830,13 @@ function buildGeometry(renderer, def, cfg) {
     for (const sx of [-1, 1]) trim.box(sx * W * 0.25, y0 + 0.28, bz, 0.06, 0.5, 0.06, C.plastic);
     trim.box(0, y0 + 0.52, bz, W * 0.56, 0.06, 0.06, C.plastic); trim.box(0, y0 + 0.14, bz, W * 0.7, 0.06, 0.06, C.plastic);
   }
+  if (has('goldAccent')) { // creator car: thin gold pinstripes on the splitter, sills, diffuser and a nose badge
+    fBox(trim, 0, y0 + 0.035, hw(z1) * 2 - 0.05, 0.014, 0.02, C.gold, 0.11);
+    for (const sx of [-1, 1]) trim.box(sx * (W / 2 + 0.012), y0 + 0.13, (fz + rz) / 2, 0.012, 0.018, (fz - rz) - ARCH * 2 - 0.2, C.gold);
+    bBox(trim, 0, y0 + 0.11, W * 0.62, 0.014, 0.02, C.gold, 0.06);
+    onTop(trim, 0, z1 - 0.35, 0.12, 0.02, 0.07, C.gold, 0.005);
+    for (const sx of [-1, 1]) onTop(trim, sx * W * 0.12, (z1 - s.cowl * 0.5), 0.025, 0.012, s.cowl * 0.8, C.gold, 0.004); // bonnet pinstripes
+  }
   if (has('rails')) for (const sx of [-1, 1]) trim.box(sx * cabW * 0.4, roofAt((tRp[0] + tFp[0]) / 2) + 0.06, (tRp[0] + tFp[0]) / 2, 0.035, 0.035, (tFp[0] - tRp[0]) * 0.92, C.chrome);
 
   // ---- door shut lines + handles (cheap detail that makes the body read as a real car)
@@ -739,11 +868,11 @@ function buildGeometry(renderer, def, cfg) {
   if (cfg.stripes) {
     const lo = grow(P.lower, 0.012), ca = grow([...cabin.slice(0, 2), ...cabin.slice(2).map(([z, y]) => [z, y + 0.04])], 0.012);
     const xs = cfg.stripes === 1 ? [0] : [-0.2, 0.2], sw = cfg.stripes === 1 ? 0.32 : 0.16;
-    for (const x of xs) { stripe.extrude(lo, sw, 0.005, C.white, x); stripe.extrude(ca, sw, 0.005, C.white, x); }
+    for (const x of xs) { stripe.extrude(lo, sw, 0.005, C.white, x); if (!s.open) stripe.extrude(ca, sw, 0.005, C.white, x); }
   }
   // liveries (drawn in the livery colour)
   const lv = cfg.livery | 0;
-  if (lv === 1) { // two-tone: roof + pillars
+  if (lv === 1 && !s.open) { // two-tone: roof + pillars
     for (let i = 0; i < roofLine.length - 1; i++) { const a = roofLine[i], b = roofLine[i + 1]; livery.extrude([[a[0] - 0.03, a[1] - 0.03], [b[0] + 0.03, b[1] - 0.03], [b[0] + 0.02, b[1] + 0.042], [a[0] - 0.02, a[1] + 0.042]], cabW + 0.045, 0.03, C.white); }
   }
   if (lv === 2 || lv === 3) for (const sx of [-1, 1]) { // side stripe at the shoulder line, following the body taper
@@ -772,7 +901,7 @@ export function carDrawItems(model, st, out) {
   const base = mat4.compose(new Float32Array(16), st.x, st.y, st.z, st.yaw, st.pitch || 0, st.roll || 0);
   const bodyRoll = mat4.compose(_m, 0, 0, 0, 0, st.bodyPitch || 0, st.bodyRoll || 0);
   const body = mat4.multiply(new Float32Array(16), base, bodyRoll);
-  out.push({ mesh: M.paint, matrix: body, tint: model.paint, spec: 0.9 });
+  out.push({ mesh: M.paint, matrix: body, tint: model.paint, spec: model.def.satin ? 0.3 : 0.9 }); // satin paint: soft highlights
   out.push(model.glassTint ? { mesh: M.glass, matrix: body, spec: 0.55, tint: model.glassTint } : { mesh: M.glass, matrix: body, spec: 0.55 });
   if (M.livery) out.push({ mesh: M.livery, matrix: body, tint: model.liveryCol, spec: 0.9 });
   out.push({ mesh: M.trim, matrix: body, spec: 0.1 });
