@@ -270,7 +270,8 @@ export class Vehicle {
       //  letting go of the steering straightens it a bit more gently (so a quick key release doesn't end a drift).
       const si = clamp(inp.steer * sens, -1, 1) * this.dir;
       // analog: a light touch of counter-steer straightens gently, full counter-lock straightens fast
-      if (hb || si > 0.1) this.rec = Math.max(0, this.rec - (hb ? 4 : 2 + 2 * si) * dt);
+      const swinging = this.swingLatch || (this.hbRecent > 0 && si < -0.8); // deliberate handbrake transition in progress
+      if (hb || swinging || si > 0.03) this.rec = Math.max(0, this.rec - (hb || swinging ? 4 : 2 + 2 * si) * dt);
       else if (si < -0.1) this.rec = Math.min(1, this.rec + (1.6 - 1.6 * si) * dt);
       else this.rec = Math.min(1, this.rec + (thr > 0.3 ? 1.4 : 2.5) * dt);
       if (this.settleT > 0) { this.settleT -= dt; this.rec = Math.max(this.rec, 0.7); } // just came out of a spin
@@ -278,7 +279,7 @@ export class Vehicle {
         // the slide swung through straight to the other side: only keep drifting that way if the driver clearly
         // wants it (handbrake, or a quick flick with throttle before recovery built up). Otherwise: grip again,
         // and kill the leftover rotation so the car doesn't snap the other way (no tank-slapper).
-        if (hb || this.hbRecent > 0 || (inp.steer * Math.sign(rel) > 0.5 && thr > 0.5 && this.rec < 0.35)) { this.dir = Math.sign(rel); this.rec = 0; this.swingLatch = false; }
+        if (hb || this.hbRecent > 0 || this.swingLatch || (inp.steer * Math.sign(rel) > 0.5 && thr > 0.5 && this.rec < 0.35)) { this.dir = Math.sign(rel); this.rec = 0; this.swingLatch = false; }
         else { this.mode = 'grip'; this.w = this.velRate + (this.w - this.velRate) * 0.2; }
       }
       if (this.spinArm > 0.15 && absRel > Math.min(this.maxAngle * 0.78, 0.9) && speed > 4) { this.mode = 'spin'; this.spinDir = this.dir; this.spinT = 0; this.spinRot = 0; }

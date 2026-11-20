@@ -224,3 +224,21 @@ test('a handbrake 360 settles quickly instead of sliding away', () => {
     assert.ok(+r.travelM < 10, `${id} ${after}: slid ${r.travelM} m`);
   }
 });
+
+test('handbrake + opposite lock still swings the car into a drift the other way (both styles)', () => {
+  for (const style of ['race', 'drift']) for (const id of FEEL_CARS) {
+    const v = makeCar(id, style); enterDrift(v, 22); run(v, 1, { ...N, throttle: 0.8, steer: 0.7 });
+    const d0 = Math.sign(v.rel);
+    run(v, 0.25, { ...N, throttle: 0.8, steer: -d0, handbrake: true });
+    let swung = false; run(v, 1.5, { ...N, throttle: 0.9, steer: -d0 }, (c) => { if (c.mode === 'drift' && Math.sign(c.rel) === -d0 && Math.abs(c.rel) > 0.3) swung = true; });
+    assert.ok(swung, `${id} ${style}: handbrake transition did not swing into the other drift`);
+  }
+});
+
+test('a light touch of steer into the drift keeps it going (gamepad)', () => {
+  for (const id of ['shiro', 'brute']) {
+    const v = makeCar(id); bigDrift(v); let dr = 0, n = 0;
+    run(v, 3, { ...N, throttle: 0.9, steer: 0.08 }, (c) => { n++; if (c.mode === 'drift') dr++; });
+    assert.ok(dr / n > 0.9, `${id}: ${(100 * dr / n).toFixed(0)}%`);
+  }
+});
