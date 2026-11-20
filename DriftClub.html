@@ -4,11 +4,40 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Drift Club</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2311121a'/%3E%3Cpath d='M6 21 L14 9 L26 9 L18 21 Z' fill='%23ff2e88'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23111316'/%3E%3Cpath d='M6 21 L14 9 L26 9 L18 21 Z' fill='%23e2703c'/%3E%3C/svg%3E">
 <style>
+/* =====================================================================
+   Drift Club colour palette
+   Calm, grounded racing-game look: neutral charcoal greys, ONE accent
+   colour (burnt orange) and a few muted status colours. No neon, no glows.
+   Every text colour below passes WCAG-AA (4.5:1) on the panel colour.
+   Change a colour here and it changes everywhere.
+   ===================================================================== */
 :root {
-  --bg: #0b0c14; --panel: rgba(14, 15, 26, 0.82); --line: rgba(255, 255, 255, 0.09); --text: #eef0f8; --muted: #9aa0b8;
-  --pink: #ff2e88; --cyan: #19e3ff; --gold: #ffc23d; --good: #3ddc84; --bad: #ff4d5e;
+  /* surfaces (dark -> lighter = "higher up") */
+  --bg: #111316;                         /* page / loading background */
+  --panel: rgba(22, 24, 28, 0.94);       /* big menu panels */
+  --surface: #1c1f24;                    /* cards, rows, inputs */
+  --surface-2: #24282e;                  /* hovered cards */
+  --hud-bg: rgba(18, 20, 24, 0.74);      /* in-game HUD boxes */
+  --line: rgba(255, 255, 255, 0.10);     /* thin borders */
+  --line-strong: rgba(255, 255, 255, 0.24);
+  /* text */
+  --text: #ecedef;                       /* main text (14.9:1) */
+  --muted: #a2a7af;                      /* secondary text (7.2:1) */
+  /* the one accent colour */
+  --accent: #e2703c;                     /* accent text/lines on dark (5.5:1) */
+  --accent-btn: #b84d1c;                 /* primary button fill (white text 5.1:1) */
+  --accent-btn-hover: #c2531f;
+  --accent-soft: rgba(226, 112, 60, 0.10); /* selected card tint */
+  /* supporting / status colours (muted, not fluorescent) */
+  --info: #8fb3d1;                       /* steel blue: secondary labels */
+  --gold: #d8b25c;                       /* multipliers, wins, records */
+  --good: #6dbb7f;                       /* success */
+  --bad: #e0675c;                        /* errors, warnings */
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  --text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7); /* keeps HUD text readable over the 3D world */
+  --text-outline: 0 1px 2px rgba(0, 0, 0, 0.85), 0 0 1px rgba(0, 0, 0, 0.9); /* crisper dark edge for popups over bright skies */
   --font: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 * { box-sizing: border-box; }
@@ -16,27 +45,20 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); c
 canvas#gl { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
 .hidden { display: none !important; }
 button { font: inherit; color: inherit; cursor: pointer; }
-input, select { font: inherit; color: var(--text); background: rgba(255, 255, 255, 0.06); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; outline: none; user-select: text; }
-input:focus, select:focus { border-color: var(--cyan); }
-select option { background: #15162a; }
+input, select { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; outline: none; user-select: text; }
+input:focus, select:focus { border-color: var(--accent); }
+select option { background: var(--surface); }
 code { font-family: ui-monospace, Consolas, monospace; letter-spacing: 0.12em; }
 .muted { color: var(--muted); font-size: 13px; }
 
-/* animated speed streaks behind menus */
-#menu-bg { position: fixed; inset: 0; pointer-events: none; overflow: hidden; background: linear-gradient(90deg, rgba(8, 8, 16, 0.85) 0%, rgba(8, 8, 16, 0.35) 45%, rgba(8, 8, 16, 0) 70%); }
-#menu-bg i { position: absolute; height: 2px; width: 40vw; left: -40vw; background: linear-gradient(90deg, transparent, var(--pink), transparent); opacity: 0.5; animation: streak 3.2s linear infinite; }
-#menu-bg i:nth-child(1) { top: 18%; animation-delay: 0s; }
-#menu-bg i:nth-child(2) { top: 42%; animation-delay: 1.1s; background: linear-gradient(90deg, transparent, var(--cyan), transparent); }
-#menu-bg i:nth-child(3) { top: 66%; animation-delay: 2.0s; }
-#menu-bg i:nth-child(4) { top: 81%; animation-delay: 0.6s; background: linear-gradient(90deg, transparent, var(--cyan), transparent); }
-#menu-bg i:nth-child(5) { top: 30%; animation-delay: 2.6s; width: 25vw; }
-@keyframes streak { to { transform: translateX(180vw); } }
+/* soft dark fade on the left so the menu text stays readable over the 3D showroom */
+#menu-bg { position: fixed; inset: 0; pointer-events: none; overflow: hidden; background: linear-gradient(90deg, rgba(12, 13, 15, 0.82) 0%, rgba(12, 13, 15, 0.4) 45%, rgba(12, 13, 15, 0) 70%); }
 
 /* screens */
 .screen { position: fixed; inset: 0; display: none; padding: 32px; overflow-y: auto; }
 .screen.active { display: flex; animation: fadein 0.25s ease; }
 @keyframes fadein { from { opacity: 0; transform: translateY(6px); } }
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 22px 26px; backdrop-filter: blur(10px); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 22px 26px; backdrop-filter: blur(10px); box-shadow: var(--shadow); }
 .panel.wide { width: min(1180px, 100%); margin: auto; }
 .panel.narrow { width: min(620px, 100%); margin: auto; }
 .phead { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; flex-wrap: wrap; }
@@ -44,28 +66,28 @@ code { font-family: ui-monospace, Consolas, monospace; letter-spacing: 0.12em; }
 h3 { margin: 18px 0 10px; font-size: 13px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
 h4 { margin: 14px 0 6px; font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
 .back { background: none; border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; color: var(--muted); }
-.back:hover { color: var(--text); border-color: var(--cyan); }
+.back:hover { color: var(--text); border-color: var(--line-strong); }
 
 /* main menu */
 #scr-main { flex-direction: column; justify-content: center; padding-left: 7vw; }
-.logo { font-size: clamp(54px, 8vw, 104px); font-weight: 900; font-style: italic; letter-spacing: -0.02em; line-height: 0.9; transform: skewX(-6deg); text-shadow: 0 6px 30px rgba(255, 46, 136, 0.35); }
-.logo span { color: var(--pink); margin-left: 0.12em; }
+.logo { font-size: clamp(54px, 8vw, 104px); font-weight: 900; font-style: italic; letter-spacing: -0.02em; line-height: 0.9; transform: skewX(-6deg); text-shadow: 0 3px 12px rgba(0, 0, 0, 0.45); }
+.logo span { color: var(--accent); margin-left: 0.12em; }
 .brand p { color: var(--muted); margin: 14px 0 34px; font-size: 17px; }
 .main-nav { display: flex; flex-direction: column; gap: 10px; width: min(360px, 90vw); }
-.nav-btn { text-align: left; background: rgba(14, 15, 26, 0.6); border: 1px solid var(--line); border-left: 4px solid transparent; border-radius: 12px; padding: 13px 18px; transition: all 0.15s; backdrop-filter: blur(6px); }
+.nav-btn { text-align: left; background: rgba(22, 24, 28, 0.82); border: 1px solid var(--line); border-left: 4px solid transparent; border-radius: 12px; padding: 13px 18px; transition: all 0.15s; backdrop-filter: blur(6px); }
 .nav-btn b { display: block; font-size: 20px; font-style: italic; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; }
 .nav-btn small { color: var(--muted); font-size: 13px; }
-.nav-btn:hover { border-left-color: var(--pink); transform: translateX(6px); background: rgba(30, 20, 40, 0.75); }
-.nav-btn.primary { border-left-color: var(--pink); background: linear-gradient(90deg, rgba(255, 46, 136, 0.28), rgba(14, 15, 26, 0.6)); }
+.nav-btn:hover { border-left-color: var(--accent); transform: translateX(6px); background: rgba(36, 40, 46, 0.92); }
+.nav-btn.primary { border-left-color: var(--accent); background: rgba(36, 40, 46, 0.92); }
 .main-foot { position: absolute; bottom: 22px; left: 7vw; color: var(--muted); font-size: 13px; }
 
 /* buttons */
-.btn { background: rgba(255, 255, 255, 0.07); border: 1px solid var(--line); border-radius: 10px; padding: 10px 18px; font-weight: 700; transition: all 0.15s; }
-.btn:hover:not(:disabled) { border-color: var(--cyan); background: rgba(25, 227, 255, 0.1); }
+.btn { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 18px; font-weight: 700; transition: all 0.15s; }
+.btn:hover:not(:disabled) { border-color: var(--line-strong); background: #2c3138; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn.primary { background: linear-gradient(135deg, var(--pink), #c2185b); border-color: transparent; color: #fff; }
-.btn.primary:hover:not(:disabled) { filter: brightness(1.12); }
-.btn.danger { border-color: rgba(255, 77, 94, 0.5); color: #ffb3bb; }
+.btn.primary { background: var(--accent-btn); border-color: transparent; color: #fff; }
+.btn.primary:hover:not(:disabled) { background: var(--accent-btn-hover); border-color: transparent; }
+.btn.danger { border-color: rgba(224, 103, 92, 0.5); color: #f0a49c; }
 .btn.ghost { background: none; }
 .btn.big { padding: 14px 26px; font-size: 17px; }
 .btn.small { padding: 6px 12px; font-size: 13px; }
@@ -75,52 +97,55 @@ h4 { margin: 14px 0 6px; font-size: 12px; letter-spacing: 0.12em; text-transform
 .cards { display: grid; gap: 12px; }
 .cards.modes { grid-template-columns: repeat(4, 1fr); }
 .cards.maps { grid-template-columns: repeat(5, 1fr); }
-.card { text-align: left; background: rgba(255, 255, 255, 0.04); border: 2px solid var(--line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 6px; transition: all 0.15s; position: relative; overflow: hidden; }
-.card:hover { border-color: rgba(255, 255, 255, 0.3); transform: translateY(-2px); }
-.card.sel { border-color: var(--pink); background: rgba(255, 46, 136, 0.1); box-shadow: 0 0 0 4px rgba(255, 46, 136, 0.15); }
-.card i { font-style: normal; font-size: 26px; color: var(--pink); }
+.card { text-align: left; background: var(--surface); border: 2px solid var(--line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 6px; transition: all 0.15s; position: relative; overflow: hidden; }
+.card:hover { border-color: var(--line-strong); background: var(--surface-2); transform: translateY(-2px); }
+.card.sel { border-color: var(--accent); background: var(--accent-soft); }
+.card i { font-style: normal; font-size: 26px; color: var(--accent); }
 .card b { font-size: 18px; font-style: italic; text-transform: uppercase; }
 .card span { color: var(--muted); font-size: 13px; line-height: 1.35; }
-.card small { color: var(--accent); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; font-size: 11px; }
+.card small { color: var(--map-accent, var(--muted)); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; font-size: 11px; }
 .card em { font-style: normal; color: var(--gold); font-size: 12px; font-weight: 700; }
 .map-thumb { height: 74px; border-radius: 9px; margin-bottom: 4px; }
-.t-track { background: radial-gradient(circle at 70% 30%, #c8e1ff 0 12%, transparent 13%), linear-gradient(180deg, #4a8ee6, #bcd8f0 55%, #5c9a44 56%); }
-.t-desert { background: radial-gradient(circle at 25% 55%, #fff1c0 0 8%, transparent 9%), linear-gradient(180deg, #4a5f9c, #ffb36b 55%, #d4a467 56%); }
-.t-mountain { background: linear-gradient(160deg, transparent 45%, #3b3550 46%, #3b3550 60%, transparent 61%), linear-gradient(200deg, transparent 50%, #4a6b3a 51%), linear-gradient(180deg, #2a2d63, #f08a7a 60%, #5e7b3e 61%); }
-.t-forest { background: repeating-linear-gradient(90deg, #2c5a2a 0 10px, #3f6b35 10px 18px), linear-gradient(180deg, #5d8fc9, #d6e2da); background-size: 100% 45%, 100% 100%; background-position: bottom, top; background-repeat: no-repeat; }
-.t-city { background: repeating-linear-gradient(90deg, #1a1530 0 14px, #2c1b4a 14px 16px, #22183a 16px 30px), linear-gradient(180deg, #05061a, #2c1b4a); background-size: 100% 60%, 100% 100%; background-position: bottom, top; background-repeat: no-repeat; box-shadow: inset 0 -3px 0 #ff006e; }
+/* map thumbnails: little painted skylines in natural colours */
+.t-track { background: radial-gradient(circle at 70% 30%, #f3f1e6 0 10%, transparent 11%), linear-gradient(180deg, #5b8fc8, #c3d6e6 55%, #5f8f48 56%, #4f7d3c); }
+.t-desert { background: radial-gradient(circle at 25% 55%, #fbe7b8 0 8%, transparent 9%), linear-gradient(180deg, #6a7fa6, #e8b27a 55%, #d2a46c 56%, #c08f58); }
+.t-mountain { background: linear-gradient(160deg, transparent 45%, #4a4646 46%, #4a4646 60%, transparent 61%), linear-gradient(200deg, transparent 50%, #4f6b3e 51%), linear-gradient(180deg, #3a4a6a, #d79a72 60%, #5a7040 61%); }
+.t-forest { background: repeating-linear-gradient(90deg, #2c4f2c 0 10px, #3b6136 10px 18px), linear-gradient(180deg, #6f98c4, #d3dfd8); background-size: 100% 45%, 100% 100%; background-position: bottom, top; background-repeat: no-repeat; }
+.t-city { background: radial-gradient(circle at 20% 72%, rgba(255, 210, 140, 0.9) 0 2px, transparent 3px), radial-gradient(circle at 55% 64%, rgba(255, 210, 140, 0.9) 0 2px, transparent 3px), radial-gradient(circle at 82% 78%, rgba(255, 210, 140, 0.9) 0 2px, transparent 3px), repeating-linear-gradient(90deg, #2b2f36 0 14px, #1c1f24 14px 16px, #33373e 16px 30px), linear-gradient(180deg, #0f1622, #2a313d); background-size: 100% 100%, 100% 100%, 100% 100%, 100% 60%, 100% 100%; background-position: 0 0, 0 0, 0 0, bottom, top; background-repeat: no-repeat; }
 .play-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; gap: 16px; flex-wrap: wrap; }
 .play-car { display: flex; align-items: center; gap: 12px; }
 .play-car small { display: block; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; }
 .play-car b { font-size: 18px; font-style: italic; }
-.swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.3); flex: none; display: inline-block; }
+.swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--line-strong); flex: none; display: inline-block; }
 
 /* garage */
 #scr-garage { justify-content: space-between; align-items: flex-start; gap: 20px; background: none; }
 .garage-left { width: 330px; max-height: calc(100vh - 64px); overflow-y: auto; }
 .garage-right { width: 380px; max-height: calc(100vh - 64px); overflow-y: auto; }
 .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
-.tab { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 600; }
-.tab.sel { background: var(--pink); border-color: var(--pink); color: #fff; }
+.tab { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 600; }
+.tab.sel { background: var(--accent-btn); border-color: var(--accent-btn); color: #fff; }
 .car-list { display: flex; flex-direction: column; gap: 8px; }
-.car-item { display: flex; align-items: center; gap: 12px; text-align: left; background: rgba(255, 255, 255, 0.04); border: 2px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.car-item { display: flex; align-items: center; gap: 12px; text-align: left; background: var(--surface); border: 2px solid var(--line); border-radius: 12px; padding: 10px 12px; }
 .car-item b { flex: 1; font-style: italic; }
 .car-item small { color: var(--muted); }
-.car-item.sel { border-color: var(--pink); background: rgba(255, 46, 136, 0.1); }
+.car-item:hover { border-color: var(--line-strong); }
+.car-item.sel { border-color: var(--accent); background: var(--accent-soft); }
 .car-name { font-size: 28px; font-weight: 900; font-style: italic; text-transform: uppercase; }
-.car-name small { display: block; font-size: 12px; color: var(--pink); letter-spacing: 0.14em; }
+.car-name small { display: block; font-size: 12px; color: var(--accent); letter-spacing: 0.14em; }
 .stat { display: grid; grid-template-columns: 96px 1fr 24px; align-items: center; gap: 10px; margin: 7px 0; font-size: 13px; }
 .stat em { font-style: normal; color: var(--muted); text-align: right; }
 .bar { height: 7px; background: rgba(255, 255, 255, 0.08); border-radius: 99px; overflow: hidden; }
-.bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--cyan), var(--pink)); border-radius: 99px; transition: width 0.3s; }
+.bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width 0.3s; }
 .swatches { display: flex; flex-wrap: wrap; gap: 7px; }
-.sw { width: 28px; height: 28px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.25); padding: 0; position: relative; font-size: 13px; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; }
-.sw.sel { outline: 3px solid var(--pink); outline-offset: 2px; }
-.sw.custom { background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red); color: #fff; font-weight: 900; cursor: pointer; }
+.sw { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--line-strong); padding: 0; position: relative; font-size: 13px; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; }
+.sw.sel { outline: 3px solid var(--text); outline-offset: 2px; }
+.sw.custom { background: conic-gradient(#c94a3c, #d9a440, #5f9e5a, #4a86b8, #7a5fa8, #c94a3c); color: #fff; font-weight: 900; cursor: pointer; }
 .sw.custom input, .colorchip input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; padding: 0; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 13px; position: relative; }
-.chip.sel { border-color: var(--pink); background: rgba(255, 46, 136, 0.18); }
+.chip { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 13px; position: relative; }
+.chip:hover:not([disabled]) { border-color: var(--line-strong); }
+.chip.sel { border-color: var(--accent); background: var(--accent-soft); }
 .custom { margin-bottom: 14px; }
 
 /* multiplayer */
@@ -131,30 +156,30 @@ h4 { margin: 14px 0 6px; font-size: 12px; letter-spacing: 0.12em; text-transform
 #mp-code { text-transform: uppercase; letter-spacing: 0.25em; font-family: ui-monospace, Consolas, monospace; font-size: 18px; }
 .adv { margin-top: 18px; color: var(--muted); font-size: 13px; }
 .adv summary { cursor: pointer; margin-bottom: 8px; }
-.status { margin-left: auto; font-size: 13px; padding: 5px 12px; border-radius: 99px; background: rgba(255, 255, 255, 0.06); color: var(--muted); }
-.status.ok { color: var(--good); background: rgba(61, 220, 132, 0.1); }
-.status.bad { color: var(--bad); background: rgba(255, 77, 94, 0.1); }
+.status { margin-left: auto; font-size: 13px; padding: 5px 12px; border-radius: 99px; background: var(--surface); color: var(--muted); }
+.status.ok { color: var(--good); background: rgba(109, 187, 127, 0.12); }
+.status.bad { color: var(--bad); background: rgba(224, 103, 92, 0.12); }
 .list-head { display: flex; align-items: center; justify-content: space-between; }
 .room-list { display: flex; flex-direction: column; gap: 8px; max-height: 52vh; overflow-y: auto; }
-.room-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 14px; align-items: center; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
+.room-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 14px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
 .room-row small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
 .room-row .count { color: var(--muted); font-weight: 700; }
-.live { color: var(--good); font-style: normal; }
+.room-row .live { color: var(--good); font-style: normal; } /* "in game" tag in the room list (scoped so it does not tint the HUD drift counter) */
 .empty { text-align: center; color: var(--muted); padding: 40px 10px; border: 1px dashed var(--line); border-radius: 12px; line-height: 1.6; }
 .form { display: flex; flex-direction: column; gap: 4px; }
 .form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); margin-bottom: 10px; }
 .comp-only { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .code-box { margin-left: auto; display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
-.code-box code { font-size: 26px; color: var(--cyan); font-weight: 800; background: rgba(25, 227, 255, 0.08); padding: 4px 12px; border-radius: 8px; }
+.code-box code { font-size: 26px; color: var(--text); font-weight: 800; background: var(--surface-2); padding: 4px 12px; border-radius: 8px; }
 .tag { font-size: 12px; font-style: normal; vertical-align: middle; border: 1px solid var(--line); border-radius: 99px; padding: 3px 10px; color: var(--muted); }
-.player { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); margin-bottom: 6px; border: 1px solid transparent; }
-.player.me { border-color: rgba(255, 46, 136, 0.5); }
+.player { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--surface); margin-bottom: 6px; border: 1px solid transparent; }
+.player.me { border-color: var(--accent); }
 .player b { flex: 0 1 auto; }
 .player small { margin-left: auto; color: var(--muted); }
 .crown { font-style: normal; color: var(--gold); font-size: 12px; font-weight: 700; }
 .slots { color: var(--muted); font-size: 12px; margin-top: 4px; }
 .lobby-chat { margin-top: 14px; }
-#lobby-chat-log { height: 120px; overflow-y: auto; font-size: 13px; background: rgba(0, 0, 0, 0.25); border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; }
+#lobby-chat-log { height: 120px; overflow-y: auto; font-size: 13px; background: rgba(0, 0, 0, 0.28); border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; }
 #lobby-chat-input { width: 100%; }
 .cl { margin: 2px 0; } .cl.sys { color: var(--muted); font-style: italic; }
 .lobby-foot { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
@@ -167,15 +192,15 @@ h4 { margin: 14px 0 6px; font-size: 12px; letter-spacing: 0.12em; text-transform
 .setting .chips, .setting input:not([type=range]) { grid-column: 2 / 4; }
 input[type=range] { -webkit-appearance: none; appearance: none; background: transparent; padding: 0; border: none; width: 100%; }
 input[type=range]::-webkit-slider-runnable-track { height: 6px; background: rgba(255, 255, 255, 0.12); border-radius: 99px; }
-input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--pink); margin-top: -6px; }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); margin-top: -6px; }
 input[type=range]::-moz-range-track { height: 6px; background: rgba(255, 255, 255, 0.12); border-radius: 99px; }
-input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--pink); border: none; }
+input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--accent); border: none; }
 .binds { margin: 12px 0; font-size: 13px; }
 .bind, .bind-head { display: grid; grid-template-columns: 1fr 120px 120px; gap: 8px; align-items: center; padding: 4px 0; }
 .bind-head { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; }
-.key { background: rgba(255, 255, 255, 0.07); border: 1px solid var(--line); border-radius: 7px; padding: 5px 8px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
-.key.listening { border-color: var(--pink); color: var(--pink); animation: pulse 0.8s infinite alternate; }
-@keyframes pulse { to { background: rgba(255, 46, 136, 0.2); } }
+.key { background: var(--surface-2); border: 1px solid var(--line); border-radius: 7px; padding: 5px 8px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+.key.listening { border-color: var(--accent); color: var(--accent); animation: pulse 0.8s infinite alternate; }
+@keyframes pulse { to { background: var(--accent-soft); } }
 .settings p.muted { margin-top: 12px; line-height: 1.5; }
 .credits ul { color: var(--muted); line-height: 1.8; }
 
@@ -183,43 +208,44 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
 #hud { position: fixed; inset: 0; pointer-events: none; font-variant-numeric: tabular-nums; }
 #hud.hidden-hud > *:not(#pops):not(#chat-input) { opacity: 0; }
 .hud-tl { position: absolute; top: 16px; left: 18px; }
-#hud-mode { font-size: 12px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: var(--pink); }
-#hud-name { font-size: 15px; font-weight: 700; opacity: 0.85; }
-#hud-timer { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); font-size: 40px; font-weight: 900; font-style: italic; text-align: center; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6); line-height: 1; }
-#hud-timer small { display: block; font-size: 11px; letter-spacing: 0.2em; color: var(--cyan); font-style: normal; margin-bottom: 2px; }
+#hud-mode { font-size: 12px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent); text-shadow: var(--text-outline); }
+#hud-name { font-size: 15px; font-weight: 700; opacity: 0.9; text-shadow: var(--text-shadow); }
+#hud-timer { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); font-size: 40px; font-weight: 900; font-style: italic; text-align: center; text-shadow: var(--text-shadow); line-height: 1; }
+#hud-timer small { display: block; font-size: 11px; letter-spacing: 0.2em; color: var(--info); font-style: normal; margin-bottom: 2px; }
 #hud-timer.urgent { color: var(--bad); animation: pulse2 0.5s infinite alternate; }
 @keyframes pulse2 { to { transform: translateX(-50%) scale(1.08); } }
 #hud-drift { position: absolute; top: 74px; left: 50%; transform: translateX(-50%); text-align: center; opacity: 0; transition: opacity 0.2s; }
 #hud-drift.live { opacity: 1; }
 .d-row { display: flex; align-items: baseline; gap: 10px; justify-content: center; }
-#drift-score { font-size: 38px; font-weight: 900; font-style: italic; text-shadow: 0 3px 16px rgba(0, 0, 0, 0.6); }
-#drift-mult { font-size: 26px; font-weight: 900; color: var(--gold); font-style: italic; }
-.grace { width: 160px; height: 4px; margin: 4px auto 0; background: rgba(255, 255, 255, 0.15); border-radius: 9px; overflow: hidden; }
+#drift-score { font-size: 38px; font-weight: 900; font-style: italic; text-shadow: var(--text-outline); }
+#drift-mult { font-size: 26px; font-weight: 900; color: var(--gold); font-style: italic; text-shadow: var(--text-outline); }
+.grace { width: 160px; height: 4px; margin: 4px auto 0; background: rgba(0, 0, 0, 0.35); border-radius: 9px; overflow: hidden; }
 .grace i { display: block; height: 100%; background: var(--gold); transform-origin: left; }
-#drift-angle { font-size: 13px; color: var(--cyan); font-weight: 800; margin-top: 3px; min-height: 16px; }
+#drift-angle { font-size: 13px; color: var(--info); text-shadow: var(--text-shadow); font-weight: 800; margin-top: 3px; min-height: 16px; }
 #pops { position: absolute; top: 150px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.pop { font-size: 26px; font-weight: 900; font-style: italic; color: var(--good); text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6); animation: popup 1.8s ease forwards; text-align: center; line-height: 1.05; }
-.pop small { display: block; font-size: 12px; letter-spacing: 0.18em; color: #fff; }
+/* drift popups: a few distinct, muted tier colours */
+.pop { font-size: 26px; font-weight: 900; font-style: italic; color: var(--good); text-shadow: var(--text-outline); animation: popup 1.8s ease forwards; text-align: center; line-height: 1.05; }
+.pop small { display: block; font-size: 12px; letter-spacing: 0.18em; color: var(--text); }
 .pop.big { font-size: 34px; color: var(--gold); }
-.pop.small { font-size: 16px; color: var(--cyan); }
+.pop.small { font-size: 16px; color: var(--text); }
 .pop.bad { color: var(--bad); }
-.pop.trick { font-size: 30px; color: var(--pink); text-shadow: 0 2px 16px rgba(255, 46, 136, 0.5); }
+.pop.trick { font-size: 30px; color: var(--accent); }
 .style-desc { font-size: 12px; color: var(--muted); margin: 6px 0 4px; line-height: 1.4; }
 .angle-row { grid-template-columns: 110px 1fr 40px; }
 .play-car small + small, .play-car div small:last-child { margin-top: 2px; }
 @keyframes popup { 0% { opacity: 0; transform: translateY(14px) scale(0.85); } 12% { opacity: 1; transform: none; } 75% { opacity: 1; } 100% { opacity: 0; transform: translateY(-18px); } }
-#hud-board { position: absolute; top: 16px; right: 18px; width: 230px; background: rgba(10, 10, 20, 0.55); border-radius: 12px; padding: 10px 12px; backdrop-filter: blur(6px); font-size: 13px; }
+#hud-board { position: absolute; top: 16px; right: 18px; width: 230px; background: var(--hud-bg); border-radius: 12px; padding: 10px 12px; backdrop-filter: blur(6px); font-size: 13px; }
 .lb-title { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
 .lb-row { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; padding: 3px 0; }
 .lb-row span { color: var(--muted); }
 .lb-row b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.lb-row.me b, .lb-row.me em { color: var(--pink); }
+.lb-row.me b, .lb-row.me em { color: var(--accent); }
 .lb-row em { font-style: normal; font-weight: 700; }
 .wins { color: var(--gold); font-style: normal; font-size: 11px; }
-#hud-score { position: absolute; bottom: 20px; left: 18px; display: flex; gap: 22px; background: rgba(10, 10, 20, 0.5); padding: 10px 16px; border-radius: 12px; backdrop-filter: blur(6px); }
+#hud-score { position: absolute; bottom: 20px; left: 18px; display: flex; gap: 22px; background: var(--hud-bg); padding: 10px 16px; border-radius: 12px; backdrop-filter: blur(6px); }
 #hud-score small { display: block; font-size: 10px; letter-spacing: 0.16em; color: var(--muted); }
 #hud-score b { font-size: 22px; font-weight: 900; font-style: italic; }
-#hud-challenge { position: absolute; bottom: 86px; left: 18px; width: 260px; background: rgba(40, 25, 0, 0.6); border: 1px solid rgba(255, 194, 61, 0.5); border-radius: 12px; padding: 10px 12px; }
+#hud-challenge { position: absolute; bottom: 86px; left: 18px; width: 260px; background: var(--hud-bg); border: 1px solid rgba(216, 178, 92, 0.45); border-radius: 12px; padding: 10px 12px; }
 .ch-top { display: flex; justify-content: space-between; margin-bottom: 6px; color: var(--gold); }
 .ch-top span { font-weight: 900; font-size: 18px; }
 #hud-challenge .bar i { background: var(--gold); }
@@ -227,55 +253,56 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
 #speedo { position: absolute; bottom: 14px; right: 18px; width: 170px; height: 170px; }
 #speedo svg { width: 100%; height: 100%; transform: rotate(135deg); }
 .arc-bg, .arc { fill: none; stroke-width: 6; stroke-linecap: round; stroke-dasharray: 251; }
-.arc-bg { stroke: rgba(255, 255, 255, 0.12); stroke-dashoffset: 62.75; }
-.arc { stroke: var(--cyan); stroke-dashoffset: 251; transition: stroke-dashoffset 0.06s linear, stroke 0.2s; filter: drop-shadow(0 0 4px rgba(25, 227, 255, 0.6)); }
-.arc.redline { stroke: var(--pink); }
+.arc-bg { stroke: rgba(0, 0, 0, 0.35); stroke-dashoffset: 62.75; }
+.arc { stroke: var(--text); stroke-dashoffset: 251; transition: stroke-dashoffset 0.06s linear, stroke 0.2s; }
+.arc.redline { stroke: var(--accent); }
 .spd { position: absolute; top: 46px; width: 100%; text-align: center; }
-.spd b { font-size: 46px; font-weight: 900; font-style: italic; display: block; line-height: 1; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5); }
-.spd small { font-size: 11px; letter-spacing: 0.16em; color: var(--muted); }
-.gear { position: absolute; bottom: 30px; width: 100%; text-align: center; font-size: 20px; font-weight: 900; color: var(--gold); }
+.spd b { font-size: 46px; font-weight: 900; font-style: italic; display: block; line-height: 1; text-shadow: var(--text-shadow); }
+.spd small { font-size: 11px; letter-spacing: 0.16em; color: var(--text); opacity: 0.8; text-shadow: var(--text-shadow); }
+.gear { position: absolute; bottom: 30px; width: 100%; text-align: center; font-size: 20px; font-weight: 900; color: var(--gold); text-shadow: var(--text-shadow); }
 #boost { position: absolute; bottom: -2px; left: 25px; right: 25px; }
 #boost small { display: none; }
 #boost .bar { height: 5px; }
-#boost .bar i { background: linear-gradient(90deg, #ff8a00, var(--gold)); transition: width 0.1s; }
-#boost.active .bar { box-shadow: 0 0 10px var(--gold); }
-#hud-hint { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); font-size: 11px; color: rgba(255, 255, 255, 0.45); white-space: nowrap; }
-#chat-log { position: absolute; left: 18px; bottom: 90px; width: 340px; font-size: 13px; display: flex; flex-direction: column; gap: 2px; max-height: 160px; overflow: hidden; text-shadow: 0 1px 4px #000; }
+#boost .bar { background: rgba(0, 0, 0, 0.35); }
+#boost .bar i { background: var(--gold); transition: width 0.1s; }
+#boost.active .bar { outline: 1px solid var(--gold); }
+#hud-hint { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); font-size: 11px; color: rgba(236, 237, 239, 0.7); white-space: nowrap; text-shadow: var(--text-shadow); }
+#chat-log { position: absolute; left: 18px; bottom: 90px; width: 340px; font-size: 13px; display: flex; flex-direction: column; gap: 2px; max-height: 160px; overflow: hidden; text-shadow: var(--text-shadow); }
 #chat-log .cl { transition: opacity 1s; }
 #chat-log .cl.fade { opacity: 0; }
-#chat-input { position: absolute; left: 18px; bottom: 260px; width: 340px; pointer-events: auto; background: rgba(10, 10, 20, 0.85); }
+#chat-input { position: absolute; left: 18px; bottom: 260px; width: 340px; pointer-events: auto; background: rgba(18, 20, 24, 0.92); }
 
 #tags { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
-.nametag { position: absolute; left: 0; top: 0; padding: 3px 10px; border-radius: 99px; background: rgba(10, 10, 20, 0.6); border: 1px solid rgba(255, 255, 255, 0.25); font-size: 13px; font-weight: 700; white-space: nowrap; transform-origin: 50% 100%; }
+.nametag { position: absolute; left: 0; top: 0; padding: 3px 10px; border-radius: 99px; background: var(--hud-bg); border: 1px solid var(--line-strong); font-size: 13px; font-weight: 700; white-space: nowrap; transform-origin: 50% 100%; }
 
-#bigtext { position: fixed; top: 36%; left: 0; right: 0; text-align: center; font-size: 110px; font-weight: 900; font-style: italic; pointer-events: none; opacity: 0; text-shadow: 0 6px 40px rgba(255, 46, 136, 0.6); }
+#bigtext { position: fixed; top: 36%; left: 0; right: 0; text-align: center; font-size: 110px; font-weight: 900; font-style: italic; pointer-events: none; opacity: 0; text-shadow: 0 4px 16px rgba(0, 0, 0, 0.6); }
 #bigtext.show { animation: big 0.9s ease forwards; }
 @keyframes big { 0% { opacity: 0; transform: scale(1.6); } 20% { opacity: 1; transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: scale(0.9); } }
 
-#results { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(5, 5, 12, 0.45); }
-.res-card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 24px 30px; width: min(480px, 92vw); backdrop-filter: blur(10px); animation: fadein 0.3s; }
-.res-kicker { font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--cyan); }
+#results { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(8, 9, 11, 0.5); }
+.res-card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 24px 30px; width: min(480px, 92vw); backdrop-filter: blur(10px); box-shadow: var(--shadow); animation: fadein 0.3s; }
+.res-kicker { font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent); }
 .res-card h2 { font-style: italic; font-weight: 900; margin: 6px 0 14px; }
 .res-list { list-style: none; padding: 0; margin: 0 0 12px; }
 .res-list li { display: grid; grid-template-columns: 26px 1fr auto; gap: 10px; padding: 8px 10px; border-radius: 9px; }
-.res-list li.win { background: rgba(255, 194, 61, 0.14); color: var(--gold); }
-.res-list li.me b { color: var(--pink); }
+.res-list li.win { background: rgba(216, 178, 92, 0.12); color: var(--gold); }
+.res-list li.me b { color: var(--accent); }
 .res-list em { font-style: normal; font-weight: 700; }
 .row { display: flex; gap: 10px; }
 
-#pause { position: fixed; inset: 0; background: rgba(5, 5, 12, 0.6); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
-.pause-card { display: flex; flex-direction: column; gap: 10px; width: min(380px, 92vw); background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 24px; }
+#pause { position: fixed; inset: 0; background: rgba(8, 9, 11, 0.6); display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+.pause-card { display: flex; flex-direction: column; gap: 10px; width: min(380px, 92vw); background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 24px; box-shadow: var(--shadow); }
 .pause-card h2 { margin: 0 0 6px; font-style: italic; font-weight: 900; text-transform: uppercase; }
 .controls-help { color: var(--muted); font-size: 12px; line-height: 1.6; margin-top: 8px; }
 
 #loading { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; font-size: 18px; font-style: italic; font-weight: 700; z-index: 10; }
-.spinner { width: 46px; height: 46px; border: 4px solid rgba(255, 255, 255, 0.1); border-top-color: var(--pink); border-radius: 50%; animation: spin 0.8s linear infinite; }
+.spinner { width: 46px; height: 46px; border: 4px solid rgba(255, 255, 255, 0.1); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 #toasts { position: fixed; top: 70px; right: 18px; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; z-index: 20; pointer-events: none; }
-.toast { background: rgba(14, 15, 26, 0.9); border: 1px solid var(--line); border-left: 4px solid var(--cyan); border-radius: 10px; padding: 10px 14px; font-size: 14px; max-width: 380px; animation: fadein 0.25s; transition: opacity 0.4s; }
+.toast { background: rgba(22, 24, 28, 0.95); border: 1px solid var(--line); border-left: 4px solid var(--info); box-shadow: var(--shadow); border-radius: 10px; padding: 10px 14px; font-size: 14px; max-width: 380px; animation: fadein 0.25s; transition: opacity 0.4s; }
 .toast.good { border-left-color: var(--good); } .toast.bad { border-left-color: var(--bad); }
 .toast.out { opacity: 0; }
-#fps { position: fixed; top: 4px; left: 50%; transform: translateX(-50%); font-size: 11px; color: #9f9; background: rgba(0, 0, 0, 0.4); padding: 2px 8px; border-radius: 6px; z-index: 30; }
+#fps { position: fixed; top: 4px; left: 50%; transform: translateX(-50%); font-size: 11px; color: var(--good); background: rgba(0, 0, 0, 0.5); padding: 2px 8px; border-radius: 6px; z-index: 30; }
 #fatal { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--bg); z-index: 50; text-align: center; padding: 30px; }
 
 @media (max-width: 1100px) {
@@ -291,17 +318,17 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
   .setting .chips, .setting input:not([type=range]) { grid-column: auto; }
 }
 
-#netbanner { position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 40; background: rgba(255, 77, 94, 0.92); color: #fff; font-weight: 700; padding: 8px 18px; border-radius: 0 0 12px 12px; font-size: 14px; animation: pulse3 1s infinite alternate; }
-@keyframes pulse3 { to { background: rgba(200, 40, 60, 0.92); } }
+#netbanner { position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 40; background: rgba(176, 58, 48, 0.95); color: #fff; font-weight: 700; padding: 8px 18px; border-radius: 0 0 12px 12px; font-size: 14px; animation: pulse3 1s infinite alternate; }
+@keyframes pulse3 { to { background: rgba(140, 44, 36, 0.95); } }
 .nametag.away { opacity: 0.55; font-style: italic; }
 .away-tag { font-style: italic; color: var(--bad); font-size: 12px; }
 
 /* ================= Competitive modes ================= */
 .cards.comp { grid-template-columns: repeat(3, 1fr); }
 .compcard .map-thumb { height: 92px; position: relative; display: flex; align-items: center; justify-content: center; }
-.comp-icon { font-size: 40px; font-style: normal; color: #fff; text-shadow: 0 2px 14px rgba(0, 0, 0, 0.6); }
-.compcard { border-color: rgba(255, 46, 136, 0.35); }
-.compcard:hover { border-color: var(--pink); }
+.comp-icon { font-size: 40px; font-style: normal; color: #fff; text-shadow: var(--text-shadow); }
+.compcard { border-color: var(--line); }
+.compcard:hover { border-color: var(--accent); }
 .comp-desc { color: var(--muted); margin: 0 0 8px; }
 .setup-row { display: grid; grid-template-columns: 190px 1fr 60px; gap: 14px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .setup-row .chips { grid-column: 2 / 4; }
@@ -309,45 +336,45 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
 .setup-note { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 10px 0; }
 .bad-note { color: var(--bad); font-size: 13px; }
 #comp-hud { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); min-width: 250px; max-width: 92vw; text-align: center; pointer-events: none; }
-#comp-hud .ctag { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--cyan); font-weight: 800; }
-#comp-hud .cbig { font-size: 40px; font-weight: 900; font-style: italic; line-height: 1; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6); }
+#comp-hud .ctag { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--info); font-weight: 800; text-shadow: var(--text-shadow); }
+#comp-hud .cbig { font-size: 40px; font-weight: 900; font-style: italic; line-height: 1; text-shadow: var(--text-shadow); }
 #comp-hud .cbig.urgent { color: var(--bad); }
-#comp-hud .cstats { display: flex; gap: 14px; justify-content: center; font-size: 13px; margin-top: 4px; text-shadow: 0 1px 6px #000; flex-wrap: wrap; }
+#comp-hud .cstats { display: flex; gap: 14px; justify-content: center; font-size: 13px; margin-top: 4px; text-shadow: var(--text-shadow); flex-wrap: wrap; }
 #comp-hud .cstats b { font-size: 15px; }
 #comp-hud .cstats .bad { color: var(--bad); font-weight: 800; }
-#comp-hud .cboard { position: fixed; top: 16px; right: 18px; width: 220px; background: rgba(10, 10, 20, 0.55); border-radius: 12px; padding: 8px 10px; backdrop-filter: blur(6px); font-size: 13px; text-align: left; }
+#comp-hud .cboard { position: fixed; top: 16px; right: 18px; width: 220px; background: var(--hud-bg); border-radius: 12px; padding: 8px 10px; backdrop-filter: blur(6px); font-size: 13px; text-align: left; }
 #comp-hud .cboard div { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; padding: 2px 0; }
 #comp-hud .cboard div span { color: var(--muted); }
 #comp-hud .cboard div b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #comp-hud .cboard div em { font-style: normal; font-weight: 700; }
-#comp-hud .cboard .me b, #comp-hud .cboard .me em { color: var(--pink); }
+#comp-hud .cboard .me b, #comp-hud .cboard .me em { color: var(--accent); }
 .race-top { display: flex; align-items: baseline; justify-content: center; gap: 18px; }
-.race-top .pos { font-size: 48px; font-weight: 900; font-style: italic; line-height: 1; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6); }
+.race-top .pos { font-size: 48px; font-weight: 900; font-style: italic; line-height: 1; text-shadow: var(--text-shadow); }
 .race-top .pos small { font-size: 20px; color: var(--muted); }
-.race-top .lap { font-size: 16px; font-weight: 800; letter-spacing: 0.08em; }
+.race-top .lap { font-size: 16px; font-weight: 800; letter-spacing: 0.08em; text-shadow: var(--text-shadow); }
 .race-top .lap b { font-size: 26px; color: var(--gold); }
-.cpbar { position: relative; width: 240px; height: 14px; margin: 6px auto 0; background: rgba(0, 0, 0, 0.45); border-radius: 99px; overflow: hidden; }
-.cpbar i { display: block; height: 100%; background: linear-gradient(90deg, var(--cyan), #3a86ff); }
+.cpbar { position: relative; width: 240px; height: 14px; margin: 6px auto 0; background: rgba(0, 0, 0, 0.5); border-radius: 99px; overflow: hidden; }
+.cpbar i { display: block; height: 100%; background: #4f7da3; }
 .cpbar span { position: absolute; inset: 0; font-size: 10px; line-height: 14px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; }
-.cwarn { margin-top: 8px; display: inline-block; background: rgba(255, 77, 94, 0.9); padding: 5px 14px; border-radius: 8px; font-weight: 800; animation: pulse3 0.6s infinite alternate; }
+.cwarn { margin-top: 8px; display: inline-block; background: rgba(176, 58, 48, 0.95); padding: 5px 14px; border-radius: 8px; font-weight: 800; animation: pulse3 0.6s infinite alternate; }
 .role { display: inline-block; margin-top: 4px; padding: 4px 18px; border-radius: 8px; font-size: 24px; font-weight: 900; font-style: italic; letter-spacing: 0.06em; }
-.role-lead { background: rgba(61, 220, 132, 0.85); }
-.role-chase { background: rgba(255, 46, 136, 0.85); }
-.role-watch { background: rgba(255, 255, 255, 0.2); }
-.prox { display: flex; gap: 12px; justify-content: center; align-items: center; margin-top: 6px; font-size: 14px; text-shadow: 0 1px 6px #000; }
-.prox .q { font-weight: 900; padding: 2px 10px; border-radius: 6px; background: rgba(0, 0, 0, 0.4); }
+.role-lead { background: #3f7d4f; }
+.role-chase { background: var(--accent-btn); }
+.role-watch { background: rgba(80, 86, 94, 0.85); }
+.prox { display: flex; gap: 12px; justify-content: center; align-items: center; margin-top: 6px; font-size: 14px; text-shadow: var(--text-shadow); }
+.prox .q { font-weight: 900; padding: 2px 10px; border-radius: 6px; background: rgba(0, 0, 0, 0.5); }
 .q-PERFECT { color: var(--good); } .q-GOOD { color: var(--gold); } .q-TOOFAR { color: var(--muted); } .q-TOOCLOSE { color: var(--bad); }
-.prox-bar i { background: linear-gradient(90deg, var(--pink), var(--good)); }
-#spec-banner { position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%); background: rgba(10, 10, 20, 0.75); padding: 8px 18px; border-radius: 10px; font-weight: 700; letter-spacing: 0.06em; }
-.nametag.cpu { border-color: rgba(255, 194, 61, 0.6); color: var(--gold); }
-.nametag.ghost { border-color: rgba(25, 227, 255, 0.6); color: var(--cyan); }
-.cpu-tag { font-style: normal; font-size: 10px; padding: 1px 6px; border-radius: 6px; background: rgba(255, 194, 61, 0.2); color: var(--gold); margin-left: 4px; }
+.prox-bar i { background: var(--good); }
+#spec-banner { position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%); background: var(--hud-bg); padding: 8px 18px; border-radius: 10px; font-weight: 700; letter-spacing: 0.06em; }
+.nametag.cpu { border-color: rgba(216, 178, 92, 0.6); color: var(--gold); }
+.nametag.ghost { border-color: rgba(143, 179, 209, 0.6); color: var(--info); }
+.cpu-tag { font-style: normal; font-size: 10px; padding: 1px 6px; border-radius: 6px; background: rgba(216, 178, 92, 0.18); color: var(--gold); margin-left: 4px; }
 .res-card.wide-res { width: min(760px, 94vw); max-height: 88vh; overflow-y: auto; }
 .res-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 6px 0 10px; }
 .res-table th { text-align: left; color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; padding: 6px 8px; border-bottom: 1px solid var(--line); }
 .res-table td { padding: 6px 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); }
 .res-table tr.win td { color: var(--gold); }
-.res-table tr.me td:nth-child(2) { color: var(--pink); font-weight: 700; }
+.res-table tr.me td:nth-child(2) { color: var(--accent); font-weight: 700; }
 .res-table tr.bad td { color: var(--bad); }
 .res-table.small { font-size: 12px; margin: 4px 0; }
 .res-actions { margin-top: 10px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
@@ -369,7 +396,7 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
 #hud.comp-on #pops { top: 196px; }
 
 /* ---------------- minimap */
-#minimap { position: absolute; z-index: 2; pointer-events: none; filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.55)); }
+#minimap { position: absolute; z-index: 2; pointer-events: none; filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.45)); }
 #minimap canvas { display: block; border-radius: 50%; }
 #minimap.mm-bottom-right { right: 18px; bottom: 196px; }
 #minimap.mm-top-right { right: 18px; top: 16px; }
@@ -387,16 +414,16 @@ input[type=range]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 
 .drag-hint { font-size: 11px; color: var(--muted); margin: -4px 0 8px; text-align: right; }
 .stat-head { display: grid; grid-template-columns: 90px 1fr; font-size: 11px; color: var(--muted); margin: 10px 0 2px; }
 .stat-head .lg { display: inline-block; width: 14px; height: 6px; border-radius: 3px; margin: 0 4px 1px 10px; vertical-align: middle; }
-.lg.stock { background: rgba(255, 255, 255, 0.28); } .lg.cur { background: linear-gradient(90deg, var(--cyan), var(--pink)); }
+.lg.stock { background: rgba(255, 255, 255, 0.28); } .lg.cur { background: var(--accent); }
 .tstat { display: grid; grid-template-columns: 90px 1fr 150px; align-items: center; gap: 8px; margin: 5px 0; font-size: 12.5px; }
 .tstat em { font-style: normal; text-align: right; font-weight: 700; white-space: nowrap; }
 .tstat em small { font-weight: 400; color: var(--muted); font-size: 10.5px; }
-.tstat .up { color: #5dffa0; font-size: 11px; } .tstat .down { color: #ff7a8a; font-size: 11px; }
+.tstat .up { color: var(--good); font-size: 11px; } .tstat .down { color: var(--bad); font-size: 11px; }
 .bar2 { position: relative; height: 8px; background: rgba(255, 255, 255, 0.07); border-radius: 99px; overflow: hidden; }
 .bar2 b, .bar2 i { position: absolute; left: 0; top: 0; height: 100%; border-radius: 99px; transition: width 0.25s; }
-.bar2 b { background: rgba(255, 255, 255, 0.25); } .bar2 i { background: linear-gradient(90deg, var(--cyan), var(--pink)); height: 4px; top: 2px; box-shadow: 0 0 6px rgba(0, 229, 255, 0.5); }
+.bar2 b { background: rgba(255, 255, 255, 0.25); } .bar2 i { background: var(--accent); height: 4px; top: 2px; }
 p.tiny { font-size: 10.5px; margin: 4px 0 8px; }
-.gtabs { margin: 14px 0 8px; position: sticky; top: -22px; background: #10111d; z-index: 1; padding: 6px 0; }
+.gtabs { margin: 14px 0 8px; position: sticky; top: -22px; background: #16181c; z-index: 1; padding: 6px 0; }
 .chip[disabled] { opacity: 0.3; cursor: not-allowed; }
 .part { margin-bottom: 6px; } .part p.muted { font-size: 11.5px; margin: 4px 0 0; }
 .tslider { display: grid; grid-template-columns: 112px 1fr 28px; align-items: center; gap: 8px; margin: 6px 0; font-size: 12.5px; }
@@ -405,26 +432,26 @@ p.tiny { font-size: 10.5px; margin: 4px 0 8px; }
 .tsl-row small { font-size: 9.5px; color: var(--muted); line-height: 1.1; } .tsl-row small:last-child { text-align: right; }
 .tsl-row input { width: 100%; }
 .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.preset { text-align: left; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 8px 10px; color: inherit; cursor: pointer; font: inherit; }
+.preset { text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; color: inherit; cursor: pointer; font: inherit; }
 .preset b { display: block; font-size: 13px; } .preset small { color: var(--muted); font-size: 11px; line-height: 1.25; display: block; margin-top: 2px; }
-.preset:hover { border-color: var(--cyan); } .preset.sel { border-color: var(--pink); background: rgba(255, 0, 110, 0.12); }
+.preset:hover { border-color: var(--line-strong); } .preset.sel { border-color: var(--accent); background: var(--accent-soft); }
 .my-presets { display: flex; flex-direction: column; gap: 6px; }
 .mp-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px; align-items: center; }
-.mp-row input, .mp-save input { background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); color: inherit; border-radius: 8px; padding: 6px 8px; font: inherit; font-size: 13px; min-width: 0; }
+.mp-row input, .mp-save input { background: var(--surface); border: 1px solid var(--line); color: inherit; border-radius: 8px; padding: 6px 8px; font: inherit; font-size: 13px; min-width: 0; }
 .mp-save { display: grid; grid-template-columns: 1fr auto; gap: 6px; margin: 8px 0 12px; }
 .btn.danger:hover { color: var(--bad); border-color: var(--bad); }
-.room-rule { font-size: 12px; background: rgba(255, 190, 11, 0.12); border: 1px solid rgba(255, 190, 11, 0.4); border-radius: 8px; padding: 6px 8px; }
-.car-item i.tuned { font-style: normal; font-size: 9px; font-weight: 800; color: var(--pink); letter-spacing: 0.08em; }
+.room-rule { font-size: 12px; background: rgba(216, 178, 92, 0.1); border: 1px solid rgba(216, 178, 92, 0.4); border-radius: 8px; padding: 6px 8px; }
+.car-item i.tuned { font-style: normal; font-size: 9px; font-weight: 800; color: var(--accent); letter-spacing: 0.08em; }
 
-.rule-tag { font-style: normal; font-weight: 700; } .rule-tag.stock { color: var(--gold); } .rule-tag.equal { color: var(--cyan); }
-.modal { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, 0.55); z-index: 50; }
+.rule-tag { font-style: normal; font-weight: 700; } .rule-tag.stock { color: var(--gold); } .rule-tag.equal { color: var(--info); }
+.modal { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, 0.6); z-index: 50; }
 .modal .panel { max-width: 440px; } .row-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
 
 </style>
 </head>
 <body>
 <canvas id="gl"></canvas>
-<div id="menu-bg"><i></i><i></i><i></i><i></i><i></i></div>
+<div id="menu-bg"></div>
 
 <!-- ======================= MAIN MENU ======================= -->
 <section class="screen" id="scr-main">
@@ -1030,7 +1057,12 @@ class AudioEngine {
     this.stopEngine();
     const c = this.ctx, e = this.eng = { p, nodes: [] };
     const out = c.createGain(); out.gain.value = 0; out.connect(this.sfx); e.out = out;
-    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 2.5; lp.connect(out); e.lp = lp;
+    // rev limiter: a low square-wave LFO chops the engine volume when it hits the limiter
+    const lim = c.createGain(); lim.gain.value = 1; lim.connect(out);
+    const lfo = c.createOscillator(); lfo.type = 'square'; lfo.frequency.value = 16;
+    const lfoDepth = c.createGain(); lfoDepth.gain.value = 0; lfo.connect(lfoDepth); lfoDepth.connect(lim.gain); lfo.start();
+    e.lfoDepth = lfoDepth; e.nodes.push(lfo); e.gear = 1; e.lastThr = 0;
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 2.5; lp.connect(lim); e.lp = lp;
     const shaper = c.createWaveShaper(); const k = 4 + p.grit * 30, curve = new Float32Array(1024);
     for (let i = 0; i < 1024; i++) { const x = (i / 1023) * 2 - 1; curve[i] = ((1 + k) * x) / (1 + k * Math.abs(x)); }
     shaper.curve = curve; shaper.connect(lp);
@@ -1058,21 +1090,52 @@ class AudioEngine {
     for (const g of [e.out, e.tire, e.rumble, e.wind, e.boost]) g.gain.setTargetAtTime(0, t, 0.05);
     setTimeout(() => e.nodes.forEach((n) => { try { n.stop(); } catch { /* */ } }), 300);
   }
-  // s: {rpm 0..1, throttle, speed m/s, slip rad, drifting, rumble 0..1, boosting, paused}
+  // s: {gear, rpm 0..1, throttle, speed m/s, slip rad, drifting, rumble 0..1, boosting, paused}
   updateEngine(s) {
     const e = this.eng; if (!e) return;
     const t = this.ctx.currentTime, p = e.p;
-    if (s.paused) { for (const g of [e.out, e.tire, e.rumble, e.wind, e.boost]) g.gain.setTargetAtTime(0, t, 0.1); return; }
+    if (s.paused) { for (const g of [e.out, e.tire, e.rumble, e.wind, e.boost]) g.gain.setTargetAtTime(0, t, 0.1); e.lfoDepth.gain.setTargetAtTime(0, t, 0.05); return; }
     const f = (26 + s.rpm * 165) * p.pitch * (p.cyl >= 8 ? 0.85 : 1);
     for (const { o, mult } of e.oscs) o.frequency.setTargetAtTime(f * mult, t, 0.03);
     e.lp.frequency.setTargetAtTime(350 + s.throttle * 1600 + s.rpm * 1700, t, 0.05);
-    e.out.gain.setTargetAtTime(0.12 + s.throttle * 0.14 + s.rpm * 0.06, t, 0.05);
+    let vol = 0.12 + s.throttle * 0.14 + s.rpm * 0.06;
+    // gear change: the engine note dips for a moment (and a sharp "chuff" on upshifts at high revs)
+    const gear = s.gear || 1;
+    if (gear > e.gear && e.gear >= 1 && s.throttle > 0.5) { e.shiftUntil = t + 0.07; if (s.rpm > 0.5) this.puff(0.05 + p.grit * 0.04, 1800); }
+    e.gear = gear;
+    if (t < (e.shiftUntil || 0)) vol *= 0.35;
+    e.out.gain.setTargetAtTime(vol, t, t < (e.shiftUntil || 0) ? 0.01 : 0.05);
+    // rev limiter bounce when the engine is flat out at the top of a gear
+    e.lfoDepth.gain.setTargetAtTime(s.rpm > 0.97 && s.throttle > 0.8 ? 0.45 : 0, t, 0.02);
+    // lifting off at high revs: a few exhaust pops / crackles (louder on rough, gritty engines)
+    if (e.lastThr > 0.7 && s.throttle < 0.15 && s.rpm > 0.55) {
+      const n = 2 + Math.floor(Math.random() * 3 + p.grit * 3);
+      for (let i = 0; i < n; i++) this.pop(t + 0.04 + Math.random() * 0.45, 0.05 + p.grit * 0.08);
+    }
+    e.lastThr = s.throttle;
     const sq = Math.min(1, Math.max(0, (Math.abs(s.slip) - 0.12) * 2.2)) * Math.min(1, s.speed / 12) * (s.paved ? 1 : 0.25);
     e.tire.gain.setTargetAtTime(sq * 0.22, t, 0.06);
     e.tireBp.frequency.setTargetAtTime(1000 + Math.abs(s.slip) * 500 + Math.sin(t * 13) * 40, t, 0.05);
     e.rumble.gain.setTargetAtTime(s.rumble * Math.min(1, s.speed / 8) * 0.35, t, 0.05);
     e.wind.gain.setTargetAtTime(Math.min(0.18, (s.speed / 70) ** 2 * 0.18), t, 0.2);
     e.boost.gain.setTargetAtTime(s.boosting ? 0.08 : 0, t, 0.08);
+  }
+
+  // exhaust pop: a tiny low noise burst
+  pop(when, vol) {
+    if (!this.ctx) return;
+    const c = this.ctx, n = this.noise(false), bp = c.createBiquadFilter(), g = c.createGain();
+    bp.type = 'bandpass'; bp.frequency.value = 350 + Math.random() * 500; bp.Q.value = 1.2;
+    g.gain.setValueAtTime(vol, when); g.gain.exponentialRampToValueAtTime(0.001, when + 0.06);
+    n.connect(bp); bp.connect(g); g.connect(this.sfx); n.start(when); n.stop(when + 0.08);
+  }
+  // short air "chuff" (gear change / blow-off)
+  puff(vol, freq) {
+    if (!this.ctx) return;
+    const c = this.ctx, t = c.currentTime, n = this.noise(false), hp = c.createBiquadFilter(), g = c.createGain();
+    hp.type = 'bandpass'; hp.frequency.setValueAtTime(freq, t); hp.frequency.exponentialRampToValueAtTime(freq * 0.5, t + 0.12); hp.Q.value = 0.8;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+    n.connect(hp); hp.connect(g); g.connect(this.sfx); n.start(t); n.stop(t + 0.16);
   }
 
   impact(strength) {
@@ -1214,6 +1277,7 @@ class Input {
     this.gpPrev = [];
     this.usingPad = false;
     this.enabled = true;
+    this.kThr = 0; this.kBrk = 0; this.lastRead = 0; // smoothed keyboard pedals
     this.capture = null; // rebinding callback
     window.addEventListener('keydown', (e) => {
       if (this.capture) { e.preventDefault(); const cb = this.capture; this.capture = null; cb(e.code); return; }
@@ -1237,10 +1301,38 @@ class Input {
     return null;
   }
 
+  // Gamepad menu buttons (Start = pause, Y = camera, ...). Call every frame - also while paused or
+  // chatting - so the controller can always open and close the pause menu.
+  pollPad() {
+    const p = this.settings.gamepad !== false ? this.pad() : null;
+    if (!p) return;
+    const b = (i) => (p.buttons[i] ? p.buttons[i].value || (p.buttons[i].pressed ? 1 : 0) : 0);
+    // edge-triggered buttons: Y camera, Back reset, Start pause, R3 music
+    const map = { 3: 'camera', 8: 'reset', 9: 'pause', 11: 'music' };
+    for (const [i, a] of Object.entries(map)) {
+      const now = b(+i) > 0.5;
+      if (now && !this.gpPrev[i]) this.pressedQ.push(a);
+      this.gpPrev[i] = now;
+    }
+  }
+
+  // Keyboard keys are on/off; real pedals aren't. Ramp the keyboard throttle/brake smoothly
+  // (about 0.15 s to full, a bit quicker to release) so the car doesn't lurch.
+  rampKeys(thrKey, brkKey) {
+    const now = performance.now(), dt = Math.min(0.05, Math.max(0, (now - (this.lastRead || now)) / 1000));
+    this.lastRead = now;
+    const step = (v, on) => (on ? Math.min(1, v + dt * 7) : Math.max(0, v - dt * 11));
+    this.kThr = step(this.kThr, thrKey); this.kBrk = step(this.kBrk, brkKey);
+    // a fresh press always gives an instant bit of pedal, so taps still register
+    if (thrKey && this.kThr < 0.25) this.kThr = 0.25;
+    if (brkKey && this.kBrk < 0.25) this.kBrk = 0.25;
+  }
+
   // driving input snapshot
   read() {
     const s = this.settings;
-    let throttle = this.key('throttle') ? 1 : 0, brake = this.key('brake') ? 1 : 0;
+    this.rampKeys(this.key('throttle'), this.key('brake'));
+    let throttle = this.kThr, brake = this.kBrk;
     let steer = (this.key('left') ? 1 : 0) - (this.key('right') ? 1 : 0);
     let handbrake = this.key('handbrake'), boost = this.key('boost'), analog = false;
     const p = s.gamepad !== false ? this.pad() : null;
@@ -1257,13 +1349,6 @@ class Input {
         throttle = Math.max(throttle, rt); brake = Math.max(brake, lt);
         handbrake = handbrake || b(0) > 0.5 || b(5) > 0.5;
         boost = boost || b(2) > 0.5 || b(1) > 0.5;
-      }
-      // edge-triggered buttons: Y camera, Back reset, Start pause, LB hud(no) — R3 music
-      const map = { 3: 'camera', 8: 'reset', 9: 'pause', 11: 'music' };
-      for (const [i, a] of Object.entries(map)) {
-        const now = b(+i) > 0.5;
-        if (now && !this.gpPrev[i]) this.pressedQ.push(a);
-        this.gpPrev[i] = now;
       }
     }
     if (!this.enabled) return { throttle: 0, brake: 0, steer: 0, handbrake: false, boost: false, analog };
@@ -1294,10 +1379,14 @@ __mod["js/net.js"] = (function () {
 // Multiplayer client: WebSocket connection to server.js rooms.
 // - remembers a resume token so a dropped connection (Wi-Fi blip, refresh) rejoins the
 //   same room/game automatically within the server's grace period
+// - only ever has ONE connection attempt running (two at once used to swap the player into a
+//   different session and silently lose their room / host role)
 // - retries while a sleeping free-tier server wakes up
+// - notices a dead connection (no messages for 7 s) and reconnects
 // - measures network jitter to size the remote-car interpolation buffer
 const { DEFAULT_SERVER } = __mod["js/config.js"];
 const TOKEN_KEY = 'driftclub.session';
+const DEAD_MS = 7000; // the server always talks at least every few seconds (pongs to our pings)
 
 class Net {
   constructor() {
@@ -1306,9 +1395,27 @@ class Net {
     this.jitter = 20; this.interpDelay = 120; this.rtt = 0;
     this.token = null; try { this.token = sessionStorage.getItem(TOKEN_KEY); } catch { /* */ }
     this.reconnecting = false; this.manualClose = false; this.inGame = () => false;
+    this.boot = null; this.lastMsgAt = 0;
+    this.checkDuplicateTab();
   }
   on(t, fn) { if (!this.handlers.has(t)) this.handlers.set(t, new Set()); this.handlers.get(t).add(fn); return () => this.handlers.get(t).delete(fn); }
   emit(t, m) { const hs = this.handlers.get(t); if (hs) for (const fn of [...hs]) fn(m); }
+
+  // "Duplicate tab" copies sessionStorage, so two tabs could share one session token and keep
+  // stealing the session from each other. Ask other open tabs: if one already uses our token, drop it.
+  checkDuplicateTab() {
+    this.tokenChecked = Promise.resolve();
+    if (typeof BroadcastChannel === 'undefined') return;
+    try {
+      const ch = this.tabChannel = new BroadcastChannel('driftclub-session');
+      ch.onmessage = (e) => {
+        const d = e.data || {};
+        if (d.ask && d.ask === this.token && this.connected) ch.postMessage({ mine: d.ask });
+        if (d.mine && d.mine === this.token && !this.connected) { this.token = null; try { sessionStorage.removeItem(TOKEN_KEY); } catch { /* */ } }
+      };
+      if (this.token) { ch.postMessage({ ask: this.token }); this.tokenChecked = sleep(150); }
+    } catch { /* */ }
+  }
 
   static normalize(custom) {
     let u = (custom || '').trim();
@@ -1330,6 +1437,10 @@ class Net {
   connect(name, car, custom, { patience = 0, onAttempt } = {}) {
     if (this.connected) return Promise.resolve(this.id);
     if (this._connecting) return this._connecting;
+    // already reconnecting by itself: wait for that instead of opening a second connection
+    if (this.reconnecting) return this.waitReconnect();
+    // this tab's session was taken over by another tab: start a fresh session instead of stealing it back
+    if (this.replaced) { this.replaced = false; this.token = null; }
     this.lastArgs = { name, car, custom };
     this.manualClose = false;
     const deadline = performance.now() + patience;
@@ -1347,45 +1458,73 @@ class Net {
     })();
     return this._connecting;
   }
+  waitReconnect() {
+    return new Promise((resolve, reject) => {
+      const offs = [];
+      const done = (fn, v) => { offs.forEach((o) => o()); fn(v); };
+      offs.push(this.on('welcome', () => done(resolve, this.id)));
+      offs.push(this.on('disconnect', () => done(reject, new Error('Could not reach the multiplayer server'))));
+    });
+  }
   // free hosting tiers sleep when idle; an HTTP request wakes them up
   wake(custom) {
     try { const http = this.url(custom).replace(/^ws/, 'http').replace(/\/ws$/, '/health'); fetch(http, { mode: 'no-cors', cache: 'no-store' }).catch(() => {}); } catch { /* */ }
   }
 
-  open(name, car, custom, resume) {
+  async open(name, car, custom, resume) {
+    await this.tokenChecked;
     return new Promise((resolve, reject) => {
       let ws, settled = false;
       try { ws = new WebSocket(this.url(custom)); } catch (e) { reject(e); return; }
-      const timer = setTimeout(() => { if (!settled) { settled = true; try { ws.close(); } catch { /* */ } reject(new Error('timeout')); } }, 8000);
+      const fail = (msg) => { if (!settled) { settled = true; clearTimeout(timer); reject(new Error(msg)); } };
+      const timer = setTimeout(() => { if (!settled) { ws.onclose = null; try { ws.close(); } catch { /* */ } fail('timeout'); } }, 8000);
       ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', name, car, token: this.token, inGame: this.inGame() }));
       ws.onmessage = (e) => {
         let m; try { m = JSON.parse(e.data); } catch { return; }
         if (m.t === 'welcome') {
+          if (settled && ws !== this.ws) { ws.onclose = null; try { ws.close(); } catch { /* */ } return; } // a timed-out attempt answering late
           clearTimeout(timer);
           if (m.serverTime && this.srvOffset === undefined) this.srvOffset = performance.now() - m.serverTime;
-          this.syncBurst();
           if (this.ws && this.ws !== ws) { try { this.ws.onclose = null; this.ws.close(); } catch { /* */ } }
-          this.ws = ws; this.id = m.id; this.connected = true;
+          this.ws = ws; this.id = m.id; this.connected = true; this.lastMsgAt = performance.now(); this.pingAt = 0;
           this.token = m.token; try { sessionStorage.setItem(TOKEN_KEY, m.token); } catch { /* */ }
-          if (!m.resumed) this.room = null;
+          const restarted = !!(this.boot && m.boot && m.boot !== this.boot);
+          this.boot = m.boot || this.boot;
+          this.syncBurst();
           this.startPing();
           if (!settled) { settled = true; resolve(m.id); }
-          if (resume) this.emit(m.resumed ? 'reconnected' : 'resumeFailed', m);
+          if (!m.resumed) {
+            // a brand-new session: if we thought we were in a room, that room is gone for us — say so
+            const lost = this.room;
+            this.room = null;
+            if (lost) this.emit('roomLost', { code: lost.code, reason: restarted || this.restartWarned ? 'restart' : 'expired' });
+          }
+          if (resume) this.emit('reconnected', m);
         }
         if (ws !== this.ws) return;
+        this.lastMsgAt = performance.now();
         this.track(m);
         this.emit(m.t, m);
       };
       ws.onclose = () => {
         clearTimeout(timer);
-        if (!settled) { settled = true; reject(new Error('Could not reach the multiplayer server')); return; }
-        if (ws !== this.ws) return;
-        this.connected = false; this.ws = null; clearInterval(this.pingT);
-        if (this.manualClose) { this.room = null; this.emit('disconnect', { was: true }); return; }
-        this.autoReconnect();
+        if (!settled) { fail('Could not reach the multiplayer server'); return; }
+        if (ws === this.ws) this.lost();
       };
       ws.onerror = () => {};
     });
+  }
+  // our live connection ended (or went silent)
+  lost() {
+    this.connected = false; this.ws = null; clearInterval(this.pingT);
+    if (this.manualClose) { this.room = null; this.emit('disconnect', { was: true }); return; }
+    this.autoReconnect();
+  }
+  // close a socket that stopped talking (Wi-Fi gone, proxy killed it) without waiting for the browser to notice
+  dropSocket() {
+    const ws = this.ws; if (!ws) return;
+    ws.onclose = null; try { ws.close(); } catch { /* */ }
+    this.lost();
   }
 
   track(m) {
@@ -1408,10 +1547,13 @@ class Net {
       this.srvOffset = this.syncSamples.reduce((a, b) => (b.rtt < a.rtt ? b : a)).est;
     }
     if (m.t === 'joined' || m.t === 'room') this.room = m.room;
+    if (m.t === 'host' && this.room) this.room = { ...this.room, hostId: m.id };
     if (m.t === 'round') this.lastRound = { ...m, at: performance.now() };
     if (m.t === 'gameStart' || m.t === 'gameEnd') { this.lastRound = null; this.lastMatch = {}; }
     if (m.t === 'mStart' || m.t === 'mResult' || m.t === 'bRound') this.lastMatch = { ...(this.lastMatch || {}), [m.t]: m, ...(m.t === 'bRound' ? { mResult: null } : {}) };
     if (m.t === 'left') this.room = null;
+    if (m.t === 'replaced') { this.manualClose = true; this.replaced = true; this.room = null; } // this game was opened in another tab
+    if (m.t === 'serverRestart') this.restartWarned = true;
   }
 
   async autoReconnect() {
@@ -1419,13 +1561,17 @@ class Net {
     this.reconnecting = true;
     this.emit('reconnecting', {});
     const { name, car, custom } = this.lastArgs || {};
-    const until = performance.now() + 28000;
+    // long enough for a free server to restart/wake (~30-60 s)
+    const until = performance.now() + (this.restartWarned ? 75000 : 45000);
     while (performance.now() < until && !this.manualClose) {
       await sleep(1200);
-      try { await this.open(name, car, custom, true); this.reconnecting = false; return; } catch { /* keep trying */ }
+      this.wake(custom);
+      try { await this.open(name, car, custom, true); this.reconnecting = false; this.restartWarned = false; return; } catch { /* keep trying */ }
     }
     this.reconnecting = false;
+    const lost = this.room;
     this.room = null;
+    if (lost) this.emit('roomLost', { code: lost.code, reason: 'offline' });
     this.emit('disconnect', { was: true });
   }
 
@@ -1433,7 +1579,16 @@ class Net {
   // convert a server timestamp (ms) to the local performance.now() clock, and back
   toLocal(serverMs) { return serverMs + (this.srvOffset || 0); }
   serverNow() { return performance.now() - (this.srvOffset || 0); }
-  startPing() { clearInterval(this.pingT); this.pingT = setInterval(() => this.send({ t: 'ping', ct: performance.now() }), 3000); }
+  startPing() {
+    clearInterval(this.pingT);
+    this.pingT = setInterval(() => {
+      const now = performance.now(), answered = this.lastMsgAt >= this.pingAt;
+      // our last ping got no answer (and nothing else arrived) for 7 s: the connection is dead even if
+      // the browser hasn't noticed yet (school proxies / sleeping laptops) -> reconnect now
+      if (this.pingAt && !answered && now - this.pingAt > DEAD_MS) return this.dropSocket();
+      if (!this.pingAt || answered) { this.pingAt = now; this.send({ t: 'ping', ct: now }); }
+    }, 2000);
+  }
   send(m) { if (this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(m)); }
   close() { this.manualClose = true; if (this.ws) this.ws.close(); this.connected = false; }
   // convert server timestamp to local performance.now() timeline
@@ -1584,7 +1739,7 @@ const RACE = {
   track: { name: 'Apex Circuit', road: 0, start: 30, width: 16, margin: 14 },
   desert: { name: 'Dune Valley Highway', road: 0, start: 70, width: 14, margin: 16 },
   forest: { name: 'Pinewood Loop', road: 0, start: 40, width: 12, margin: 12 },
-  city: { name: 'Neon Street Circuit', pts: cityLoop(), linear: true, start: 0, width: 16, margin: 6 },
+  city: { name: 'Downtown Street Circuit', pts: cityLoop(), linear: true, start: 0, width: 16, margin: 6 },
 };
 const RACE_MAPS = Object.keys(RACE);
 
@@ -1770,7 +1925,8 @@ const { OFF_TRACK_MARGIN, TrackGeo } = __mod["js/tracks.js"];
 const MINIMAP_SIZES = { s: 140, m: 180, l: 240 };
 const MINIMAP_POS = ['bottom-right', 'top-right', 'top-left', 'bottom-left'];
 const MINIMAP_RANGES = { auto: 'Auto', near: 'Near', far: 'Far', map: 'Whole map' };
-const PALETTE = ['#ff006e', '#3a86ff', '#ffbe0b', '#80ffdb', '#ff7b00', '#c77dff', '#06d6a0', '#ef476f'];
+// player marker colours: easy to tell apart, but muted (no neon)
+const PALETTE = ['#e07a4a', '#5b8fd1', '#e0b858', '#5fae8c', '#c96a6a', '#9a86c4', '#8cb35a', '#d08fb0'];
 const NAT = { grass: [62, 96, 50], sand: [176, 146, 98], dirt: [104, 86, 62], asphalt: [44, 46, 54] };
 const PAVE = { asphalt: [150, 154, 166], gravel: [150, 132, 104], salt: [222, 222, 214], kerb: [190, 80, 80] };
 
@@ -1843,18 +1999,18 @@ class Minimap {
       const P = comp.route.path;
       const pts = []; for (let i = 0; i < P.n; i += 2) pts.push([P.x[i], P.z[i]]);
       line(pts, true, 'rgba(255,255,255,0.9)', Math.max(2, 3 * res * 2));
-      line(pts, true, 'rgba(0,229,255,0.9)', Math.max(1, 1.2 * res * 2));
+      line(pts, true, 'rgba(79,125,163,0.95)', Math.max(1, 1.2 * res * 2));
       this.gateGeom(comp.route.gates).slice(0, 1).forEach((gt) => gateLine(gt, '#fff', 4));
       // direction chevrons every ~120 m so the driving direction is obvious
       for (let i = 20; i < P.n; i += 40) {
         const j = (i + 2) % P.n, a = Math.atan2(P.x[j] - P.x[i], P.z[j] - P.z[i]);
-        this.chevron(ctx, P.x[i], P.z[i], a, 7, 'rgba(0,229,255,1)');
+        this.chevron(ctx, P.x[i], P.z[i], a, 7, 'rgba(79,125,163,1)');
       }
     } else if (comp && comp.course) { // Drift Battle course
       const C = comp.course, P = C.path, pts = []; for (let i = 0; i < P.n; i++) pts.push([P.x[i], P.z[i]]);
-      line(pts, false, 'rgba(255,190,11,0.55)', Math.max(4, C.width * res));
+      line(pts, false, 'rgba(216,178,92,0.5)', Math.max(4, C.width * res));
       line(pts, false, 'rgba(255,255,255,0.85)', 1.5, [6, 5]);
-      for (const [gt, col] of [[C.start, '#06d6a0'], [C.end, '#ff006e']]) if (gt) gateLine(this.gateGeom([{ ...gt, hw: C.width / 2 + 3 }])[0], col, 4);
+      for (const [gt, col] of [[C.start, '#6dbb7f'], [C.end, '#e0675c']]) if (gt) gateLine(this.gateGeom([{ ...gt, hw: C.width / 2 + 3 }])[0], col, 4);
     }
     if (comp && comp.judge && this.g.opts.mapId !== 'city') { // Drift Challenge: the judged drift area (tarmac + margin)
       const T = new TrackGeo(this.g.opts.mapId), W = this.world, n = this.n;
@@ -1865,7 +2021,7 @@ class Minimap {
           const [x, z] = this.toWorld(u + 0.5, v + 0.5);
           const sd = W.sdAt(x, z); if (sd < m - 3 || sd > m + 4) continue; // cheap pre-filter
           const e = T.edge(x, z);
-          if (Math.abs(e - m) < band) { const i = (v * n + u) * 4; d[i] = 255; d[i + 1] = 214; d[i + 2] = 10; d[i + 3] = 235; }
+          if (Math.abs(e - m) < band) { const i = (v * n + u) * 4; d[i] = 216; d[i + 1] = 178; d[i + 2] = 92; d[i + 3] = 235; }
         }
         ctx.putImageData(img, 0, 0);
       }
@@ -1914,12 +2070,12 @@ class Minimap {
     for (const r of g.remotes.values()) {
       if (!r.seen || !r.model || r.away) continue; // only connected players who are driving (a dropped player disappears at once)
       const role = roleOf(r.id);
-      out.push({ x: r.x, z: r.z, h: r.h, col: role === 'lead' ? '#ffbe0b' : role === 'chase' ? '#00e5ff' : this.color(r.id), label: role === 'lead' ? 'L' : role === 'chase' ? 'C' : (r.name || '?')[0].toUpperCase(), kind: 'player', name: r.name });
+      out.push({ x: r.x, z: r.z, h: r.h, col: role === 'lead' ? '#d8b25c' : role === 'chase' ? '#8fb3d1' : this.color(r.id), label: role === 'lead' ? 'L' : role === 'chase' ? 'C' : (r.name || '?')[0].toUpperCase(), kind: 'player', name: r.name });
     }
     if (comp && comp.ai) comp.ai.forEach((a, i) => out.push({ x: a.v.x, z: a.v.z, h: a.v.h, col: '#8d99ae', label: String(i + 1), kind: 'cpu', name: a.name }));
     if (battle && !comp.mp && comp.role === 'chase' && comp.ghost && comp.ghost.length) {
       const gs = comp.ghostAt(Math.max(0, comp.t || 0)) || comp.ghost[0].s;
-      if (gs) out.push({ x: gs.x, z: gs.z, h: gs.h, col: '#9fe6ff', label: 'L', kind: 'ghost', name: 'Ghost' });
+      if (gs) out.push({ x: gs.x, z: gs.z, h: gs.h, col: '#b8cde0', label: 'L', kind: 'ghost', name: 'Ghost' });
     }
     return out;
   }
@@ -1962,7 +2118,7 @@ class Minimap {
     ctx.clearRect(0, 0, px, px);
     ctx.save();
     ctx.beginPath(); ctx.arc(R, R, R - 1, 0, Math.PI * 2); ctx.clip();
-    ctx.fillStyle = '#10101a'; ctx.fillRect(0, 0, px, px);
+    ctx.fillStyle = '#15171a'; ctx.fillRect(0, 0, px, px);
     // world -> screen: centre, rotate (heading up in rotating mode), scale; background is in px units
     ctx.translate(R, R); ctx.rotate(rot); ctx.scale(scale / this.res, scale / this.res);
     const [cu, cv] = this.toPx(cx, cz);
@@ -1975,7 +2131,7 @@ class Minimap {
     if (comp && comp.route && comp.tracker && !this.g.spectator && !comp.tracker.finished) {
       const gt = this.gateGeom([comp.route.gates[comp.tracker.next]])[0], [u, v] = this.toPx(gt.x, gt.z);
       const pulse = 0.6 + 0.4 * Math.sin(performance.now() / 160);
-      ctx.beginPath(); ctx.arc(u, v, (5 / scale) * this.res, 0, Math.PI * 2); ctx.fillStyle = `rgba(255,214,10,${pulse})`; ctx.fill();
+      ctx.beginPath(); ctx.arc(u, v, (5 / scale) * this.res, 0, Math.PI * 2); ctx.fillStyle = `rgba(216,178,92,${pulse})`; ctx.fill();
     }
     ctx.restore();
     // markers (screen space so they stay the same size at any zoom)
@@ -2005,7 +2161,7 @@ class Minimap {
     const nx = R + Math.sin(rot) * (R - 10), ny = R - Math.cos(rot) * (R - 10); // world north (+z) on screen
     ctx.font = 'bold 10px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.beginPath(); ctx.arc(nx, ny, 7, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#ff4d6d'; ctx.fillText('N', nx, ny + 0.5); ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#e0675c'; ctx.fillText('N', nx, ny + 0.5); ctx.textBaseline = 'alphabetic';
     // rim
     ctx.beginPath(); ctx.arc(R, R, R - 1, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2; ctx.stroke();
   }
@@ -2014,7 +2170,7 @@ class Minimap {
     // tip, back-right, notch, back-left in local (right, up) units, rotated by a (0 = screen up)
     const pts = [[0, 1.1], [0.75, -0.8], [0, -0.35], [-0.75, -0.8]].map(([rx, up]) => [u + (rx * ca + up * sa) * s, v + (rx * sa - up * ca) * s]);
     ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath();
-    ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = me ? 2 : 1.5; ctx.strokeStyle = me ? '#ff006e' : 'rgba(0,0,0,0.85)'; ctx.stroke();
+    ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = me ? 2 : 1.5; ctx.strokeStyle = me ? '#e2703c' : 'rgba(0,0,0,0.85)'; ctx.stroke();
   }
   dot(ctx, u, v, r, col) { ctx.beginPath(); ctx.arc(u, v, r, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(0,0,0,0.85)'; ctx.stroke(); }
 }
@@ -2188,20 +2344,20 @@ const CATEGORIES = [
 // wb = wheelbase, driftGrip (lower = slides more), driftPower (throttle rotation), driftSteer (yaw authority while sliding),
 // momentum (speed kept while sliding), powerOver (throttle-induced oversteer), mass (collisions), engine sound params
 const CARS = [
-  { id: 'hatch', name: 'Kova Hatch', cat: 'basic', style: 'hatch', paint: '#e63946', accel: 6.4, top: 47, grip: 9, lat: 10, steer: 0.62, wb: 2.45, driftGrip: 2.0, driftPower: 0.95, driftSteer: 2.1, momentum: 0.42, powerOver: 0.1, mass: 1.0, engine: { pitch: 1.15, cyl: 4, grit: 0.3 } },
-  { id: 'sedan', name: 'Civa Sedan', cat: 'basic', style: 'sedan', paint: '#3a86ff', accel: 6.1, top: 50, grip: 9, lat: 10, steer: 0.58, wb: 2.7, driftGrip: 1.9, driftPower: 1.0, driftSteer: 1.95, momentum: 0.44, powerOver: 0.15, mass: 1.1, engine: { pitch: 1.0, cyl: 4, grit: 0.25 } },
-  { id: 'zephyr', name: 'Zephyr GT', cat: 'sports', style: 'coupe', paint: '#ffbe0b', accel: 8.4, top: 64, grip: 11, lat: 12, steer: 0.57, wb: 2.6, driftGrip: 1.6, driftPower: 1.2, driftSteer: 2.15, momentum: 0.5, powerOver: 0.3, mass: 1.05, engine: { pitch: 1.2, cyl: 6, grit: 0.35 } },
-  { id: 'kaze', name: 'Kaze RS', cat: 'sports', style: 'hatch', paint: '#2ec4b6', accel: 8.9, top: 62, grip: 12, lat: 12.5, steer: 0.58, wb: 2.55, driftGrip: 1.85, driftPower: 1.05, driftSteer: 2.05, momentum: 0.46, powerOver: 0.15, mass: 1.05, engine: { pitch: 1.35, cyl: 4, grit: 0.5 } },
-  { id: 'vortex', name: 'Vortex V12', cat: 'super', style: 'wedge', paint: '#ff5400', accel: 10.6, top: 82, grip: 12, lat: 13.5, steer: 0.52, wb: 2.7, driftGrip: 1.7, driftPower: 1.3, driftSteer: 2.05, momentum: 0.52, powerOver: 0.3, mass: 1.15, engine: { pitch: 1.5, cyl: 12, grit: 0.4 } },
-  { id: 'aurora', name: 'Aurora Hyper', cat: 'super', style: 'wedge', paint: '#d9d9e0', accel: 11.3, top: 86, grip: 13, lat: 14, steer: 0.52, wb: 2.75, driftGrip: 1.8, driftPower: 1.2, driftSteer: 1.95, momentum: 0.52, powerOver: 0.25, mass: 1.1, engine: { pitch: 1.7, cyl: 8, grit: 0.3 } },
-  { id: 'shiro', name: 'Shiro D1', cat: 'drift', style: 'coupe', paint: '#f1f1f1', accel: 8.7, top: 62, grip: 10, lat: 11, steer: 0.68, wb: 2.55, driftGrip: 1.2, driftPower: 1.5, driftSteer: 2.5, momentum: 0.6, powerOver: 0.6, mass: 1.0, engine: { pitch: 1.25, cyl: 4, grit: 0.7 } },
-  { id: 'kitsune', name: 'Kitsune 86', cat: 'drift', style: 'coupe', paint: '#8338ec', accel: 7.9, top: 58, grip: 10, lat: 11, steer: 0.68, wb: 2.45, driftGrip: 1.15, driftPower: 1.45, driftSteer: 2.5, momentum: 0.62, powerOver: 0.65, mass: 0.95, engine: { pitch: 1.4, cyl: 4, grit: 0.55 } },
+  { id: 'hatch', name: 'Kova Hatch', cat: 'basic', style: 'hatch', paint: '#b3262e', accel: 6.4, top: 47, grip: 9, lat: 10, steer: 0.62, wb: 2.45, driftGrip: 2.0, driftPower: 0.95, driftSteer: 2.1, momentum: 0.42, powerOver: 0.1, mass: 1.0, engine: { pitch: 1.15, cyl: 4, grit: 0.3 } },
+  { id: 'sedan', name: 'Civa Sedan', cat: 'basic', style: 'sedan', paint: '#34506e', accel: 6.1, top: 50, grip: 9, lat: 10, steer: 0.58, wb: 2.7, driftGrip: 1.9, driftPower: 1.0, driftSteer: 1.95, momentum: 0.44, powerOver: 0.15, mass: 1.1, engine: { pitch: 1.0, cyl: 4, grit: 0.25 } },
+  { id: 'zephyr', name: 'Zephyr GT', cat: 'sports', style: 'coupe', paint: '#d4a32a', accel: 8.4, top: 64, grip: 11, lat: 12, steer: 0.57, wb: 2.6, driftGrip: 1.6, driftPower: 1.2, driftSteer: 2.15, momentum: 0.5, powerOver: 0.3, mass: 1.05, engine: { pitch: 1.2, cyl: 6, grit: 0.35 } },
+  { id: 'kaze', name: 'Kaze RS', cat: 'sports', style: 'hatch', paint: '#3d6f6b', accel: 8.9, top: 62, grip: 12, lat: 12.5, steer: 0.58, wb: 2.55, driftGrip: 1.85, driftPower: 1.05, driftSteer: 2.05, momentum: 0.46, powerOver: 0.15, mass: 1.05, engine: { pitch: 1.35, cyl: 4, grit: 0.5 } },
+  { id: 'vortex', name: 'Vortex V12', cat: 'super', style: 'wedge', paint: '#c2531d', accel: 10.6, top: 82, grip: 12, lat: 13.5, steer: 0.52, wb: 2.7, driftGrip: 1.7, driftPower: 1.3, driftSteer: 2.05, momentum: 0.52, powerOver: 0.3, mass: 1.15, engine: { pitch: 1.5, cyl: 12, grit: 0.4 } },
+  { id: 'aurora', name: 'Aurora Hyper', cat: 'super', style: 'wedge', paint: '#c9ccd1', accel: 11.3, top: 86, grip: 13, lat: 14, steer: 0.52, wb: 2.75, driftGrip: 1.8, driftPower: 1.2, driftSteer: 1.95, momentum: 0.52, powerOver: 0.25, mass: 1.1, engine: { pitch: 1.7, cyl: 8, grit: 0.3 } },
+  { id: 'shiro', name: 'Shiro D1', cat: 'drift', style: 'coupe', paint: '#eeeeea', accel: 8.7, top: 62, grip: 10, lat: 11, steer: 0.68, wb: 2.55, driftGrip: 1.2, driftPower: 1.5, driftSteer: 2.5, momentum: 0.6, powerOver: 0.6, mass: 1.0, engine: { pitch: 1.25, cyl: 4, grit: 0.7 } },
+  { id: 'kitsune', name: 'Kitsune 86', cat: 'drift', style: 'coupe', paint: '#2f3f6b', accel: 7.9, top: 58, grip: 10, lat: 11, steer: 0.68, wb: 2.45, driftGrip: 1.15, driftPower: 1.45, driftSteer: 2.5, momentum: 0.62, powerOver: 0.65, mass: 0.95, engine: { pitch: 1.4, cyl: 4, grit: 0.55 } },
   { id: 'thunder', name: 'Thunder 69', cat: 'muscle', style: 'muscle', paint: '#1d3557', accel: 9.5, top: 66, grip: 8.5, lat: 10, steer: 0.55, wb: 2.85, driftGrip: 1.4, driftPower: 1.5, driftSteer: 1.95, momentum: 0.52, powerOver: 0.55, mass: 1.25, engine: { pitch: 0.7, cyl: 8, grit: 0.85 } },
-  { id: 'brute', name: 'Brute SS', cat: 'muscle', style: 'muscle', paint: '#9b2226', accel: 10.1, top: 70, grip: 9, lat: 10.5, steer: 0.55, wb: 2.9, driftGrip: 1.45, driftPower: 1.45, driftSteer: 1.95, momentum: 0.5, powerOver: 0.5, mass: 1.3, engine: { pitch: 0.75, cyl: 8, grit: 0.9 } },
-  { id: 'ranger', name: 'Ranger TX', cat: 'pickup', style: 'pickup', paint: '#6a994e', accel: 6.5, top: 50, grip: 8, lat: 9, steer: 0.58, wb: 3.2, driftGrip: 1.8, driftPower: 1.1, driftSteer: 1.8, momentum: 0.42, powerOver: 0.35, mass: 1.5, engine: { pitch: 0.8, cyl: 6, grit: 0.6 } },
+  { id: 'brute', name: 'Brute SS', cat: 'muscle', style: 'muscle', paint: '#7c1d22', accel: 10.1, top: 70, grip: 9, lat: 10.5, steer: 0.55, wb: 2.9, driftGrip: 1.45, driftPower: 1.45, driftSteer: 1.95, momentum: 0.5, powerOver: 0.5, mass: 1.3, engine: { pitch: 0.75, cyl: 8, grit: 0.9 } },
+  { id: 'ranger', name: 'Ranger TX', cat: 'pickup', style: 'pickup', paint: '#5b6647', accel: 6.5, top: 50, grip: 8, lat: 9, steer: 0.58, wb: 3.2, driftGrip: 1.8, driftPower: 1.1, driftSteer: 1.8, momentum: 0.42, powerOver: 0.35, mass: 1.5, engine: { pitch: 0.8, cyl: 6, grit: 0.6 } },
   { id: 'hauler', name: 'Hauler HD', cat: 'pickup', style: 'pickup', paint: '#3d405b', accel: 6.1, top: 48, grip: 7.5, lat: 8.5, steer: 0.55, wb: 3.4, driftGrip: 1.9, driftPower: 1.0, driftSteer: 1.7, momentum: 0.4, powerOver: 0.3, mass: 1.7, engine: { pitch: 0.65, cyl: 8, grit: 0.8 }, scale: 1.06 },
-  { id: 'trail', name: 'Trailblazer', cat: 'suv', style: 'suv', paint: '#bc6c25', accel: 6.7, top: 52, grip: 8.5, lat: 9.5, steer: 0.58, wb: 2.8, driftGrip: 1.9, driftPower: 1.0, driftSteer: 1.8, momentum: 0.42, powerOver: 0.2, mass: 1.45, engine: { pitch: 0.9, cyl: 6, grit: 0.45 } },
-  { id: 'atlas', name: 'Atlas X', cat: 'suv', style: 'suv', paint: '#212529', accel: 7.7, top: 58, grip: 9, lat: 10, steer: 0.57, wb: 2.9, driftGrip: 1.8, driftPower: 1.1, driftSteer: 1.9, momentum: 0.44, powerOver: 0.25, mass: 1.5, engine: { pitch: 1.0, cyl: 8, grit: 0.4 } },
+  { id: 'trail', name: 'Trailblazer', cat: 'suv', style: 'suv', paint: '#a0622b', accel: 6.7, top: 52, grip: 8.5, lat: 9.5, steer: 0.58, wb: 2.8, driftGrip: 1.9, driftPower: 1.0, driftSteer: 1.8, momentum: 0.42, powerOver: 0.2, mass: 1.45, engine: { pitch: 0.9, cyl: 6, grit: 0.45 } },
+  { id: 'atlas', name: 'Atlas X', cat: 'suv', style: 'suv', paint: '#26292c', accel: 7.7, top: 58, grip: 9, lat: 10, steer: 0.57, wb: 2.9, driftGrip: 1.8, driftPower: 1.1, driftSteer: 1.9, momentum: 0.44, powerOver: 0.25, mass: 1.5, engine: { pitch: 1.0, cyl: 8, grit: 0.4 } },
 ];
 const carById = (id) => CARS.find((c) => c.id === id) || CARS[0];
 
@@ -2217,9 +2373,25 @@ function carStats(c) {
 const RIMS = ['Classic 5', 'Mesh', 'Deep Dish', 'Turbine', 'Split 6', 'Steelie'];
 const SPOILERS = ['None', 'Ducktail', 'Mid Wing', 'GT Wing'];
 const STRIPES = ['None', 'Single', 'Twin'];
-const PAINTS = ['#e63946', '#ff5400', '#ffbe0b', '#80b918', '#2ec4b6', '#3a86ff', '#1d3557', '#8338ec', '#ff006e', '#f1f1f1', '#8d99ae', '#212529', '#9b2226', '#bc6c25', '#6a994e', '#00f5d4'];
-const WHEEL_COLORS = ['#cccccc', '#222222', '#e0b13c', '#ffffff', '#e63946', '#3a86ff', '#7d8597', '#00f5d4'];
-const GLOWS = ['', '#00f5d4', '#ff006e', '#3a86ff', '#ffbe0b', '#8338ec'];
+// realistic factory-style paints: reds, blues, greens, metallics, white/black (custom colours are still allowed)
+const PAINTS = ['#b3262e', '#7c1d22', '#c2531d', '#d4a32a', '#5b6647', '#3d6f6b', '#34506e', '#1d3557', '#2f3f6b', '#5a4a6e', '#eeeeea', '#c9ccd1', '#8d99ae', '#55595e', '#26292c', '#a0622b'];
+const WHEEL_COLORS = ['#cccccc', '#222222', '#b8975a', '#ffffff', '#4a4d52', '#8a6a3a', '#7d8597', '#a6a8ab'];
+// underglow: off by default; subtle, normal light colours only
+const GLOWS = ['', '#d8d4c8', '#e2703c', '#5f7fa8', '#b3262e', '#7a8a6a'];
+// Older versions offered bright neon colours. Saved cars (and other players' cars) that still use one
+// are shown with the nearest normal colour instead, so old saves keep working.
+const OLD_NEON = {
+  '#00f5d4': '#3d6f6b', '#2ec4b6': '#3d6f6b', '#ff006e': '#7c1d22', '#8338ec': '#5a4a6e', '#80b918': '#5b6647',
+  '#ffbe0b': '#d4a32a', '#ff5400': '#c2531d', '#3a86ff': '#34506e', '#e63946': '#b3262e', '#e0b13c': '#b8975a',
+};
+const OLD_GLOW = { '#00f5d4': '#5f7fa8', '#ff006e': '#b3262e', '#3a86ff': '#5f7fa8', '#ffbe0b': '#e2703c', '#8338ec': '#5f7fa8', '#19e3ff': '#d8d4c8' };
+const normalColor = (hex) => (hex && OLD_NEON[hex.toLowerCase()]) || hex;
+const normalGlow = (hex) => (hex && OLD_GLOW[hex.toLowerCase()]) || hex;
+// returns a copy of a car config with any old neon colours swapped for normal ones
+function normalizeColors(cfg) {
+  if (!cfg) return cfg;
+  return { ...cfg, paint: normalColor(cfg.paint), wheel: normalColor(cfg.wheel), stripeColor: normalColor(cfg.stripeColor), liveryColor: normalColor(cfg.liveryColor), underglow: normalGlow(cfg.underglow || '') };
+}
 
 // Visual parts. Each changes the 3D model (or its glass/light colour). fits(def, i) says which
 // options suit which car: e.g. bull bars and tow bars are for pickups and SUVs only.
@@ -2288,7 +2460,7 @@ const LOOKS = {
   sedan: { // Civa Sedan: three-box family saloon, chrome grille bar, L-shaped tails
     shape: { taperF: 0.05, taperR: 0.05, deck: 0.02, cab: [1.05, 1.42, 2.1, 1.55] },
     head: 'slim', grille: 'wide', tail: 'L', hood: 'ridge', arches: 'round', aero: 'none', exhaust: 'dual', mirror: 'std',
-    extras: ['beltline', 'chromeTrim'],
+    extras: ['beltline', 'chromeTrim'], doors: 4,
   },
   // SPORTS
   zephyr: { // Zephyr GT: long-bonnet fastback grand tourer
@@ -2338,7 +2510,7 @@ const LOOKS = {
   ranger: { // Ranger TX: mid-size crew-cab pickup, square fender flares, roll bar, side steps
     shape: { L: 5.25, W: 1.95, H: 0.76, ride: 0.36, nose: 0.82, cowl: 1.45, cab: [1.75, 1.5, 2.0, 1.85], ch: 0.72, taperF: 0.04 },
     head: 'rect', grille: 'bars', tail: 'stack', hood: 'bulge', arches: 'square', aero: 'none', exhaust: 'single', mirror: 'std',
-    extras: ['rollbar', 'steps', 'fogs', 'skid'],
+    extras: ['rollbar', 'steps', 'fogs', 'skid'], doors: 4,
   },
   hauler: { // Hauler HD: tall, slab-fronted heavy-duty regular-cab truck, chrome slat grille, exhaust stack
     shape: { L: 5.5, W: 2.04, H: 0.92, ride: 0.42, nose: 0.97, cowl: 1.75, cab: [2.5, 1.8, 2.12, 2.42], ch: 0.74, cw: 0.94 },
@@ -2354,7 +2526,7 @@ const LOOKS = {
   atlas: { // Atlas X: sleek performance SUV with a sloping coupe roofline and full-width light bar
     shape: { L: 4.9, W: 2.0, H: 0.78, ride: 0.3, nose: 0.8, cowl: 1.4, rearTop: 0.92, cab: [0.6, 1.45, 2.1, 1.25], ch: 0.64, cw: 0.86, taperF: 0.09, taperR: 0.07 },
     head: 'slim', grille: 'big', tail: 'bar', hood: 'ridge', arches: 'flare', aero: 'roof', exhaust: 'quad', mirror: 'std',
-    extras: ['rails', 'diffuser', 'skirts'],
+    extras: ['rails', 'diffuser', 'skirts'], doors: 4,
   },
 };
 
@@ -2391,7 +2563,8 @@ function grow(profile, d) {
 
 function buildWheel(rimStyle, R, W, size = 0) {
   const tire = new Geo();
-  tire.cylinder(0, 0, 0, R, W, 14, C.tire, 'x', C.side);
+  tire.cylinder(0, 0, 0, R, W, 18, C.tire, 'x', C.side);
+  tire.cylinder(0, 0, 0, R * 0.97, W + 0.02, 18, C.tire, 'x', C.side); // rounded tyre shoulder
   // tread blocks for visible spin
   for (let i = 0; i < 7; i++) {
     const a = (i / 7) * Math.PI * 2;
@@ -2399,7 +2572,10 @@ function buildWheel(rimStyle, R, W, size = 0) {
   }
   const rim = new Geo(); const rr = R * Math.min(0.86, 0.66 + 0.065 * size), x = W / 2 + 0.006; // bigger rims, lower-profile tyres
   const W_ = C.white;
-  rim.cylinder(x - 0.01, 0, 0, rr, 0.03, 14, [0.75, 0.75, 0.75], 'x', W_);
+  rim.cylinder(x - 0.01, 0, 0, rr, 0.03, 18, [0.75, 0.75, 0.75], 'x', [0.06, 0.06, 0.065]); // rim lip around a dark barrel
+  // brake disc (in the tyre mesh so the wheel colour doesn't tint it), seen between the spokes
+  tire.cylinder(x + 0.004, 0, 0, rr * 0.74, 0.006, 16, [0.4, 0.4, 0.42], 'x', [0.42, 0.42, 0.44]);
+  tire.cylinder(x + 0.006, 0, 0, rr * 0.36, 0.006, 12, [0.2, 0.2, 0.21], 'x', [0.22, 0.22, 0.23]); // disc hat
   const spokes = (n, w, t = 0.035, len = rr * 0.92, off = 0) => {
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2 + off;
@@ -2421,6 +2597,7 @@ function buildWheel(rimStyle, R, W, size = 0) {
 // Build GPU meshes for a car configuration. Returns a CarModel.
 const modelCache = new Map();
 function buildCarModel(renderer, cfg) {
+  cfg = normalizeColors(cfg);
   const def = carById(cfg.id);
   const key = JSON.stringify([def.id, cfg.rim, cfg.spoiler, cfg.kit, cfg.stripes, cfg.lowered, cfg.rimSize, cfg.fbumper, cfg.rbumper, cfg.skirts, cfg.hood, cfg.exhaust, cfg.livery, cfg.tune && cfg.tune.rideHeight]);
   let m = modelCache.get(key);
@@ -2865,6 +3042,19 @@ function buildGeometry(renderer, def, cfg) {
   }
   if (has('rails')) for (const sx of [-1, 1]) trim.box(sx * cabW * 0.4, roofAt((tRp[0] + tFp[0]) / 2) + 0.06, (tRp[0] + tFp[0]) / 2, 0.035, 0.035, (tFp[0] - tRp[0]) * 0.92, C.chrome);
 
+  // ---- door shut lines + handles (cheap detail that makes the body read as a real car)
+  {
+    const zA = Math.min(cF[0] + 0.05, fz - ARCH - 0.12);
+    const zEnd = Math.max(rz + ARCH + 0.08, s.bed ? z0 + s.cab[0] + 0.06 : -1e9); // doors stop before the rear wheel / bed
+    const ok = [zA];
+    for (const len of look.doors === 4 ? [0.95, 0.82] : [1.12]) { const z = Math.max(zEnd, ok[ok.length - 1] - len); if (ok[ok.length - 1] - z > 0.4) ok.push(z); }
+    const yTop = y1 - 0.03, yBot = y0 + 0.1, handle = look.extras && look.extras.includes('chromeTrim') ? C.chrome : C.plastic;
+    for (const sx of [-1, 1]) {
+      for (const z of ok) trim.box(sx * (hw(z) + 0.004), (yTop + yBot) / 2, z, 0.01, yTop - yBot, 0.012, C.grille);
+      for (let i = 1; i < ok.length; i++) trim.box(sx * (hw(ok[i]) + 0.012), y0 + H * 0.72, ok[i] + 0.16, 0.02, 0.03, 0.14, handle);
+    }
+  }
+
   // ---- upgrades (garage)
   if (cfg.kit) {
     fBox(trim, 0, y0 - 0.02, hw(z1) * 2, 0.04, 0.3, C.trim, 0.06);
@@ -2939,7 +3129,7 @@ function carDrawItems(model, st, out) {
   });
 }
 
-return { CATEGORIES, CARS, carById, carStats, RIMS, SPOILERS, STRIPES, PAINTS, WHEEL_COLORS, GLOWS, VISUAL, fitsPart, defaultConfig, LOOKS, carDims, buildCarModel, clearCarCache, carDrawItems };
+return { CATEGORIES, CARS, carById, carStats, RIMS, SPOILERS, STRIPES, PAINTS, WHEEL_COLORS, GLOWS, normalColor, normalGlow, normalizeColors, VISUAL, fitsPart, defaultConfig, LOOKS, carDims, buildCarModel, clearCarCache, carDrawItems };
 })();
 
 // ===== js/tuning.js =====
@@ -3151,6 +3341,10 @@ __mod["js/physics.js"] = (function () {
 //   reverse – sliding backwards (after a 180 / J-turn / reverse handbrake), steerable
 // Two driving styles (DRIVE_STYLES) change the actual physics parameters.
 //
+// DRIFT ENTRY (besides handbrake / power-over / big slip): a clutch kick (lift and re-floor the
+// throttle while turning) or a feint (swing the steering one way, then hard the other way) throws
+// the rear out. Braking or lifting while turning moves weight forward and makes the rear lighter.
+//
 // VERTICAL: each wheel is a spring + damper against the terrain under it. Body height,
 // pitch and roll are integrated from the wheel forces (plus weight transfer from
 // acceleration/cornering), so the car follows hills and bumps without launching.
@@ -3162,12 +3356,12 @@ const DRIVE_STYLES = {
   drift: {
     name: 'Drift', desc: 'Easy drift entry, throttle-steerable angle, quick left/right transitions, forgiving.',
     grip: 0.92, lat: 0.95, steerResp: 1.0, driftGrip: 0.82, powerOverAdd: 0.3, entrySlip: 0.22, hbEntrySpeed: 4.5,
-    angleGain: 4.2, momentum: 1.12, swing: true, minAngle: 0.14, exitHold: 0.3, maxAngleCap: 1.4, powerDelay: 0.25, stability: 0,
+    angleGain: 4.2, momentum: 1.25, swing: true, minAngle: 0.14, exitHold: 0.3, maxAngleCap: 1.4, powerDelay: 0.25, stability: 0,
   },
   race: {
     name: 'Race', desc: 'High grip, precise steering and faster cornering. Slides straighten out quickly.',
     grip: 1.3, lat: 1.55, steerResp: 1.35, driftGrip: 1.75, powerOverAdd: -0.4, entrySlip: 0.45, hbEntrySpeed: 9,
-    angleGain: 3.2, momentum: 0.85, swing: false, minAngle: 0.04, exitHold: 0.12, maxAngleCap: 0.75, powerDelay: 9, stability: 1,
+    angleGain: 3.2, momentum: 0.95, swing: false, minAngle: 0.04, exitHold: 0.12, maxAngleCap: 0.75, powerDelay: 9, stability: 1,
     // steering geometry: more lock than the car's base value, and a speed-dependent range that keeps the
     // front-wheel angle close to what the tyres can actually use (see steerLimit)
     lock: 1.15, speedSteer: { slack: 1.7, minFrac: 0.24 },
@@ -3192,6 +3386,9 @@ class Vehicle {
     this.steer = 0; this.mode = 'grip'; this.driftAmt = 0; this.dir = 1; this.straightT = 0; this.swingT = 0;
     this.spinDir = 1; this.powerT = 0;
     this.slip = 0; this.rel = 0; this.velRate = 0; this.prevVelYaw = null;
+    this.load = 0; this.visSteer = 0; this.bodyPitchVel = 0; this.bodyRollVel = 0;
+    this.thrHighT = 9; this.liftT = 9; this.feintT = 9; this.feintDir = 0; this.lastSteerSide = 0; this.shiftT = 0;
+    this.mass = def.mass || 1;
     this.pitch = 0; this.roll = 0; this.pitchVel = 0; this.rollVel = 0; this.bodyPitch = 0; this.bodyRoll = 0;
     this.contact = 1; this.traction = 1; this.airTime = 0; this.slopeF = 0; this.spinT = 0;
     this.spin = 0; this.rpm = 0.1; this.gear = 1; this.boost = 1; this.boosting = false;
@@ -3204,6 +3401,18 @@ class Vehicle {
     this.wheelGround = [0, 0, 0, 0]; this.wheelComp = [0, 0, 0, 0]; this.wheelOffset = [0, 0, 0, 0];
     this.Ip = Math.max(1.2, (dims.L * dims.L) / 12); this.Ir = Math.max(0.4, (dims.W * dims.W) / 10);
     this.setStyle(opts.style || 'drift', opts.maxAngle);
+    this.savePrev();
+  }
+  // remember the state at the start of a physics step, for smooth rendering between steps
+  savePrev() { this.px = this.x; this.py = this.y; this.pz = this.z; this.ph = this.h; this.pPitch = this.pitch; this.pRoll = this.roll; }
+  // position/heading blended between the last two physics steps (alpha 0..1); heading wraps safely
+  renderState(alpha = 1) {
+    const a = clamp(alpha, 0, 1);
+    return {
+      x: lerp(this.px, this.x, a), y: lerp(this.py, this.y, a), z: lerp(this.pz, this.z, a),
+      h: wrapAngle(this.ph + wrapAngle(this.h - this.ph) * a),
+      pitch: lerp(this.pPitch, this.pitch, a), roll: lerp(this.pRoll, this.roll, a),
+    };
   }
   setStyle(style, maxAngleDeg) {
     this.styleId = DRIVE_STYLES[style] ? style : 'drift';
@@ -3216,7 +3425,8 @@ class Vehicle {
   // max front-wheel angle (rad) at a standstill for this car + driving style
   get lock() { return this.def.steer * (this.S.lock || 1); }
   // actual average front-wheel angle (rad, + = left) - used by the visuals and sent to other players
-  get wheelAngle() { return this.steer * this.lock; }
+  // while sliding the front wheels point along the direction of travel (counter-steer), like a real drift car
+  get wheelAngle() { return this.visSteer; }
   // fraction of full lock available while gripping at this speed
   steerLimit(speed, gS = 1) {
     const S = this.S, ss = S.speedSteer;
@@ -3243,6 +3453,9 @@ class Vehicle {
     this.y = this.wheelGround.reduce((a, b) => a + b, 0) / 4;
     this.prevGround = this.wheelGround.slice();
     this.contact = 1; this.traction = 1; this.slopeF = -Math.sin(this.pitch);
+    this.load = 0; this.visSteer = 0; this.bodyPitch = this.bodyRoll = this.bodyPitchVel = this.bodyRollVel = 0;
+    this.thrHighT = 9; this.liftT = 9; this.feintT = 9; this.feintDir = 0; this.lastSteerSide = 0;
+    this.savePrev(); // a teleport must not be smeared by render interpolation
   }
 
   sampleWheels() {
@@ -3260,6 +3473,7 @@ class Vehicle {
   // inp: throttle 0..1, brake 0..1, steer -1..1 (+left), handbrake bool, boost bool
   step(dt, inp) {
     const d = this.def, S = this.S, W = this.world;
+    this.savePrev();
     const sh = Math.sin(this.h), ch = Math.cos(this.h);
     const fx = sh, fz = ch, rx = -ch, rz = sh;
     let vf = this.vx * fx + this.vz * fz;
@@ -3273,7 +3487,9 @@ class Vehicle {
 
     // ---------------- travel direction & drift angle (full -180..180 range)
     const velYaw = Math.atan2(this.vx, this.vz);
-    if (speed > 1.2 && this.prevVelYaw !== null) this.velRate = damp(this.velRate, wrapAngle(velYaw - this.prevVelYaw) / dt, 25, dt);
+    // how fast the travel direction turns (rad/s). Clamped so a sudden change (e.g. a bump) can't make
+    // the drift controllers below chase a huge number and spin the car.
+    if (speed > 1.2 && this.prevVelYaw !== null) this.velRate = damp(this.velRate, clamp(wrapAngle(velYaw - this.prevVelYaw) / dt, -6, 6), 25, dt);
     else this.velRate = damp(this.velRate, 0, 10, dt);
     this.prevVelYaw = speed > 1.2 ? velYaw : null;
     const rel = this.rel = speed > 1.2 ? wrapAngle(this.h - velYaw) : 0; // + = nose left of travel
@@ -3285,7 +3501,7 @@ class Vehicle {
     const sens = inp.steerSens || 1;
     const limit = this.mode !== 'grip' ? 1 : this.steerLimit(speed, gS);
     const target = clamp(inp.steer * sens, -1, 1) * limit;
-    const rate = (inp.analog ? 9 : 4.4 * S.steerResp) * T.steerRate * (Math.abs(target) < Math.abs(this.steer) || Math.sign(target) !== Math.sign(this.steer) ? 1.7 : 1);
+    const rate = (inp.analog ? 9 : 4.4) * S.steerResp * T.steerRate * (Math.abs(target) < Math.abs(this.steer) || Math.sign(target) !== Math.sign(this.steer) ? 1.7 : 1);
     this.steer = moveTowards(this.steer, target, rate * dt);
     const st = this.steer;
 
@@ -3321,10 +3537,46 @@ class Vehicle {
     F -= vf * (0.06 + surf.drag * 0.9) * tr;
     if (thr === 0 && inp.brake === 0 && !hb) F -= Math.sign(vf) * Math.min(Math.abs(vf) / dt, 0.9) * tr;
     F -= G * this.slopeF * 0.85 * tr; // gravity along the slope
-    if (this.mode !== 'grip') F -= vf * Math.abs(Math.sin(this.slip)) * 0.35;
+    if (this.mode !== 'grip') {
+      // sliding scrubs speed. Holding a moderate counter-steer (steering against the slide, as a real
+      // drifter does to hold the line) scrubs less, so smooth, skilled drifts keep more speed.
+      const cs = this.mode === 'drift' ? clamp(-st * this.dir, 0, 1) : 0;
+      const skill = clamp(1 - Math.abs(cs - 0.45) * 2.5, 0, 1);
+      F -= vf * Math.abs(Math.sin(this.slip)) * 0.35 * (1 - 0.3 * skill);
+    }
     const vfPrev = vf;
     vf += F * dt;
     if (inp.brake > 0 && vfPrev > 1 && vf < 0) vf = 0;
+    // weight transfer (in g): + = accelerating (weight on the rear), - = braking / lifting (weight on the nose).
+    // Taller cars with shorter wheelbases shift more weight.
+    const wt = (T.cgH / 0.42) * (2.6 / d.wb);
+    this.load = damp(this.load, clamp((vf - vfPrev) / dt / G, -1.2, 1.2) * wt, 8, dt);
+    const lf = clamp(this.load, -0.9, 0.6);
+
+    // ---------------- drift entry by technique (only from normal grip driving)
+    // clutch kick: a quick lift (< 0.3 s) from full throttle, then floor it again while turning
+    this.thrHighT = thr > 0.8 ? 0 : this.thrHighT + dt;
+    if (thr < 0.2 && this.liftT > 5) { this.liftT = 0; this.liftFromPower = this.thrHighT < 0.25; this.liftBraked = false; } // a lift starts
+    if (inp.brake > 0.1) this.liftBraked = true; // braking in between = normal driving, not a kick
+    if (this.liftT <= 5) this.liftT += dt;
+    if (thr > 0.9 && this.throttle <= 0.9) { // throttle floored again
+      if (this.mode === 'grip' && this.liftFromPower && !this.liftBraked && this.liftT < 0.45 && Math.abs(inp.steer) > 0.5 && vf > 8 && speed < 40) {
+        const k = Math.sign(inp.steer);
+        this.enterDrift(k); this.w += k * (0.7 + 0.35 * d.driftPower) * (S.stability ? 0.6 : 1); this.wheelspin = 0.6;
+      }
+      this.liftT = 9;
+    }
+    if (this.liftT > 0.6 && this.liftT <= 5) this.liftT = 9; // too slow to count as a kick
+    // feint (Scandinavian flick): turning one way, swing the steering hard the other way -> the rear
+    // swings out and the car drifts into the new direction (Drift style)
+    const side = Math.abs(inp.steer) > 0.6 ? Math.sign(inp.steer) : 0;
+    if (side) {
+      if (S.swing && this.mode === 'grip' && side !== this.lastSteerSide && this.lastSteerSide && this.feintT < 0.4 &&
+          speed > 13 && vf > 0 && thr > 0.3 && this.w * side < -0.3) {
+        this.enterDrift(side); this.w = side * (0.9 + 0.3 * d.driftPower);
+      }
+      this.lastSteerSide = side; this.feintT = 0;
+    } else this.feintT += dt;
 
     // ---------------- regime state machine
     const prevMode = this.mode;
@@ -3365,6 +3617,7 @@ class Vehicle {
     let gripLat = d.grip * S.grip * gS * (1 - effPower * thr * Math.abs(st) * 0.55) * T.rearGrip;
     if (this.wheelspin > 0.01) gripLat *= 1 - 0.6 * this.wheelspin; // wheelspin = power oversteer
     if (this.kickT > 0) { this.kickT -= dt; gripLat *= 1 - T.shiftKick; } // sequential upshift jolt
+    gripLat *= 1 + lf * 0.28; // braking / lifting unloads the rear tyres (lift-off oversteer, trail-brake rotation)
     if (inp.brake > 0 && vf > 3) { // brake balance: rear bias rotates the car, hard race brakes unsettle it
       gripLat *= 1 - inp.brake * (0.15 * Math.max(0, T.brakeBias) + T.brakeKick * Math.abs(st));
     }
@@ -3378,8 +3631,10 @@ class Vehicle {
     const latGrip = lerp(gripLat, slideLat, this.driftAmt) * (0.15 + 0.85 * tr);
     const nvl = vl * Math.exp(-latGrip * dt);
     const lost = Math.abs(vl) - Math.abs(nvl);
-    const mom = sliding ? d.momentum * S.momentum : 0.12;
-    vf += Math.sign(vf || 1) * lost * mom * (sliding ? 1 : (vf > 0 ? 1 : 0.3));
+    // part of the sideways energy the tyres scrub off is turned into forward speed (that's what keeps a
+    // drift flowing). Energy-based, so a slide can never create speed out of nothing.
+    const mom = sliding ? Math.min(0.97, d.momentum * S.momentum) : 0.12;
+    if (lost > 0) vf = Math.sign(vf || 1) * Math.sqrt(vf * vf + (vl * vl - nvl * nvl) * mom * (sliding ? 1 : (vf > 0 ? 1 : 0.3)));
     vl = nvl;
 
     // ---------------- yaw
@@ -3390,6 +3645,7 @@ class Vehicle {
       targetW = (vf * Math.tan(ang)) / d.wb;
       let maxW = (d.lat * S.lat * gS * T.frontGrip * (1 + effPower * thr * 0.35)) / Math.max(3, speed);
       if (inp.brake > 0 && T.brakeBias < 0 && vf > 3) maxW *= 1 + 0.12 * T.brakeBias * inp.brake; // front bias: understeer
+      maxW *= 1 - lf * (lf < 0 ? 0.2 : 0.06); // weight on the nose = sharper turn-in, weight on the tail = a little understeer
       targetW = clamp(targetW, -maxW, maxW);
       if (hb && speed > 3) targetW *= 1.35;
       // race style: stability assist. Normal cornering slip is left alone; only a real slide
@@ -3398,7 +3654,8 @@ class Vehicle {
       resp = 11 * S.steerResp * T.yawResp;
     } else if (this.mode === 'drift') {
       // angle controller: throttle and steering set the drift angle
-      let frac = S.minAngle + 0.6 * thr + 0.36 * steerIn + (hb ? 0.25 : 0);
+      // driftPower: how much angle the throttle buys (powerful drift cars swing wider on the throttle)
+      let frac = S.minAngle + 0.5 * thr * d.driftPower + 0.36 * steerIn + (hb ? 0.25 : 0);
       frac = clamp(frac, 0.03, 1);
       // lifting off (no handbrake, not steering into it) lets the car straighten up and grip again
       if (thr < 0.25 && steerIn < 0.3 && !hb) frac = 0;
@@ -3415,7 +3672,7 @@ class Vehicle {
       targetW = this.velRate + (desired - rel) * S.angleGain * T.angleGain * spd * (d.driftSteer / 2.1);
       if (absRel > maxA + 0.3) targetW -= Math.sign(rel) * (absRel - maxA - 0.3) * 8;
       targetW = clamp(targetW, this.velRate - 4.5, this.velRate + 4.5);
-      resp = 7.5;
+      resp = 7.5 / Math.sqrt(this.mass); // heavy cars swing their weight round more slowly
     } else if (this.mode === 'spin') {
       targetW = this.velRate + this.spinDir * (3.4 + Math.min(speed, 25) * 0.06);
       resp = 4.5;
@@ -3425,6 +3682,14 @@ class Vehicle {
     }
     this.w = damp(this.w, targetW, resp * (0.08 + 0.92 * tr), dt);
     if (speed < 0.5 && !thr && !inp.brake) this.w *= 0.9;
+
+    // front wheels for the visuals: while drifting they counter-steer toward the travel direction
+    let vis = st * this.lock;
+    if (this.mode === 'drift' && speed > 2) {
+      const L = this.lock * 1.2, cs = clamp(-rel, -L, L) + st * this.lock * 0.35;
+      vis = lerp(vis, clamp(cs, -L, L), this.driftAmt);
+    }
+    this.visSteer = damp(this.visSteer, vis, 16, dt);
 
     // rebuild world velocity from the OLD axes (heading change creates slip naturally)
     this.vx = fx * vf + rx * vl; this.vz = fz * vf + rz * vl;
@@ -3437,6 +3702,7 @@ class Vehicle {
 
     // ---------------- suspension
     this.suspension(dt, (vf - vfPrev) / dt, this.w * speed);
+    this.bodyLean(dt, speed);
 
     // ---------------- telemetry
     const s2 = Math.sin(this.h), c2 = Math.cos(this.h);
@@ -3448,6 +3714,8 @@ class Vehicle {
     const frac = Math.max(0, vf) / d.top;
     let g = 1; while (g < 6 && frac > this.gears[g]) g++;
     if (T.shiftKick && g > this.gear && this.gear >= 1) this.kickT = 0.15;
+    if (g !== this.gear && this.gear >= 1 && g >= 1) this.shiftT = 0.12; // revs drop quickly on a gear change
+    this.shiftT = Math.max(0, this.shiftT - dt);
     this.gear = vf < -0.5 ? -1 : g;
     const lo = this.gears[g - 1], hi = this.gears[g];
     let rpm = 0.25 + 0.7 * clamp((frac - lo) / (hi - lo), 0, 1.05);
@@ -3455,8 +3723,20 @@ class Vehicle {
     if (speed < 1) rpm = 0.12 + thr * 0.5;
     if (tr < 0.5) rpm += thr * 0.2;
     rpm += this.wheelspin * 0.4;
-    this.rpm = damp(this.rpm, clamp(rpm, 0.1, 1.05), 10, dt);
+    this.rpm = damp(this.rpm, clamp(rpm, 0.1, 1.05), this.shiftT > 0 ? 30 : 10, dt);
     if (!boostOn) this.boost = Math.min(1, this.boost + dt * (this.mode !== 'grip' ? 0.06 : 0.012));
+  }
+
+  // Visual-only body lean on the springs (does not change the physics): the body rolls out in corners,
+  // squats when accelerating and dives when braking, with a little overshoot on quick direction changes.
+  bodyLean(dt, speed) {
+    const soft = (this.T.cgH / 0.42) * Math.min(1.4, (this.dims.H || 1.3) / 1.3) / Math.sqrt(this.T.susK);
+    const rollT = clamp(this.w * speed * 0.0038 * soft, -0.065, 0.065) * this.contact;
+    const pitchT = clamp(-this.load * 0.045 * soft, -0.05, 0.05) * this.contact;
+    const om = 13, ze = 2 * 0.45 * om; // spring frequency (rad/s) and damping
+    this.bodyRollVel += ((rollT - this.bodyRoll) * om * om - this.bodyRollVel * ze) * dt;
+    this.bodyPitchVel += ((pitchT - this.bodyPitch) * om * om - this.bodyPitchVel * ze) * dt;
+    this.bodyRoll += this.bodyRollVel * dt; this.bodyPitch += this.bodyPitchVel * dt;
   }
 
   enterDrift(dir) {
@@ -3555,18 +3835,24 @@ class Vehicle {
       this.w += clamp(cross * j * 0.25, -2.5, 2.5);
       this.impact = Math.max(this.impact, -vn);
       this.lastImpact = -vn;
+      // the bounce changed the travel direction instantly: don't count that as the car turning
+      // (it would make the drift controller chase a huge yaw rate and spin the car)
+      if (this.prevVelYaw !== null) this.prevVelYaw = Math.atan2(this.vx, this.vz);
     }
   }
 
-  // collide against another car (treated as immovable on this client; each client resolves itself)
+  // collide against another car (each client resolves only its own car). The lighter car takes more
+  // of the bounce: o.mass (or o.def.mass for AI cars) if known, else an equal-weight car.
   collideCar(o) {
+    const mo = o.mass || (o.def && o.def.mass) || this.mass;
+    const share = clamp(1.1 * mo / (this.mass + mo), 0.25, 0.85); // 0.55 for two equal cars
     const sh = Math.sin(this.h), ch = Math.cos(this.h), osh = Math.sin(o.h), och = Math.cos(o.h);
     const r = this.radius + (o.radius || 0.95);
     for (const k of [1, -1]) for (const m of [1, -1]) {
       const ax = this.x + sh * this.offset * k, az = this.z + ch * this.offset * k;
       const bx = o.x + osh * (o.offset || 1.1) * m, bz = o.z + och * (o.offset || 1.1) * m;
       const dx = ax - bx, dz = az - bz, dd = Math.hypot(dx, dz);
-      if (dd < r && dd > 1e-4 && Math.abs(this.y - o.y) < 3) this.resolve(dx / dd, dz / dd, (r - dd) * 0.5, k, o.vx || 0, o.vz || 0, 0.55);
+      if (dd < r && dd > 1e-4 && Math.abs(this.y - o.y) < 3) this.resolve(dx / dd, dz / dd, (r - dd) * share, k, o.vx || 0, o.vz || 0, share);
     }
   }
 }
@@ -3666,11 +3952,11 @@ const { FxBuffer } = __mod["js/engine/renderer.js"];
 const { makeNoise, rng, smoothstep, clamp, lerp } = __mod["js/engine/math.js"];
 const { crSample, segDist, GEO } = __mod["js/tracks.js"];
 const MAP_LIST = [
-  { id: 'track', name: 'Apex Circuit', type: 'Race Track', desc: 'A proper racing circuit with sweepers, a carousel, a hairpin and an infield skidpad.', accent: '#3a86ff' },
-  { id: 'desert', name: 'Dune Valley', type: 'Desert', desc: 'Golden-hour highway loop around a huge salt flat. Endless room to slide.', accent: '#f4a261' },
-  { id: 'mountain', name: 'Kurogane Pass', type: 'Mountains', desc: 'A dusk touge climbing switchbacks to a summit lookout.', accent: '#b5179e' },
-  { id: 'forest', name: 'Pinewood Trails', type: 'Forest', desc: 'Misty forest loop around a lake with a big gravel clearing.', accent: '#52b788' },
-  { id: 'city', name: 'Neon District', type: 'City', desc: 'Night-time grid of streets, a central plaza and open parking lots.', accent: '#ff006e' },
+  { id: 'track', name: 'Apex Circuit', type: 'Race Track', desc: 'A proper racing circuit with sweepers, a carousel, a hairpin and an infield skidpad.', accent: '#8fb3d1' },
+  { id: 'desert', name: 'Dune Valley', type: 'Desert', desc: 'Golden-hour highway loop around a huge salt flat. Endless room to slide.', accent: '#d9a46a' },
+  { id: 'mountain', name: 'Kurogane Pass', type: 'Mountains', desc: 'A dusk touge climbing switchbacks to a summit lookout.', accent: '#d48d6e' },
+  { id: 'forest', name: 'Pinewood Trails', type: 'Forest', desc: 'Misty forest loop around a lake with a big gravel clearing.', accent: '#86b77a' },
+  { id: 'city', name: 'City Nights', type: 'City', desc: 'Night-time grid of streets, a central plaza and open parking lots.', accent: '#d8b25c' },
 ];
 
 const SURFACES = {
@@ -4172,7 +4458,7 @@ function building(ctx, x, z, w, d, h, c, night, r) {
     const segs = Math.max(1, Math.floor(along / 7));
     for (let k = 0; k < rows; k++) for (let s = 0; s < segs; s++) {
       const lit = night && r() < 0.42;
-      const wc = lit ? [...(r() < 0.7 ? [1, 0.82, 0.5] : [0.6, 0.85, 1]), 0.85] : night ? [0.06, 0.07, 0.1] : [0.25, 0.32, 0.4];
+      const wc = lit ? [...(r() < 0.7 ? [1, 0.82, 0.5] : [0.86, 0.88, 0.86]), 0.85] : night ? [0.06, 0.07, 0.1] : [0.25, 0.32, 0.4];
       const u = -along / 2 + (s + 0.5) * (along / segs), yy = y + 3.5 + k * 3.4;
       const cx = x + nx * (w / 2 + 0.04) + (nz ? u : 0), cz = z + nz * (d / 2 + 0.04) + (nx ? u : 0);
       const hw = (along / segs - 1.6) / 2, tx = nz ? 1 : 0, tz = nx ? 1 : 0, s2 = nx + nz; // tangent along the face
@@ -4386,9 +4672,9 @@ const SPECS = {
         { name: 'Summit Donuts', x: 30, z: 205, r: 48, target: 14000, time: 25 },
       ],
       env: {
-        sky: { top: col('#2a2d63'), horizon: col('#f08a7a'), bottom: col('#7a5a6a') },
-        sunDir: norm([0.75, 0.16, -0.35]), sunCol: [1.0, 0.62, 0.48], sunGlow: [1.2, 0.5, 0.35], ambSky: [0.42, 0.42, 0.62], ambGround: [0.25, 0.22, 0.26],
-        fogCol: col('#9a7f98'), fogNear: 220, fogFar: 1000, night: false, headlights: true, music: 'dusk',
+        sky: { top: col('#2e3d5e'), horizon: col('#e39c74'), bottom: col('#6e5f58') },
+        sunDir: norm([0.75, 0.16, -0.35]), sunCol: [1.0, 0.68, 0.5], sunGlow: [1.2, 0.6, 0.38], ambSky: [0.44, 0.46, 0.58], ambGround: [0.26, 0.24, 0.22],
+        fogCol: col('#9a8a84'), fogNear: 220, fogFar: 1000, night: false, headlights: true, music: 'dusk',
       },
       scenery(c) {
         const r = c.rand;
@@ -4520,14 +4806,15 @@ const SPECS = {
         { name: 'Downtown Sprint', x: -225, z: 45, r: 60, target: 10000, time: 25 },
       ],
       env: {
-        sky: { top: col('#05061a'), horizon: col('#2c1b4a'), bottom: col('#120d1f') },
-        sunDir: norm([-0.3, 0.7, 0.4]), sunCol: [0.22, 0.26, 0.42], sunGlow: [0.08, 0.08, 0.15], ambSky: [0.2, 0.2, 0.34], ambGround: [0.12, 0.09, 0.14],
-        fogCol: col('#1a1230'), fogNear: 140, fogFar: 680, night: true, headlights: true, stars: 1, music: 'night',
+        sky: { top: col('#0a1220'), horizon: col('#2b3340'), bottom: col('#14171c') },
+        sunDir: norm([-0.3, 0.7, 0.4]), sunCol: [0.26, 0.29, 0.36], sunGlow: [0.06, 0.07, 0.09], ambSky: [0.24, 0.26, 0.32], ambGround: [0.14, 0.13, 0.12],
+        fogCol: col('#1e232b'), fogNear: 140, fogFar: 680, night: true, headlights: true, stars: 0.5, music: 'night',
       },
       scenery(c) {
         const r = c.rand, inner = (B - ST) / 2;
         const pal = [[0.32, 0.33, 0.38], [0.42, 0.36, 0.33], [0.25, 0.3, 0.38], [0.5, 0.48, 0.45], [0.3, 0.27, 0.3]];
-        const neon = [[1, 0.1, 0.55], [0.1, 0.95, 0.85], [0.6, 0.3, 1], [1, 0.75, 0.1], [0.2, 0.5, 1]];
+        // ordinary shop signs: backlit white/cream panels and a few painted brand colours (no neon)
+        const signs = [[0.92, 0.9, 0.84], [0.95, 0.82, 0.6], [0.72, 0.22, 0.18], [0.18, 0.42, 0.3], [0.22, 0.3, 0.5]];
         for (const b of blocks) {
           const k = kind(b), g = c.geo(b.x, b.z);
           if (k !== 'plaza') {
@@ -4535,10 +4822,10 @@ const SPECS = {
             g.box(b.x, 0.015, b.z, inner * 2 + 0.01, 0.03, inner * 2 + 0.01, { top: [0.36, 0.36, 0.38], side: [0.5, 0.5, 0.5] });
             g.box(b.x, 0.03, b.z, inner * 2 - 4.5, 0.03, inner * 2 - 4.5, k === 'park' ? [0.15, 0.3, 0.12] : k === 'lot' ? [0.18, 0.18, 0.2] : [0.3, 0.3, 0.32]);
           } else {
-            g.box(b.x, 0.015, b.z, B + 0.1, 0.03, B + 0.1, [0.34, 0.3, 0.36]);
+            g.box(b.x, 0.015, b.z, B + 0.1, 0.03, B + 0.1, [0.38, 0.36, 0.33]); // stone paving
           }
           // lamps at corners (all blocks)
-          for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) lamp(c, b.x + sx * (inner - 1), b.z + sz * (inner - 1), Math.atan2(sx, sz), true, sx * sz > 0 ? [1, 0.82, 0.55] : [0.7, 0.85, 1]);
+          for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) lamp(c, b.x + sx * (inner - 1), b.z + sz * (inner - 1), Math.atan2(sx, sz), true, sx * sz > 0 ? [1, 0.82, 0.55] : [1, 0.9, 0.74]); // warm street lights
           if (k === 'build') {
             const split = r();
             const lots = split < 0.3 ? [[0, 0, 1, 1]] : split < 0.65 ? [[-0.5, 0, 0.5, 1], [0.5, 0, 0.5, 1]] : [[-0.5, -0.5, 0.5, 0.5], [0.5, -0.5, 0.5, 0.5], [-0.5, 0.5, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5]];
@@ -4550,9 +4837,9 @@ const SPECS = {
               building(c, x, z, w, d, h, pal[Math.floor(r() * pal.length)], true, r);
               c.box(x, z, w, d);
               if (r() < 0.45) {
-                const nc = neon[Math.floor(r() * neon.length)], side = r() < 0.5 ? 1 : -1;
-                g.box(x + (r() - 0.5) * w * 0.5, 7 + r() * 6, z + side * (d / 2 + 0.3), 5 + r() * 6, 1.4, 0.2, [...nc, 1]);
-                c.glow(x, 0.05, z + side * (d / 2 + 4), 7, [nc[0] * 0.25, nc[1] * 0.25, nc[2] * 0.25, 1]);
+                const sc = signs[Math.floor(r() * signs.length)], side = r() < 0.5 ? 1 : -1;
+                g.box(x + (r() - 0.5) * w * 0.5, 7 + r() * 6, z + side * (d / 2 + 0.3), 5 + r() * 6, 1.4, 0.2, [...sc, 0.55]); // softly lit sign
+                c.glow(x, 0.05, z + side * (d / 2 + 4), 7, [0.09, 0.075, 0.055, 1]); // faint warm spill on the pavement
               }
             }
           } else if (k === 'park') {
@@ -4567,9 +4854,9 @@ const SPECS = {
             const x = (b.i - K + 1) * B, z = (b.j - K + 1) * B;
             g.cylinder(x, 0.4, z, 6, 0.8, 16, [0.5, 0.5, 0.55]);
             g.cylinder(x, 3.5, z, 0.6, 6, 8, [0.6, 0.6, 0.65]);
-            g.blob(x, 7.2, z, 1.6, 1.6, 1.6, [0.1, 0.9, 0.9, 1], 0, r);
+            g.blob(x, 7.2, z, 1.6, 1.6, 1.6, [0.55, 0.45, 0.3], 0, r); // bronze sculpture
             c.circle(x, z, 6.2);
-            c.glow(x, 0.08, z, 16, [0.05, 0.3, 0.3, 1]);
+            c.glow(x, 0.08, z, 16, [0.16, 0.13, 0.09, 1]); // warm floodlight pool
           }
         }
         // crosswalks & intersections
@@ -5150,11 +5437,17 @@ class CarCamera {
     const want = clamp(dd, dist * 0.85, dist * 1.12);
     this.eye[0] = car.x + (dx / dd) * want; this.eye[2] = car.z + (dz / dd) * want;
     this.target = [car.x + Math.sin(this.yaw) * V.look * 2, car.y + V.look, car.z + Math.cos(this.yaw) * V.look * 2];
+    // camera shake: pick a new random offset ~30 times a second and glide toward it, so the shake
+    // looks the same at 60 Hz and 144 Hz (a new random jump every frame would shake harder on fast screens)
     if (this.shake > 0 && settings.camShake) {
       this.shake = Math.max(0, this.shake - dt * 3);
+      this.shakeT = (this.shakeT || 0) - dt;
+      if (this.shakeT <= 0) { this.shakeT = 1 / 30; this.shakeGoal = [Math.random() - 0.5, Math.random() - 0.5]; }
+      const g = this.shakeGoal || [0, 0], o = this.shakeOff || [0, 0];
+      this.shakeOff = [damp(o[0], g[0], 40, dt), damp(o[1], g[1], 40, dt)];
       const s = this.shake * 0.25;
-      this.eye[0] += (Math.random() - 0.5) * s; this.eye[1] += (Math.random() - 0.5) * s;
-    }
+      this.eye[0] += this.shakeOff[0] * s; this.eye[1] += this.shakeOff[1] * s;
+    } else this.shakeOff = [0, 0];
   }
 }
 
@@ -5231,7 +5524,7 @@ class UI {
     $('#mode-cards').innerHTML = FREE_MODES.map((m) => `<button class="card mode ${m.id === this.playSel.mode ? 'sel' : ''}" data-mode="${m.id}"><i>${m.icon}</i><b>${m.name}</b><span>${m.desc}</span></button>`).join('');
     $('#map-cards').innerHTML = MAP_LIST.map((m) => {
       const best = S.bests[`${m.id}:${this.playSel.mode}`];
-      return `<button class="card map ${m.id === this.playSel.map ? 'sel' : ''}" data-map="${m.id}" style="--accent:${m.accent}"><div class="map-thumb t-${m.id}"></div><small>${m.type}</small><b>${m.name}</b><span>${m.desc}</span>${best ? `<em>Best ${fmt(best)}</em>` : ''}</button>`;
+      return `<button class="card map ${m.id === this.playSel.map ? 'sel' : ''}" data-map="${m.id}" style="--map-accent:${m.accent}"><div class="map-thumb t-${m.id}"></div><small>${m.type}</small><b>${m.name}</b><span>${m.desc}</span>${best ? `<em>Best ${fmt(best)}</em>` : ''}</button>`;
     }).join('');
     $$('#mode-cards .card').forEach((b) => (b.onclick = () => { this.click(); this.playSel.mode = b.dataset.mode; this.renderPlay(); }));
     $$('#map-cards .card').forEach((b) => (b.onclick = () => { this.click(); this.playSel.map = b.dataset.map; this.renderPlay(); }));
@@ -5254,7 +5547,7 @@ class UI {
     const mapCards = this.compMaps(mode).map((id) => {
       const m = MAP_LIST.find((x) => x.id === id), sub = mode === 'race' ? RACE[id].name : mode === 'battle' ? BATTLE[id].name : m.type;
       const pb = this.personalBest(mode, id, C);
-      return `<button class="card map ${id === C.map ? 'sel' : ''}" data-cmap="${id}" style="--accent:${m.accent}"><div class="map-thumb t-${id}"></div><small>${sub}</small><b>${m.name}</b>${pb ? `<em>${pb}</em>` : ''}</button>`;
+      return `<button class="card map ${id === C.map ? 'sel' : ''}" data-cmap="${id}" style="--map-accent:${m.accent}"><div class="map-thumb t-${id}"></div><small>${sub}</small><b>${m.name}</b>${pb ? `<em>${pb}</em>` : ''}</button>`;
     }).join('');
     let h = '';
     if (mode === 'challenge') {
@@ -5513,7 +5806,11 @@ class UI {
     try { await N.connect(S.playerName, S.car, S.serverUrl, { patience: 30000 }); } catch { return toast('Multiplayer server unreachable', 3000, 'bad'); }
     // look at the room first: if it restricts performance mods, show its rules before joining
     const info = await new Promise((res) => { const off = N.on('peek', (m) => { off(); res(m.room); }); N.send({ t: 'peek', code }); setTimeout(() => { off(); res(undefined); }, 4000); });
-    if (info === null) return toast(`Room "${esc(code)}" not found`, 3000, 'bad');
+    if (info === null) {
+      // the room is gone (closed, or the server restarted): say so and forget it, never join something else
+      if (S.lastRoom === code) { S.lastRoom = ''; this.app.saveSettings(); if (this.current === 'mp') $('#mp-rejoin').classList.add('hidden'); }
+      return toast(`Room ${esc(code)} doesn't exist any more (it closed, or the server restarted). Create a new room.`, 5000, 'bad');
+    }
     if (info && info.rules && info.rules !== 'open') {
       const ok = await this.confirmRules(info); if (!ok) return;
     }
@@ -5570,8 +5867,11 @@ class UI {
     draw();
     $('#create-go').onclick = async () => {
       this.click();
-      const N = this.app.net, val = (id, d) => ($('#' + id) ? $('#' + id).value : d);
-      try { await N.connect(S.playerName, S.car, S.serverUrl, { patience: 30000 }); } catch { return toast('Multiplayer server unreachable', 3000, 'bad'); }
+      const N = this.app.net, val = (id, d) => ($('#' + id) ? $('#' + id).value : d), btn = $('#create-go');
+      if (btn.disabled) return; // one room per click, even while a sleeping server wakes up
+      btn.disabled = true;
+      try { await N.connect(S.playerName, S.car, S.serverUrl, { patience: 30000 }); } catch { btn.disabled = false; return toast('Multiplayer server unreachable', 3000, 'bad'); }
+      setTimeout(() => { btn.disabled = false; }, 1500);
       N.send({ t: 'create', car: S.car, settings: { name: $('#cr-name').value, isPublic: st.pub, map: $('#cr-map').value, mode: $('#cr-mode').value, maxPlayers: +$('#cr-max').value, rounds: +val('cr-rounds', 3), roundTime: +val('cr-time', 90), variant: val('cr-variant', 'timed'), matchTime: +val('cr-mtime', 120), laps: +val('cr-laps', 3), rules: val('cr-rules', 'open') } });
     };
     this.show('create');
@@ -5598,7 +5898,8 @@ class UI {
       <label>Performance mods<select id="lb-rules" ${dis}>${Object.entries(RULES).map(([k, x]) => `<option value="${k}" ${k === (room.rules || 'open') ? 'selected' : ''}>${x.name}</option>`).join('')}</select></label>
       <p class="muted">${RULES[room.rules || 'open'].desc}</p>
       ${this.compMaps(room.mode).includes(room.map) ? '' : '<p class="bad-note">This map has no ' + (room.mode === 'race' ? 'race circuit' : 'battle course') + ' — pick another map.</p>'}
-      ${host ? '' : '<p class="muted">Only the host can change settings.</p>'}`;
+      ${host ? (room.status === 'lobby' ? '<p class="muted"><b>You are the host:</b> you choose the mode and map.</p>' : '<p class="muted">A game is running. Press <b>End game</b> to change mode or map.</p>')
+        : `<p class="muted">Only the host (<b>${esc((room.players.find((p) => p.id === room.hostId) || {}).name || '?')}</b>) can change settings.</p>`}`;
     const send = (patch) => N.send({ t: 'settings', settings: patch });
     if (host) {
       $('#lb-name').onchange = (e) => send({ name: e.target.value });
@@ -5611,9 +5912,11 @@ class UI {
     }
     const start = $('#lobby-start');
     start.classList.toggle('hidden', !host);
-    start.textContent = room.status === 'playing' ? 'Game in progress' : room.mode === 'battle' && room.players.length < 2 ? 'Need 2 players' : 'Start game';
-    start.disabled = room.status !== 'lobby';
-    start.onclick = () => { this.click(); N.send({ t: 'start' }); };
+    const playing = room.status === 'playing';
+    // while a game runs the host's button ends it (everyone back to the lobby), so the host can never be locked out
+    start.textContent = playing ? 'End game (everyone → lobby)' : room.mode === 'battle' && room.players.length < 2 ? 'Need 2 players' : 'Start game';
+    start.disabled = false;
+    start.onclick = () => { this.click(); N.send({ t: playing ? 'end' : 'start' }); };
     const jn = $('#lobby-joinrun');
     jn.classList.toggle('hidden', room.status !== 'playing'); jn.textContent = room.match && room.match.phase !== 'results' ? 'Watch the match ›' : 'Join the running game ›';
     jn.onclick = () => { this.click(); N.send({ t: 'join', code: room.code, car: this.S.car }); };
@@ -5751,10 +6054,11 @@ __mod["js/showroom.js"] = (function () {
 const { Geo } = __mod["js/engine/geometry.js"];
 const { FxBuffer } = __mod["js/engine/renderer.js"];
 const { buildCarModel, carDrawItems } = __mod["js/cars.js"];
+// Neutral photo-studio lighting: grey backdrop, soft white key light, no stars or coloured light.
 const ENV = {
-  sky: { top: [0.02, 0.025, 0.06], horizon: [0.1, 0.07, 0.18], bottom: [0.03, 0.03, 0.05] },
-  sunDir: norm([0.4, 0.75, 0.6]), sunCol: [1.05, 1.0, 0.95], sunGlow: [0, 0, 0], ambSky: [0.42, 0.42, 0.55], ambGround: [0.12, 0.1, 0.16],
-  fogCol: [0.05, 0.04, 0.09], fogNear: 25, fogFar: 90, stars: 0.6,
+  sky: { top: [0.07, 0.075, 0.085], horizon: [0.17, 0.175, 0.185], bottom: [0.08, 0.08, 0.09] },
+  sunDir: norm([0.4, 0.75, 0.6]), sunCol: [1.05, 1.0, 0.95], sunGlow: [0, 0, 0], ambSky: [0.46, 0.47, 0.5], ambGround: [0.14, 0.14, 0.15],
+  fogCol: [0.12, 0.125, 0.135], fogNear: 25, fogFar: 90, stars: 0,
 };
 
 class Showroom {
@@ -5762,16 +6066,16 @@ class Showroom {
     this.app = app; this.t = 0; this.yaw = 0.6;
     const R = app.renderer;
     const g = new Geo();
-    g.disc(0, 0, 0, 80, 48, [0.07, 0.07, 0.09]);
-    g.cylinder(0, 0.12, 0, 4.4, 0.24, 40, [0.13, 0.13, 0.15], 'y');
-    g.cylinder(0, 0.13, 0, 4.5, 0.08, 40, [0.1, 0.9, 1.0, 1], 'y');
-    // background light bars
+    g.disc(0, 0, 0, 80, 48, [0.11, 0.11, 0.12]); // studio floor
+    g.cylinder(0, 0.12, 0, 4.4, 0.24, 40, [0.2, 0.2, 0.21], 'y'); // turntable
+    g.cylinder(0, 0.13, 0, 4.5, 0.08, 40, [0.55, 0.55, 0.56], 'y'); // brushed-metal rim
+    // background softbox lights (dim warm-white panels on stands)
     for (let i = 0; i < 14; i++) {
       const a = (i / 14) * Math.PI * 2, r = 26;
-      g.at(Math.cos(a) * r, 0, Math.sin(a) * r, -a + Math.PI / 2).box(0, 4, 0, 0.4, 8, 0.4, [0.6, 0.2, 1, 1]).box(0, 0.05, 0, 3, 0.1, 3, [0.08, 0.08, 0.1]).reset();
+      g.at(Math.cos(a) * r, 0, Math.sin(a) * r, -a + Math.PI / 2).box(0, 4, 0, 0.4, 8, 0.4, [0.34, 0.33, 0.32, 0.35]).box(0, 0.05, 0, 3, 0.1, 3, [0.08, 0.08, 0.1]).reset();
     }
     this.static = [{ mesh: R.createMesh(g.build()), cull: false }];
-    // floor glow rings (additive)
+    // soft light pools on the floor (additive, kept very subtle)
     const arr = [];
     const ring = (r0, r1, c, seg = 64) => {
       for (let i = 0; i < seg; i++) {
@@ -5780,10 +6084,10 @@ class Showroom {
         for (const [p, u] of [[P(a0, r0), 0], [P(a0, r1), 1], [P(a1, r1), 1], [P(a0, r0), 0], [P(a1, r1), 1], [P(a1, r0), 0]]) arr.push(...p, ...c, 0, u);
       }
     };
-    ring(4.5, 9, [0.03, 0.18, 0.24, 1]);
-    ring(14, 14.4, [0.4, 0.1, 0.5, 1]);
-    ring(20, 20.3, [0.1, 0.3, 0.6, 1]);
-    for (let i = 0; i < 14; i++) { const a = (i / 14) * Math.PI * 2; const x = Math.cos(a) * 26, z = Math.sin(a) * 26; for (let k = 0; k < 16; k++) { const a0 = (k / 16) * 6.283, a1 = ((k + 1) / 16) * 6.283; arr.push(x, 0.03, z, 0.35, 0.12, 0.6, 1, 0, 0, x + Math.cos(a1) * 5, 0.03, z + Math.sin(a1) * 5, 0.35, 0.12, 0.6, 1, Math.cos(a1), Math.sin(a1), x + Math.cos(a0) * 5, 0.03, z + Math.sin(a0) * 5, 0.35, 0.12, 0.6, 1, Math.cos(a0), Math.sin(a0)); } }
+    ring(4.5, 9, [0.05, 0.05, 0.05, 1]);
+    ring(14, 14.4, [0.06, 0.06, 0.06, 1]);
+    ring(20, 20.3, [0.04, 0.04, 0.04, 1]);
+    for (let i = 0; i < 14; i++) { const a = (i / 14) * Math.PI * 2; const x = Math.cos(a) * 26, z = Math.sin(a) * 26; for (let k = 0; k < 16; k++) { const a0 = (k / 16) * 6.283, a1 = ((k + 1) / 16) * 6.283; const k2 = 0.07; arr.push(x, 0.03, z, k2, k2, k2 * 0.95, 1, 0, 0, x + Math.cos(a1) * 5, 0.03, z + Math.sin(a1) * 5, k2, k2, k2 * 0.95, 1, Math.cos(a1), Math.sin(a1), x + Math.cos(a0) * 5, 0.03, z + Math.sin(a0) * 5, k2, k2, k2 * 0.95, 1, Math.cos(a0), Math.sin(a0)); } }
     this.glow = new FxBuffer(R, arr.length / 9, true); this.glow.data.set(arr); this.glow.count = arr.length / 9; this.glow.markDirty(0, this.glow.count);
     this.shadow = new FxBuffer(R, 64, false);
     this.setCar(app.settings.car);
@@ -5924,7 +6228,7 @@ class Effects {
       const p = P[i]; p.life -= dt;
       if (p.life <= 0) { P.splice(i, 1); continue; }
       p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
-      p.vx *= 1 - dt * 1.2; p.vz *= 1 - dt * 1.2; p.vy *= 1 - dt * 0.6;
+      p.vx *= 1 - dt * 1.2; p.vz *= 1 - dt * 1.2; p.vy = p.vy * (1 - dt * 0.6) + dt * 0.2; // warm smoke drifts up a little
       p.size += p.grow * dt;
     }
     this.smoke.count = 0;
@@ -6124,7 +6428,7 @@ class RaceComp extends Comp {
     this.mySlot = mySlot;
     const pool = ['zephyr', 'kaze', 'sedan', 'shiro', 'thunder', 'kitsune', 'vortex', 'brute'];
     const names = ['CPU Akira', 'CPU Bea', 'CPU Carlos', 'CPU Dana', 'CPU Emil', 'CPU Freya', 'CPU Goro'];
-    const paints = ['#3a86ff', '#ffbe0b', '#80b918', '#ff006e', '#00f5d4', '#ff5400', '#8338ec'];
+    const paints = ['#34506e', '#d4a32a', '#5b6647', '#7c1d22', '#c9ccd1', '#c2531d', '#26292c']; // normal factory paints
     for (let i = 0; i < nAI; i++) {
       const id = pool[i % pool.length], cfg = { id, paint: paints[i], wheel: '#cccccc', rim: i % 6, spoiler: i % 4, kit: i % 2, stripes: 0, lowered: 0, underglow: '' };
       const model = buildCarModel(g.app.renderer, cfg), def = carById(id);
@@ -6343,7 +6647,7 @@ class BattleComp extends Comp {
     }
   }
   makeGhost() {
-    const cfg = { ...this.g.app.settings.car, paint: '#9fe6ff', underglow: '#19e3ff' };
+    const cfg = { ...this.g.app.settings.car, paint: '#d6d8db', underglow: '', livery: 0, stripes: 0 }; // neutral pale-grey ghost
     const model = buildCarModel(this.g.app.renderer, cfg);
     const tag = document.createElement('div'); tag.className = 'nametag ghost'; tag.textContent = 'GHOST · your lead run'; $('#tags').appendChild(tag);
     return { model, tag };
@@ -6522,9 +6826,9 @@ class Game {
     const N = this.net;
     const on = (t, fn) => this.unsub.push(N.on(t, fn));
     on('snap', (m) => {
-      const t = N.localTime(m.ts);
       for (const p of m.ps) {
         if (p[0] === N.id) continue;
+        const t = N.localTime(m.ts - (p[12] || 0)); // p[12] = how old this state was when the server sent it
         let r = this.remotes.get(p[0]);
         if (!r) r = this.addRemote(p[0]);
         r.buf.push({ t, x: p[1], y: p[2], z: p[3], h: p[4], vx: p[5], vz: p[6], s: p[7], f: p[8], sl: p[9], pi: p[10] || 0, ro: p[11] || 0 });
@@ -6563,6 +6867,7 @@ class Game {
       r.cfgKey = key; r.cfg = info.car;
       r.model = buildCarModel(this.app.renderer, info.car);
       const d = r.model.meshes.dims; r.radius = d.W * 0.5; r.offset = d.L * 0.27; r.dims = d;
+      r.mass = applyTune(carById(info.car.id), info.car.tune, this.rules).mass; // for collisions (heavier car pushes harder)
     }
   }
   syncRoom(room) {
@@ -6603,7 +6908,7 @@ class Game {
       r.x = s.x; r.y = s.y; r.z = s.z; r.h = s.h; r.vx = s.vx; r.vz = s.vz; r.steer = s.s; r.flags = s.f; r.slip = s.sl; r.pitch = s.pi; r.roll = s.ro;
       r.speed = Math.hypot(s.vx, s.vz);
       if (r.dims) r.spin += (fwd / r.dims.wheelR) * dt;
-      r.seen = now - b[b.length - 1].t < 3000;
+      r.seen = now - b[b.length - 1].t < 1000 + (this.net.interpDelay || 120); // no updates for ~1 s: hide (no frozen ghosts on the road)
     }
   }
 
@@ -6755,6 +7060,7 @@ class Game {
   frame(dt) {
     const app = this.app, input = app.input, S = app.settings;
     this.time += dt;
+    input.pollPad(); // controller buttons work even while paused / chatting
     for (const a of input.pressed()) this.action(a);
     const simPaused = this.paused && !this.mp;
     if (!simPaused) {
@@ -6772,6 +7078,8 @@ class Game {
         if (this.comp) this.comp.stepExtras(PHYS_DT);
         this.accum -= PHYS_DT; steps++;
       }
+      // how far we are between the last physics step and the next one (for smooth drawing)
+      this.alpha = clamp(this.accum / PHYS_DT, 0, 1);
       if (maxImpact > 2.5) {
         app.audio.impact(maxImpact);
         if (maxImpact > 6.5) {
@@ -6791,11 +7099,11 @@ class Game {
     if (this.comp) this.comp.update(dt, !simPaused);
     if (this.mp) {
       this.interpRemotes(dt);
-      this.sendT -= dt; if (this.sendT <= 0) { this.sendT = 0.05; if (!this.comp && !this.spectator) this.sendState(); }
+      this.sendT -= dt; if (this.sendT <= 0) { this.sendT = Math.max(0, this.sendT + 0.05); if (!this.comp && !this.spectator) this.sendState(); } // keep the leftover: steady 20 Hz
       this.scoreT -= dt; if (this.scoreT <= 0) { this.scoreT = 0.25; if (!this.comp && (!this.round || this.round.phase === 'running')) this.sendScore(); }
     }
     const c = this.car;
-    app.audio.updateEngine({ rpm: c.rpm, throttle: c.throttle, speed: c.speed, slip: c.slip, drifting: c.drifting, rumble: c.surface ? c.surface.rumble : 0, paved: c.surface && !c.surface.dust, boosting: c.boosting, paused: simPaused });
+    app.audio.updateEngine({ gear: c.gear, rpm: c.rpm, throttle: c.throttle, speed: c.speed, slip: c.slip, drifting: c.drifting, rumble: c.surface ? c.surface.rumble : 0, paved: c.surface && !c.surface.dust, boosting: c.boosting, paused: simPaused });
     this.render(simPaused ? 0 : dt);
     this.hudT -= dt; if (this.hudT <= 0) { this.hudT = 1 / 20; this.updateHud(); }
   }
@@ -6871,11 +7179,14 @@ class Game {
       if (front && intensity < 0.7) continue;
       const y = this.world.heightAt(X, Z) + 0.3;
       if (intensity > 0.1 && (speed > 2 || burn)) {
-        const rate = (surf.dust ? 14 : 22) * intensity * (front ? 0.4 : 1);
+        // throttle spins the rear tyres: more and thicker smoke when the driver is on the power
+        const thr = st.throttle ?? (st.drifting ? 0.7 : 0.3), power = front ? 0.4 : 0.6 + 0.6 * thr;
+        const rate = (surf.dust ? 14 : 24) * intensity * power;
         if (Math.random() < rate * dt) {
           const a = (surf.dust ? 0.28 : 0.2) * Math.min(1, intensity + 0.4);
           const c = surf.dust ? [...surf.dust, a] : [...(surf.smoke || [0.9, 0.9, 0.92]), a];
-          E.emit(X, y, Z, st.vx * 0.25 + (Math.random() - 0.5) * 2, 0.5 + Math.random() * 0.8, st.vz * 0.25 + (Math.random() - 0.5) * 2, c, 0.6, 1.5 + Math.random() * 1.0, 1.9);
+          const big = 0.5 + 0.35 * intensity * power;
+          E.emit(X, y, Z, st.vx * 0.25 + (Math.random() - 0.5) * 2, 0.5 + Math.random() * 0.8, st.vz * 0.25 + (Math.random() - 0.5) * 2, c, big, 1.5 + Math.random() * (0.8 + intensity), 1.6 + 0.8 * intensity);
         }
       } else if (surf.dust && speed > 9 && Math.random() < dt * 14 * Math.min(1, speed / 30)) {
         E.emit(X, y, Z, -st.vx * 0.1, 0.4, -st.vz * 0.1, [...surf.dust, 0.25], 0.6, 1.2, 2);
@@ -6890,14 +7201,17 @@ class Game {
 
   render(dt) {
     const app = this.app, R = app.renderer, S = app.settings, c = this.car;
-    const camCar = this.spectator ? (this.specTarget() || c) : c;
+    // draw the local car between its last two physics steps (no stutter on 75/144 Hz screens)
+    const rs = c.renderState(this.alpha ?? 1);
+    const camLocal = { x: rs.x, y: rs.y, z: rs.z, h: rs.h, vx: c.vx, vz: c.vz, speed: c.speed, forwardSpeed: c.forwardSpeed, mode: c.mode, boosting: c.boosting, dims: c.dims };
+    const camCar = this.spectator ? (this.specTarget() || camLocal) : camLocal;
     this.cam.update(Math.max(dt, 1 / 240), camCar, this.world, S);
     R.setCamera(this.cam.eye, this.cam.target, (this.cam.fov * Math.PI) / 180, 0.5, this.env.fogFar + 120);
     const E = this.effects; E.begin();
     const items = this.world.statics.slice();
     const hideOwn = VIEWS[this.cam.view].hood;
-    const local = { x: c.x, y: c.y, z: c.z, h: c.h, vx: c.vx, vz: c.vz, speed: c.speed, rel: c.rel, mode: c.mode, drifting: c.drifting, handbrake: c.handbrake, braking: c.brakeOn, boosting: c.boosting, burnout: c.mode !== 'grip' && c.throttle > 0.8 && c.speed < 9 };
-    if (!hideOwn && !this.spectator) carDrawItems(this.model, { x: c.x, y: c.y, z: c.z, yaw: c.h, pitch: c.pitch, roll: c.roll, bodyPitch: c.bodyPitch, bodyRoll: c.bodyRoll, wheelOffset: c.wheelOffset, steer: c.wheelAngle, spin: c.spin, brake: c.brakeOn || c.handbrake, reverse: c.reversing, lights: this.env.night }, items);
+    const local = { x: rs.x, y: rs.y, z: rs.z, h: rs.h, vx: c.vx, vz: c.vz, speed: c.speed, rel: c.rel, mode: c.mode, drifting: c.drifting, handbrake: c.handbrake, braking: c.brakeOn, boosting: c.boosting, burnout: c.mode !== 'grip' && c.throttle > 0.8 && c.speed < 9, throttle: c.throttle };
+    if (!hideOwn && !this.spectator) carDrawItems(this.model, { x: rs.x, y: rs.y, z: rs.z, yaw: rs.h, pitch: rs.pitch, roll: rs.roll, bodyPitch: c.bodyPitch, bodyRoll: c.bodyRoll, wheelOffset: c.wheelOffset, steer: c.wheelAngle, spin: c.spin, brake: c.brakeOn || c.handbrake, reverse: c.reversing, lights: this.env.night }, items);
     if (!this.spectator) this.carFx(local, this.model, this.model.meshes.dims, 'me', dt, true);
     for (const r of this.remotes.values()) {
       if (!r.model || !r.seen) { r.tag.style.display = 'none'; continue; }
@@ -6913,8 +7227,8 @@ class Game {
     E.update(dt);
     const head = (this.env.headlights || this.env.night) && !this.spectator ? {
       on: true, intensity: this.env.night ? 1.0 : 0.5,
-      pos: [c.x + Math.sin(c.h) * (this.model.meshes.dims.frontZ), c.y + 0.9, c.z + Math.cos(c.h) * this.model.meshes.dims.frontZ],
-      dir: normalize([Math.sin(c.h), -0.12, Math.cos(c.h)]),
+      pos: [rs.x + Math.sin(rs.h) * (this.model.meshes.dims.frontZ), rs.y + 0.9, rs.z + Math.cos(rs.h) * this.model.meshes.dims.frontZ],
+      dir: normalize([Math.sin(rs.h), -0.12, Math.cos(rs.h)]),
     } : null;
     R.render(this.env, items, [...this.world.fx, ...E.buffers], head);
     if (this.minimap) this.minimap.draw(Math.max(dt, 1 / 240));
@@ -7012,7 +7326,7 @@ return { Game };
 __mod["js/settings.js"] = (function () {
 // Persistent settings (localStorage)
 const { DEFAULT_BINDINGS } = __mod["js/input.js"];
-const { defaultConfig } = __mod["js/cars.js"];
+const { defaultConfig, normalizeColors } = __mod["js/cars.js"];
 const KEY = 'driftclub.settings.v1';
 
 function guessQuality() {
@@ -7044,7 +7358,7 @@ function loadSettings() {
   try { s = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { s = {}; }
   const out = { ...JSON.parse(JSON.stringify(DEFAULTS)), ...s };
   out.bindings = { ...DEFAULT_BINDINGS, ...(s.bindings || {}) };
-  out.car = { ...defaultConfig(out.car && out.car.id), ...(s.car || {}) };
+  out.car = normalizeColors({ ...defaultConfig(out.car && out.car.id), ...(s.car || {}) }); // old neon colours -> nearest normal ones
   out.minimap = { ...DEFAULTS.minimap, ...(s.minimap || {}) };
   return out;
 }
@@ -7065,6 +7379,7 @@ const { Showroom } = __mod["js/showroom.js"];
 const { Game } = __mod["js/game.js"];
 const { loadSettings, saveSettings } = __mod["js/settings.js"];
 const { MAP_LIST } = __mod["js/maps.js"];
+const { MODES } = __mod["js/scoring.js"];
 class App {
   constructor() {
     this.settings = loadSettings();
@@ -7173,9 +7488,14 @@ class App {
     N.on('joined', () => { if (!this.game) this.ui.show('lobby'); });
     N.on('room', () => { if (this.ui.current === 'lobby') this.ui.renderLobby(); });
     N.on('left', () => { this.settings.lastRoom = ''; this.saveSettings(); if (!this.game) this.ui.show('mp'); });
-    N.on('error', (m) => toast(esc(m.msg), 3000, 'bad'));
+    N.on('error', (m) => {
+      toast(esc(m.msg), 4000, 'bad');
+      if (m.gone && this.settings.lastRoom === m.gone) { this.settings.lastRoom = ''; this.saveSettings(); if (this.ui.current === 'mp') this.ui.enterMP(); }
+    });
     N.on('chat', (m) => { if (!this.game) this.ui.chatLine(m); });
     N.on('gameStart', (m) => {
+      // never guess a mode: an unknown one used to silently fall back to Endless
+      if (!MODES.find((x) => x.id === m.mode)) { toast(`This room uses a game mode your page doesn't know (${esc(m.mode)}). Refresh the page.`, 6000, 'bad'); return; }
       if (this.game && this.game.mp) this.endGame();
       this.startGame({ mp: true, mapId: m.map, modeId: m.mode, spawn: m.spawn, rounds: m.rounds, roundTime: m.roundTime, comp: m.comp, spectator: m.spectator, grid: m.grid, resume: m.resume, rules: m.rules || 'open' });
     });
@@ -7185,16 +7505,38 @@ class App {
     N.inGame = () => !!(this.game && this.game.mp);
     const banner = (on, text) => { const b = $('#netbanner'); b.classList.toggle('hidden', !on); if (text) b.textContent = text; };
     N.on('reconnecting', () => banner(true, 'Connection lost — reconnecting…'));
-    N.on('reconnected', () => { banner(false); toast('Reconnected', 1500, 'good'); if (this.ui.current === 'lobby') this.ui.renderLobby(); });
-    N.on('resumeFailed', () => {
+    N.on('reconnected', () => {
+      banner(false);
+      if (!N.room) return; // fresh session (no room): 'roomLost' explains what happened if needed
+      toast('Reconnected', 1500, 'good');
+      if (this.ui.current === 'lobby') this.ui.renderLobby();
+    });
+    // our room is gone for us (server restarted, or we were away too long): say so clearly, never
+    // leave a stale lobby on screen or drop the player into some other room
+    N.on('roomLost', ({ code, reason }) => {
       banner(false);
       if (this.game && this.game.mp) { this.endGame(); this.audio.playMusic('menu'); }
-      if (['lobby', 'none', 'create'].includes(this.ui.current) || !this.game) this.ui.show('mp');
-      toast('Reconnected, but your room slot had expired — rejoin with the room code', 4000, 'bad');
+      if (this.settings.lastRoom === code) { this.settings.lastRoom = ''; this.saveSettings(); }
+      if (!this.game) this.ui.show('mp');
+      const why = reason === 'restart' ? 'the multiplayer server restarted, which closes every room'
+        : reason === 'offline' ? 'the server could not be reached for too long'
+          : 'you were disconnected for more than 30 seconds, so your place was given up';
+      toast(`Room ${esc(code)} is gone: ${why}. Create a new room (or rejoin if your friends are still there).`, 7000, 'bad');
     });
+    N.on('host', (m) => {
+      if (m.id === N.id) toast(`${esc(m.prev)} left — <b>you are now the host</b> (you can change mode and map)`, 5000, 'good');
+      else toast(`<b>${esc(m.name)}</b> is now the host`, 4000);
+      if (this.ui.current === 'lobby') this.ui.renderLobby();
+    });
+    N.on('replaced', () => {
+      if (this.game && this.game.mp) { this.endGame(); this.audio.playMusic('menu'); }
+      if (!this.game) this.ui.show('main');
+      toast('Multiplayer was opened in another tab or window, so this one was disconnected.', 6000, 'bad');
+    });
+    N.on('serverRestart', (m) => banner(true, m.msg || 'Server restarting…'));
     N.on('disconnect', ({ was }) => {
       banner(false);
-      if (!was) return;
+      if (!was || N.replaced) return;
       if (this.game && this.game.mp) { this.endGame(); this.audio.playMusic('menu'); }
       if (this.game == null && ['lobby', 'create', 'mp', 'none'].includes(this.ui.current)) { this.ui.show('mp'); }
       toast('Disconnected from the multiplayer server', 3500, 'bad');
