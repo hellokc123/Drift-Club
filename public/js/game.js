@@ -127,6 +127,7 @@ export class Game {
       r.cfgKey = key; r.cfg = info.car;
       r.model = buildCarModel(this.app.renderer, info.car);
       const d = r.model.meshes.dims; r.radius = d.W * 0.5; r.offset = d.L * 0.27; r.dims = d;
+      r.mass = applyTune(carById(info.car.id), info.car.tune, this.rules).mass; // for collisions (heavier car pushes harder)
     }
   }
   syncRoom(room) {
@@ -319,6 +320,7 @@ export class Game {
   frame(dt) {
     const app = this.app, input = app.input, S = app.settings;
     this.time += dt;
+    input.pollPad(); // controller buttons work even while paused / chatting
     for (const a of input.pressed()) this.action(a);
     const simPaused = this.paused && !this.mp;
     if (!simPaused) {
@@ -336,6 +338,8 @@ export class Game {
         if (this.comp) this.comp.stepExtras(PHYS_DT);
         this.accum -= PHYS_DT; steps++;
       }
+      // how far we are between the last physics step and the next one (for smooth drawing)
+      this.alpha = clamp(this.accum / PHYS_DT, 0, 1);
       if (maxImpact > 2.5) {
         app.audio.impact(maxImpact);
         if (maxImpact > 6.5) {
@@ -359,7 +363,7 @@ export class Game {
       this.scoreT -= dt; if (this.scoreT <= 0) { this.scoreT = 0.25; if (!this.comp && (!this.round || this.round.phase === 'running')) this.sendScore(); }
     }
     const c = this.car;
-    app.audio.updateEngine({ rpm: c.rpm, throttle: c.throttle, speed: c.speed, slip: c.slip, drifting: c.drifting, rumble: c.surface ? c.surface.rumble : 0, paved: c.surface && !c.surface.dust, boosting: c.boosting, paused: simPaused });
+    app.audio.updateEngine({ gear: c.gear, rpm: c.rpm, throttle: c.throttle, speed: c.speed, slip: c.slip, drifting: c.drifting, rumble: c.surface ? c.surface.rumble : 0, paved: c.surface && !c.surface.dust, boosting: c.boosting, paused: simPaused });
     this.render(simPaused ? 0 : dt);
     this.hudT -= dt; if (this.hudT <= 0) { this.hudT = 1 / 20; this.updateHud(); }
   }
@@ -435,11 +439,14 @@ export class Game {
       if (front && intensity < 0.7) continue;
       const y = this.world.heightAt(X, Z) + 0.3;
       if (intensity > 0.1 && (speed > 2 || burn)) {
-        const rate = (surf.dust ? 14 : 22) * intensity * (front ? 0.4 : 1);
+        // throttle spins the rear tyres: more and thicker smoke when the driver is on the power
+        const thr = st.throttle ?? (st.drifting ? 0.7 : 0.3), power = front ? 0.4 : 0.6 + 0.6 * thr;
+        const rate = (surf.dust ? 14 : 24) * intensity * power;
         if (Math.random() < rate * dt) {
           const a = (surf.dust ? 0.28 : 0.2) * Math.min(1, intensity + 0.4);
           const c = surf.dust ? [...surf.dust, a] : [...(surf.smoke || [0.9, 0.9, 0.92]), a];
-          E.emit(X, y, Z, st.vx * 0.25 + (Math.random() - 0.5) * 2, 0.5 + Math.random() * 0.8, st.vz * 0.25 + (Math.random() - 0.5) * 2, c, 0.6, 1.5 + Math.random() * 1.0, 1.9);
+          const big = 0.5 + 0.35 * intensity * power;
+          E.emit(X, y, Z, st.vx * 0.25 + (Math.random() - 0.5) * 2, 0.5 + Math.random() * 0.8, st.vz * 0.25 + (Math.random() - 0.5) * 2, c, big, 1.5 + Math.random() * (0.8 + intensity), 1.6 + 0.8 * intensity);
         }
       } else if (surf.dust && speed > 9 && Math.random() < dt * 14 * Math.min(1, speed / 30)) {
         E.emit(X, y, Z, -st.vx * 0.1, 0.4, -st.vz * 0.1, [...surf.dust, 0.25], 0.6, 1.2, 2);
@@ -454,14 +461,17 @@ export class Game {
 
   render(dt) {
     const app = this.app, R = app.renderer, S = app.settings, c = this.car;
-    const camCar = this.spectator ? (this.specTarget() || c) : c;
+    // draw the local car between its last two physics steps (no stutter on 75/144 Hz screens)
+    const rs = c.renderState(this.alpha ?? 1);
+    const camLocal = { x: rs.x, y: rs.y, z: rs.z, h: rs.h, vx: c.vx, vz: c.vz, speed: c.speed, forwardSpeed: c.forwardSpeed, mode: c.mode, boosting: c.boosting, dims: c.dims };
+    const camCar = this.spectator ? (this.specTarget() || camLocal) : camLocal;
     this.cam.update(Math.max(dt, 1 / 240), camCar, this.world, S);
     R.setCamera(this.cam.eye, this.cam.target, (this.cam.fov * Math.PI) / 180, 0.5, this.env.fogFar + 120);
     const E = this.effects; E.begin();
     const items = this.world.statics.slice();
     const hideOwn = VIEWS[this.cam.view].hood;
-    const local = { x: c.x, y: c.y, z: c.z, h: c.h, vx: c.vx, vz: c.vz, speed: c.speed, rel: c.rel, mode: c.mode, drifting: c.drifting, handbrake: c.handbrake, braking: c.brakeOn, boosting: c.boosting, burnout: c.mode !== 'grip' && c.throttle > 0.8 && c.speed < 9 };
-    if (!hideOwn && !this.spectator) carDrawItems(this.model, { x: c.x, y: c.y, z: c.z, yaw: c.h, pitch: c.pitch, roll: c.roll, bodyPitch: c.bodyPitch, bodyRoll: c.bodyRoll, wheelOffset: c.wheelOffset, steer: c.wheelAngle, spin: c.spin, brake: c.brakeOn || c.handbrake, reverse: c.reversing, lights: this.env.night }, items);
+    const local = { x: rs.x, y: rs.y, z: rs.z, h: rs.h, vx: c.vx, vz: c.vz, speed: c.speed, rel: c.rel, mode: c.mode, drifting: c.drifting, handbrake: c.handbrake, braking: c.brakeOn, boosting: c.boosting, burnout: c.mode !== 'grip' && c.throttle > 0.8 && c.speed < 9, throttle: c.throttle };
+    if (!hideOwn && !this.spectator) carDrawItems(this.model, { x: rs.x, y: rs.y, z: rs.z, yaw: rs.h, pitch: rs.pitch, roll: rs.roll, bodyPitch: c.bodyPitch, bodyRoll: c.bodyRoll, wheelOffset: c.wheelOffset, steer: c.wheelAngle, spin: c.spin, brake: c.brakeOn || c.handbrake, reverse: c.reversing, lights: this.env.night }, items);
     if (!this.spectator) this.carFx(local, this.model, this.model.meshes.dims, 'me', dt, true);
     for (const r of this.remotes.values()) {
       if (!r.model || !r.seen) { r.tag.style.display = 'none'; continue; }
@@ -477,8 +487,8 @@ export class Game {
     E.update(dt);
     const head = (this.env.headlights || this.env.night) && !this.spectator ? {
       on: true, intensity: this.env.night ? 1.0 : 0.5,
-      pos: [c.x + Math.sin(c.h) * (this.model.meshes.dims.frontZ), c.y + 0.9, c.z + Math.cos(c.h) * this.model.meshes.dims.frontZ],
-      dir: normalize([Math.sin(c.h), -0.12, Math.cos(c.h)]),
+      pos: [rs.x + Math.sin(rs.h) * (this.model.meshes.dims.frontZ), rs.y + 0.9, rs.z + Math.cos(rs.h) * this.model.meshes.dims.frontZ],
+      dir: normalize([Math.sin(rs.h), -0.12, Math.cos(rs.h)]),
     } : null;
     R.render(this.env, items, [...this.world.fx, ...E.buffers], head);
     if (this.minimap) this.minimap.draw(Math.max(dt, 1 / 240));

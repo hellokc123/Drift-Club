@@ -174,7 +174,7 @@ class RaceComp extends Comp {
     this.mySlot = mySlot;
     const pool = ['zephyr', 'kaze', 'sedan', 'shiro', 'thunder', 'kitsune', 'vortex', 'brute'];
     const names = ['CPU Akira', 'CPU Bea', 'CPU Carlos', 'CPU Dana', 'CPU Emil', 'CPU Freya', 'CPU Goro'];
-    const paints = ['#3a86ff', '#ffbe0b', '#80b918', '#ff006e', '#00f5d4', '#ff5400', '#8338ec'];
+    const paints = ['#34506e', '#d4a32a', '#5b6647', '#7c1d22', '#c9ccd1', '#c2531d', '#26292c']; // normal factory paints
     for (let i = 0; i < nAI; i++) {
       const id = pool[i % pool.length], cfg = { id, paint: paints[i], wheel: '#cccccc', rim: i % 6, spoiler: i % 4, kit: i % 2, stripes: 0, lowered: 0, underglow: '' };
       const model = buildCarModel(g.app.renderer, cfg), def = carById(id);
@@ -393,7 +393,7 @@ class BattleComp extends Comp {
     }
   }
   makeGhost() {
-    const cfg = { ...this.g.app.settings.car, paint: '#9fe6ff', underglow: '#19e3ff' };
+    const cfg = { ...this.g.app.settings.car, paint: '#d6d8db', underglow: '', livery: 0, stripes: 0 }; // neutral pale-grey ghost
     const model = buildCarModel(this.g.app.renderer, cfg);
     const tag = document.createElement('div'); tag.className = 'nametag ghost'; tag.textContent = 'GHOST · your lead run'; $('#tags').appendChild(tag);
     return { model, tag };

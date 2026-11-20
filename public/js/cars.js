@@ -12,20 +12,20 @@ export const CATEGORIES = [
 // wb = wheelbase, driftGrip (lower = slides more), driftPower (throttle rotation), driftSteer (yaw authority while sliding),
 // momentum (speed kept while sliding), powerOver (throttle-induced oversteer), mass (collisions), engine sound params
 export const CARS = [
-  { id: 'hatch', name: 'Kova Hatch', cat: 'basic', style: 'hatch', paint: '#e63946', accel: 6.4, top: 47, grip: 9, lat: 10, steer: 0.62, wb: 2.45, driftGrip: 2.0, driftPower: 0.95, driftSteer: 2.1, momentum: 0.42, powerOver: 0.1, mass: 1.0, engine: { pitch: 1.15, cyl: 4, grit: 0.3 } },
-  { id: 'sedan', name: 'Civa Sedan', cat: 'basic', style: 'sedan', paint: '#3a86ff', accel: 6.1, top: 50, grip: 9, lat: 10, steer: 0.58, wb: 2.7, driftGrip: 1.9, driftPower: 1.0, driftSteer: 1.95, momentum: 0.44, powerOver: 0.15, mass: 1.1, engine: { pitch: 1.0, cyl: 4, grit: 0.25 } },
-  { id: 'zephyr', name: 'Zephyr GT', cat: 'sports', style: 'coupe', paint: '#ffbe0b', accel: 8.4, top: 64, grip: 11, lat: 12, steer: 0.57, wb: 2.6, driftGrip: 1.6, driftPower: 1.2, driftSteer: 2.15, momentum: 0.5, powerOver: 0.3, mass: 1.05, engine: { pitch: 1.2, cyl: 6, grit: 0.35 } },
-  { id: 'kaze', name: 'Kaze RS', cat: 'sports', style: 'hatch', paint: '#2ec4b6', accel: 8.9, top: 62, grip: 12, lat: 12.5, steer: 0.58, wb: 2.55, driftGrip: 1.85, driftPower: 1.05, driftSteer: 2.05, momentum: 0.46, powerOver: 0.15, mass: 1.05, engine: { pitch: 1.35, cyl: 4, grit: 0.5 } },
-  { id: 'vortex', name: 'Vortex V12', cat: 'super', style: 'wedge', paint: '#ff5400', accel: 10.6, top: 82, grip: 12, lat: 13.5, steer: 0.52, wb: 2.7, driftGrip: 1.7, driftPower: 1.3, driftSteer: 2.05, momentum: 0.52, powerOver: 0.3, mass: 1.15, engine: { pitch: 1.5, cyl: 12, grit: 0.4 } },
-  { id: 'aurora', name: 'Aurora Hyper', cat: 'super', style: 'wedge', paint: '#d9d9e0', accel: 11.3, top: 86, grip: 13, lat: 14, steer: 0.52, wb: 2.75, driftGrip: 1.8, driftPower: 1.2, driftSteer: 1.95, momentum: 0.52, powerOver: 0.25, mass: 1.1, engine: { pitch: 1.7, cyl: 8, grit: 0.3 } },
-  { id: 'shiro', name: 'Shiro D1', cat: 'drift', style: 'coupe', paint: '#f1f1f1', accel: 8.7, top: 62, grip: 10, lat: 11, steer: 0.68, wb: 2.55, driftGrip: 1.2, driftPower: 1.5, driftSteer: 2.5, momentum: 0.6, powerOver: 0.6, mass: 1.0, engine: { pitch: 1.25, cyl: 4, grit: 0.7 } },
-  { id: 'kitsune', name: 'Kitsune 86', cat: 'drift', style: 'coupe', paint: '#8338ec', accel: 7.9, top: 58, grip: 10, lat: 11, steer: 0.68, wb: 2.45, driftGrip: 1.15, driftPower: 1.45, driftSteer: 2.5, momentum: 0.62, powerOver: 0.65, mass: 0.95, engine: { pitch: 1.4, cyl: 4, grit: 0.55 } },
+  { id: 'hatch', name: 'Kova Hatch', cat: 'basic', style: 'hatch', paint: '#b3262e', accel: 6.4, top: 47, grip: 9, lat: 10, steer: 0.62, wb: 2.45, driftGrip: 2.0, driftPower: 0.95, driftSteer: 2.1, momentum: 0.42, powerOver: 0.1, mass: 1.0, engine: { pitch: 1.15, cyl: 4, grit: 0.3 } },
+  { id: 'sedan', name: 'Civa Sedan', cat: 'basic', style: 'sedan', paint: '#34506e', accel: 6.1, top: 50, grip: 9, lat: 10, steer: 0.58, wb: 2.7, driftGrip: 1.9, driftPower: 1.0, driftSteer: 1.95, momentum: 0.44, powerOver: 0.15, mass: 1.1, engine: { pitch: 1.0, cyl: 4, grit: 0.25 } },
+  { id: 'zephyr', name: 'Zephyr GT', cat: 'sports', style: 'coupe', paint: '#d4a32a', accel: 8.4, top: 64, grip: 11, lat: 12, steer: 0.57, wb: 2.6, driftGrip: 1.6, driftPower: 1.2, driftSteer: 2.15, momentum: 0.5, powerOver: 0.3, mass: 1.05, engine: { pitch: 1.2, cyl: 6, grit: 0.35 } },
+  { id: 'kaze', name: 'Kaze RS', cat: 'sports', style: 'hatch', paint: '#3d6f6b', accel: 8.9, top: 62, grip: 12, lat: 12.5, steer: 0.58, wb: 2.55, driftGrip: 1.85, driftPower: 1.05, driftSteer: 2.05, momentum: 0.46, powerOver: 0.15, mass: 1.05, engine: { pitch: 1.35, cyl: 4, grit: 0.5 } },
+  { id: 'vortex', name: 'Vortex V12', cat: 'super', style: 'wedge', paint: '#c2531d', accel: 10.6, top: 82, grip: 12, lat: 13.5, steer: 0.52, wb: 2.7, driftGrip: 1.7, driftPower: 1.3, driftSteer: 2.05, momentum: 0.52, powerOver: 0.3, mass: 1.15, engine: { pitch: 1.5, cyl: 12, grit: 0.4 } },
+  { id: 'aurora', name: 'Aurora Hyper', cat: 'super', style: 'wedge', paint: '#c9ccd1', accel: 11.3, top: 86, grip: 13, lat: 14, steer: 0.52, wb: 2.75, driftGrip: 1.8, driftPower: 1.2, driftSteer: 1.95, momentum: 0.52, powerOver: 0.25, mass: 1.1, engine: { pitch: 1.7, cyl: 8, grit: 0.3 } },
+  { id: 'shiro', name: 'Shiro D1', cat: 'drift', style: 'coupe', paint: '#eeeeea', accel: 8.7, top: 62, grip: 10, lat: 11, steer: 0.68, wb: 2.55, driftGrip: 1.2, driftPower: 1.5, driftSteer: 2.5, momentum: 0.6, powerOver: 0.6, mass: 1.0, engine: { pitch: 1.25, cyl: 4, grit: 0.7 } },
+  { id: 'kitsune', name: 'Kitsune 86', cat: 'drift', style: 'coupe', paint: '#2f3f6b', accel: 7.9, top: 58, grip: 10, lat: 11, steer: 0.68, wb: 2.45, driftGrip: 1.15, driftPower: 1.45, driftSteer: 2.5, momentum: 0.62, powerOver: 0.65, mass: 0.95, engine: { pitch: 1.4, cyl: 4, grit: 0.55 } },
   { id: 'thunder', name: 'Thunder 69', cat: 'muscle', style: 'muscle', paint: '#1d3557', accel: 9.5, top: 66, grip: 8.5, lat: 10, steer: 0.55, wb: 2.85, driftGrip: 1.4, driftPower: 1.5, driftSteer: 1.95, momentum: 0.52, powerOver: 0.55, mass: 1.25, engine: { pitch: 0.7, cyl: 8, grit: 0.85 } },
-  { id: 'brute', name: 'Brute SS', cat: 'muscle', style: 'muscle', paint: '#9b2226', accel: 10.1, top: 70, grip: 9, lat: 10.5, steer: 0.55, wb: 2.9, driftGrip: 1.45, driftPower: 1.45, driftSteer: 1.95, momentum: 0.5, powerOver: 0.5, mass: 1.3, engine: { pitch: 0.75, cyl: 8, grit: 0.9 } },
-  { id: 'ranger', name: 'Ranger TX', cat: 'pickup', style: 'pickup', paint: '#6a994e', accel: 6.5, top: 50, grip: 8, lat: 9, steer: 0.58, wb: 3.2, driftGrip: 1.8, driftPower: 1.1, driftSteer: 1.8, momentum: 0.42, powerOver: 0.35, mass: 1.5, engine: { pitch: 0.8, cyl: 6, grit: 0.6 } },
+  { id: 'brute', name: 'Brute SS', cat: 'muscle', style: 'muscle', paint: '#7c1d22', accel: 10.1, top: 70, grip: 9, lat: 10.5, steer: 0.55, wb: 2.9, driftGrip: 1.45, driftPower: 1.45, driftSteer: 1.95, momentum: 0.5, powerOver: 0.5, mass: 1.3, engine: { pitch: 0.75, cyl: 8, grit: 0.9 } },
+  { id: 'ranger', name: 'Ranger TX', cat: 'pickup', style: 'pickup', paint: '#5b6647', accel: 6.5, top: 50, grip: 8, lat: 9, steer: 0.58, wb: 3.2, driftGrip: 1.8, driftPower: 1.1, driftSteer: 1.8, momentum: 0.42, powerOver: 0.35, mass: 1.5, engine: { pitch: 0.8, cyl: 6, grit: 0.6 } },
   { id: 'hauler', name: 'Hauler HD', cat: 'pickup', style: 'pickup', paint: '#3d405b', accel: 6.1, top: 48, grip: 7.5, lat: 8.5, steer: 0.55, wb: 3.4, driftGrip: 1.9, driftPower: 1.0, driftSteer: 1.7, momentum: 0.4, powerOver: 0.3, mass: 1.7, engine: { pitch: 0.65, cyl: 8, grit: 0.8 }, scale: 1.06 },
-  { id: 'trail', name: 'Trailblazer', cat: 'suv', style: 'suv', paint: '#bc6c25', accel: 6.7, top: 52, grip: 8.5, lat: 9.5, steer: 0.58, wb: 2.8, driftGrip: 1.9, driftPower: 1.0, driftSteer: 1.8, momentum: 0.42, powerOver: 0.2, mass: 1.45, engine: { pitch: 0.9, cyl: 6, grit: 0.45 } },
-  { id: 'atlas', name: 'Atlas X', cat: 'suv', style: 'suv', paint: '#212529', accel: 7.7, top: 58, grip: 9, lat: 10, steer: 0.57, wb: 2.9, driftGrip: 1.8, driftPower: 1.1, driftSteer: 1.9, momentum: 0.44, powerOver: 0.25, mass: 1.5, engine: { pitch: 1.0, cyl: 8, grit: 0.4 } },
+  { id: 'trail', name: 'Trailblazer', cat: 'suv', style: 'suv', paint: '#a0622b', accel: 6.7, top: 52, grip: 8.5, lat: 9.5, steer: 0.58, wb: 2.8, driftGrip: 1.9, driftPower: 1.0, driftSteer: 1.8, momentum: 0.42, powerOver: 0.2, mass: 1.45, engine: { pitch: 0.9, cyl: 6, grit: 0.45 } },
+  { id: 'atlas', name: 'Atlas X', cat: 'suv', style: 'suv', paint: '#26292c', accel: 7.7, top: 58, grip: 9, lat: 10, steer: 0.57, wb: 2.9, driftGrip: 1.8, driftPower: 1.1, driftSteer: 1.9, momentum: 0.44, powerOver: 0.25, mass: 1.5, engine: { pitch: 1.0, cyl: 8, grit: 0.4 } },
 ];
 export const carById = (id) => CARS.find((c) => c.id === id) || CARS[0];
 
@@ -41,9 +41,25 @@ export function carStats(c) {
 export const RIMS = ['Classic 5', 'Mesh', 'Deep Dish', 'Turbine', 'Split 6', 'Steelie'];
 export const SPOILERS = ['None', 'Ducktail', 'Mid Wing', 'GT Wing'];
 export const STRIPES = ['None', 'Single', 'Twin'];
-export const PAINTS = ['#e63946', '#ff5400', '#ffbe0b', '#80b918', '#2ec4b6', '#3a86ff', '#1d3557', '#8338ec', '#ff006e', '#f1f1f1', '#8d99ae', '#212529', '#9b2226', '#bc6c25', '#6a994e', '#00f5d4'];
-export const WHEEL_COLORS = ['#cccccc', '#222222', '#e0b13c', '#ffffff', '#e63946', '#3a86ff', '#7d8597', '#00f5d4'];
-export const GLOWS = ['', '#00f5d4', '#ff006e', '#3a86ff', '#ffbe0b', '#8338ec'];
+// realistic factory-style paints: reds, blues, greens, metallics, white/black (custom colours are still allowed)
+export const PAINTS = ['#b3262e', '#7c1d22', '#c2531d', '#d4a32a', '#5b6647', '#3d6f6b', '#34506e', '#1d3557', '#2f3f6b', '#5a4a6e', '#eeeeea', '#c9ccd1', '#8d99ae', '#55595e', '#26292c', '#a0622b'];
+export const WHEEL_COLORS = ['#cccccc', '#222222', '#b8975a', '#ffffff', '#4a4d52', '#8a6a3a', '#7d8597', '#a6a8ab'];
+// underglow: off by default; subtle, normal light colours only
+export const GLOWS = ['', '#d8d4c8', '#e2703c', '#5f7fa8', '#b3262e', '#7a8a6a'];
+// Older versions offered bright neon colours. Saved cars (and other players' cars) that still use one
+// are shown with the nearest normal colour instead, so old saves keep working.
+const OLD_NEON = {
+  '#00f5d4': '#3d6f6b', '#2ec4b6': '#3d6f6b', '#ff006e': '#7c1d22', '#8338ec': '#5a4a6e', '#80b918': '#5b6647',
+  '#ffbe0b': '#d4a32a', '#ff5400': '#c2531d', '#3a86ff': '#34506e', '#e63946': '#b3262e', '#e0b13c': '#b8975a',
+};
+const OLD_GLOW = { '#00f5d4': '#5f7fa8', '#ff006e': '#b3262e', '#3a86ff': '#5f7fa8', '#ffbe0b': '#e2703c', '#8338ec': '#5f7fa8', '#19e3ff': '#d8d4c8' };
+export const normalColor = (hex) => (hex && OLD_NEON[hex.toLowerCase()]) || hex;
+export const normalGlow = (hex) => (hex && OLD_GLOW[hex.toLowerCase()]) || hex;
+// returns a copy of a car config with any old neon colours swapped for normal ones
+export function normalizeColors(cfg) {
+  if (!cfg) return cfg;
+  return { ...cfg, paint: normalColor(cfg.paint), wheel: normalColor(cfg.wheel), stripeColor: normalColor(cfg.stripeColor), liveryColor: normalColor(cfg.liveryColor), underglow: normalGlow(cfg.underglow || '') };
+}
 
 // Visual parts. Each changes the 3D model (or its glass/light colour). fits(def, i) says which
 // options suit which car: e.g. bull bars and tow bars are for pickups and SUVs only.
@@ -112,7 +128,7 @@ export const LOOKS = {
   sedan: { // Civa Sedan: three-box family saloon, chrome grille bar, L-shaped tails
     shape: { taperF: 0.05, taperR: 0.05, deck: 0.02, cab: [1.05, 1.42, 2.1, 1.55] },
     head: 'slim', grille: 'wide', tail: 'L', hood: 'ridge', arches: 'round', aero: 'none', exhaust: 'dual', mirror: 'std',
-    extras: ['beltline', 'chromeTrim'],
+    extras: ['beltline', 'chromeTrim'], doors: 4,
   },
   // SPORTS
   zephyr: { // Zephyr GT: long-bonnet fastback grand tourer
@@ -162,7 +178,7 @@ export const LOOKS = {
   ranger: { // Ranger TX: mid-size crew-cab pickup, square fender flares, roll bar, side steps
     shape: { L: 5.25, W: 1.95, H: 0.76, ride: 0.36, nose: 0.82, cowl: 1.45, cab: [1.75, 1.5, 2.0, 1.85], ch: 0.72, taperF: 0.04 },
     head: 'rect', grille: 'bars', tail: 'stack', hood: 'bulge', arches: 'square', aero: 'none', exhaust: 'single', mirror: 'std',
-    extras: ['rollbar', 'steps', 'fogs', 'skid'],
+    extras: ['rollbar', 'steps', 'fogs', 'skid'], doors: 4,
   },
   hauler: { // Hauler HD: tall, slab-fronted heavy-duty regular-cab truck, chrome slat grille, exhaust stack
     shape: { L: 5.5, W: 2.04, H: 0.92, ride: 0.42, nose: 0.97, cowl: 1.75, cab: [2.5, 1.8, 2.12, 2.42], ch: 0.74, cw: 0.94 },
@@ -178,7 +194,7 @@ export const LOOKS = {
   atlas: { // Atlas X: sleek performance SUV with a sloping coupe roofline and full-width light bar
     shape: { L: 4.9, W: 2.0, H: 0.78, ride: 0.3, nose: 0.8, cowl: 1.4, rearTop: 0.92, cab: [0.6, 1.45, 2.1, 1.25], ch: 0.64, cw: 0.86, taperF: 0.09, taperR: 0.07 },
     head: 'slim', grille: 'big', tail: 'bar', hood: 'ridge', arches: 'flare', aero: 'roof', exhaust: 'quad', mirror: 'std',
-    extras: ['rails', 'diffuser', 'skirts'],
+    extras: ['rails', 'diffuser', 'skirts'], doors: 4,
   },
 };
 
@@ -215,7 +231,8 @@ function grow(profile, d) {
 
 function buildWheel(rimStyle, R, W, size = 0) {
   const tire = new Geo();
-  tire.cylinder(0, 0, 0, R, W, 14, C.tire, 'x', C.side);
+  tire.cylinder(0, 0, 0, R, W, 18, C.tire, 'x', C.side);
+  tire.cylinder(0, 0, 0, R * 0.97, W + 0.02, 18, C.tire, 'x', C.side); // rounded tyre shoulder
   // tread blocks for visible spin
   for (let i = 0; i < 7; i++) {
     const a = (i / 7) * Math.PI * 2;
@@ -223,7 +240,10 @@ function buildWheel(rimStyle, R, W, size = 0) {
   }
   const rim = new Geo(); const rr = R * Math.min(0.86, 0.66 + 0.065 * size), x = W / 2 + 0.006; // bigger rims, lower-profile tyres
   const W_ = C.white;
-  rim.cylinder(x - 0.01, 0, 0, rr, 0.03, 14, [0.75, 0.75, 0.75], 'x', W_);
+  rim.cylinder(x - 0.01, 0, 0, rr, 0.03, 18, [0.75, 0.75, 0.75], 'x', [0.06, 0.06, 0.065]); // rim lip around a dark barrel
+  // brake disc (in the tyre mesh so the wheel colour doesn't tint it), seen between the spokes
+  tire.cylinder(x + 0.004, 0, 0, rr * 0.74, 0.006, 16, [0.4, 0.4, 0.42], 'x', [0.42, 0.42, 0.44]);
+  tire.cylinder(x + 0.006, 0, 0, rr * 0.36, 0.006, 12, [0.2, 0.2, 0.21], 'x', [0.22, 0.22, 0.23]); // disc hat
   const spokes = (n, w, t = 0.035, len = rr * 0.92, off = 0) => {
     for (let i = 0; i < n; i++) {
       const a = (i / n) * Math.PI * 2 + off;
@@ -245,6 +265,7 @@ function buildWheel(rimStyle, R, W, size = 0) {
 // Build GPU meshes for a car configuration. Returns a CarModel.
 const modelCache = new Map();
 export function buildCarModel(renderer, cfg) {
+  cfg = normalizeColors(cfg);
   const def = carById(cfg.id);
   const key = JSON.stringify([def.id, cfg.rim, cfg.spoiler, cfg.kit, cfg.stripes, cfg.lowered, cfg.rimSize, cfg.fbumper, cfg.rbumper, cfg.skirts, cfg.hood, cfg.exhaust, cfg.livery, cfg.tune && cfg.tune.rideHeight]);
   let m = modelCache.get(key);
@@ -688,6 +709,19 @@ function buildGeometry(renderer, def, cfg) {
     trim.box(0, y0 + 0.52, bz, W * 0.56, 0.06, 0.06, C.plastic); trim.box(0, y0 + 0.14, bz, W * 0.7, 0.06, 0.06, C.plastic);
   }
   if (has('rails')) for (const sx of [-1, 1]) trim.box(sx * cabW * 0.4, roofAt((tRp[0] + tFp[0]) / 2) + 0.06, (tRp[0] + tFp[0]) / 2, 0.035, 0.035, (tFp[0] - tRp[0]) * 0.92, C.chrome);
+
+  // ---- door shut lines + handles (cheap detail that makes the body read as a real car)
+  {
+    const zA = Math.min(cF[0] + 0.05, fz - ARCH - 0.12);
+    const zEnd = Math.max(rz + ARCH + 0.08, s.bed ? z0 + s.cab[0] + 0.06 : -1e9); // doors stop before the rear wheel / bed
+    const ok = [zA];
+    for (const len of look.doors === 4 ? [0.95, 0.82] : [1.12]) { const z = Math.max(zEnd, ok[ok.length - 1] - len); if (ok[ok.length - 1] - z > 0.4) ok.push(z); }
+    const yTop = y1 - 0.03, yBot = y0 + 0.1, handle = look.extras && look.extras.includes('chromeTrim') ? C.chrome : C.plastic;
+    for (const sx of [-1, 1]) {
+      for (const z of ok) trim.box(sx * (hw(z) + 0.004), (yTop + yBot) / 2, z, 0.01, yTop - yBot, 0.012, C.grille);
+      for (let i = 1; i < ok.length; i++) trim.box(sx * (hw(ok[i]) + 0.012), y0 + H * 0.72, ok[i] + 0.16, 0.02, 0.03, 0.14, handle);
+    }
+  }
 
   // ---- upgrades (garage)
   if (cfg.kit) {

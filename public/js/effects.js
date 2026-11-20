@@ -94,7 +94,7 @@ export class Effects {
       const p = P[i]; p.life -= dt;
       if (p.life <= 0) { P.splice(i, 1); continue; }
       p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
-      p.vx *= 1 - dt * 1.2; p.vz *= 1 - dt * 1.2; p.vy *= 1 - dt * 0.6;
+      p.vx *= 1 - dt * 1.2; p.vz *= 1 - dt * 1.2; p.vy = p.vy * (1 - dt * 0.6) + dt * 0.2; // warm smoke drifts up a little
       p.size += p.grow * dt;
     }
     this.smoke.count = 0;
