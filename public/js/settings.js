@@ -1,6 +1,6 @@
 // Persistent settings (localStorage)
 import { DEFAULT_BINDINGS } from './input.js';
-import { defaultConfig } from './cars.js';
+import { defaultConfig, normalizeColors } from './cars.js';
 
 const KEY = 'driftclub.settings.v1';
 
@@ -33,7 +33,7 @@ export function loadSettings() {
   try { s = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { s = {}; }
   const out = { ...JSON.parse(JSON.stringify(DEFAULTS)), ...s };
   out.bindings = { ...DEFAULT_BINDINGS, ...(s.bindings || {}) };
-  out.car = { ...defaultConfig(out.car && out.car.id), ...(s.car || {}) };
+  out.car = normalizeColors({ ...defaultConfig(out.car && out.car.id), ...(s.car || {}) }); // old neon colours -> nearest normal ones
   out.minimap = { ...DEFAULTS.minimap, ...(s.minimap || {}) };
   return out;
 }
