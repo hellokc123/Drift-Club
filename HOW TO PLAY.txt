@@ -9,7 +9,7 @@ SOLO PLAY (nothing to install)
      - If it opens in the wrong program: right-click it > Open with > Microsoft Edge (or Google Chrome).
   4. Click anywhere once to enable sound, then choose PLAY.
 
-  Everything works this way: all 5 maps, all 4 free modes, the 3 competitive modes (vs CPU / ghost), the garage, settings and your
+  Everything works this way: all 6 maps, all 4 free modes, the 3 competitive modes (vs CPU / ghost), the garage, settings and your
   saved car/progress. Only multiplayer needs the server below.
 
 MULTIPLAYER ONLINE (friends on other computers)

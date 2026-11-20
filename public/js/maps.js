@@ -4,14 +4,15 @@
 import { Geo, ChunkBatcher } from './engine/geometry.js';
 import { FxBuffer } from './engine/renderer.js';
 import { makeNoise, rng, smoothstep, clamp, lerp } from './engine/math.js';
-import { crSample, segDist, GEO } from './tracks.js';
+import { crSample, segDist, GEO, CITY } from './tracks.js';
 
 export const MAP_LIST = [
-  { id: 'track', name: 'Apex Circuit', type: 'Race Track', desc: 'A proper racing circuit with sweepers, a carousel, a hairpin and an infield skidpad.', accent: '#8fb3d1' },
-  { id: 'desert', name: 'Dune Valley', type: 'Desert', desc: 'Golden-hour highway loop around a huge salt flat. Endless room to slide.', accent: '#d9a46a' },
-  { id: 'mountain', name: 'Kurogane Pass', type: 'Mountains', desc: 'A dusk touge climbing switchbacks to a summit lookout.', accent: '#d48d6e' },
-  { id: 'forest', name: 'Pinewood Trails', type: 'Forest', desc: 'Misty forest loop around a lake with a big gravel clearing.', accent: '#86b77a' },
-  { id: 'city', name: 'City Nights', type: 'City', desc: 'Night-time grid of streets, a central plaza and open parking lots.', accent: '#d8b25c' },
+  { id: 'track', name: 'Apex Circuit', type: 'Race Track', desc: 'A proper racing circuit with a National cut-through, service roads, an infield skidpad, an autocross pad and car parks.', accent: '#8fb3d1' },
+  { id: 'desert', name: 'Dune Valley', type: 'Desert', desc: 'Golden-hour highways crossing a huge salt flat, a canyon road, an old airstrip and a ghost town. Endless room to slide.', accent: '#d9a46a' },
+  { id: 'mountain', name: 'Kurogane Pass', type: 'Mountains', desc: 'A dusk touge up to the summit lookout, a winding east descent, a valley ring road and a village rest stop.', accent: '#d48d6e' },
+  { id: 'forest', name: 'Pinewood Trails', type: 'Forest', desc: 'Misty forest roads round a lake, gravel logging trails, a big clearing and a quarry.', accent: '#86b77a' },
+  { id: 'city', name: 'City Nights', type: 'City', desc: 'Night-time grid of streets cut by a diagonal boulevard, a central plaza and open parking lots.', accent: '#d8b25c' },
+  { id: 'drift', name: 'Ironbay Drift Park', type: 'Drift Park', desc: 'A harbourside drift venue: figure-eight course, hairpins, a huge practice pad, a donut circle and container alleys.', accent: '#7fa8a3' },
 ];
 
 export const SURFACES = {
@@ -104,6 +105,7 @@ export class World {
   processRoads() {
     const spec = this.spec;
     this.roads = [];
+    const jh = new Hash(80); // segments of the roads built so far (junction blending)
     for (const rd of spec.roads) {
       const pts = crSample(rd.pts, !!rd.closed, 3);
       const n = pts.length;
@@ -116,26 +118,35 @@ export class World {
       }
       let hs = [];
       for (let i = 0; i < n; i++) hs.push(rd.flatH !== undefined ? rd.flatH : spec.terrain(r.x[i], r.z[i]));
-      if (rd.flatH === undefined) {
-        hs = smoothArr(hs, !!rd.closed, rd.smooth || 12, 3);
-        // limit the gradient (cut & fill) so hills stay drivable
-        const g = (rd.maxGrade || 0.12) * 3;
-        for (let it = 0; it < 6; it++) {
-          for (let i = 1; i < n; i++) hs[i] = clamp(hs[i], hs[i - 1] - g, hs[i - 1] + g);
-          for (let i = n - 2; i >= 0; i--) hs[i] = clamp(hs[i], hs[i + 1] - g, hs[i + 1] + g);
-        }
-        hs = smoothArr(hs, !!rd.closed, 4, 1);
-      }
-      // blend into earlier roads at junctions
+      if (rd.flatH === undefined) hs = smoothArr(hs, !!rd.closed, rd.smooth || 12, 3);
+      // blend into earlier roads at junctions (height interpolated along the nearest segment, so
+      // the joining road meets the other road's surface exactly); samples on the other road are pinned
+      const pin = new Uint8Array(n);
       for (let i = 0; i < n; i++) {
         let best = 1e9, bh = 0;
-        for (const o of this.roads) for (let j = 0; j < o.n; j += 1) {
-          const d = Math.hypot(o.x[j] - r.x[i], o.z[j] - r.z[i]); if (d < best) { best = d; bh = o.h[j]; }
+        for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+          for (const [o, j, k] of jh.at(r.x[i] + a * 80, r.z[i] + b * 80)) {
+            const [d, t] = segDist(r.x[i], r.z[i], o.x[j], o.z[j], o.x[k], o.z[k]);
+            if (d < best) { best = d; bh = lerp(o.h[j], o.h[k], t); }
+          }
         }
         if (best < 80) hs[i] = lerp(bh, hs[i], smoothstep(r.half + 4, 70, best));
+        if (best < r.half + 4) pin[i] = 1;
       }
-      r.h.set(hs);
+      if (rd.flatH === undefined) {
+        // limit the gradient (cut & fill) so hills stay drivable — also on the run-up to a junction
+        const g = (rd.maxGrade || 0.12) * 3;
+        for (let it = 0; it < 6; it++) {
+          for (let i = 1; i < n; i++) if (!pin[i]) hs[i] = clamp(hs[i], hs[i - 1] - g, hs[i - 1] + g);
+          for (let i = n - 2; i >= 0; i--) if (!pin[i]) hs[i] = clamp(hs[i], hs[i + 1] - g, hs[i + 1] + g);
+        }
+        const sm = smoothArr(hs, !!rd.closed, 4, 1);
+        for (let i = 0; i < n; i++) if (!pin[i]) hs[i] = sm[i];
+      }
+      r.h.set(hs); r.pin = pin;
+      r.index = this.roads.length;
       this.roads.push(r);
+      for (let j = 0; j < (r.closed ? n : n - 1); j++) { const k = (j + 1) % n; jh.insert(Math.min(r.x[j], r.x[k]), Math.min(r.z[j], r.z[k]), Math.max(r.x[j], r.x[k]), Math.max(r.z[j], r.z[k]), [r, j, k]); }
     }
     // pads
     this.pads = (spec.pads || []).map((p) => {
@@ -148,6 +159,24 @@ export class World {
       }
       return out;
     });
+    // roads that run into / across a pad meet it at the pad's level (no steps where a side road,
+    // a junction or a second pad joins it)
+    for (const r of this.roads) {
+      if (r.flatH !== undefined) continue;
+      let touched = false;
+      for (let i = 0; i < r.n; i++) for (const p of this.pads) {
+        const e = this.padSdf(p, r.x[i], r.z[i]);
+        if (e < 45) { r.h[i] = lerp(r.h[i], p.h, smoothstep(45, 2, e)); touched = true; }
+        if (e < 0) r.pin[i] = 1;
+      }
+      if (!touched) continue;
+      // keep the run-out from the pad within the road's gradient limit
+      const g = (r.maxGrade || 0.12) * 3, n = r.n, h = r.h, pin = r.pin;
+      for (let it = 0; it < 6; it++) {
+        for (let i = 1; i < n; i++) if (!pin[i]) h[i] = clamp(h[i], h[i - 1] - g, h[i - 1] + g);
+        for (let i = n - 2; i >= 0; i--) if (!pin[i]) h[i] = clamp(h[i], h[i + 1] - g, h[i + 1] + g);
+      }
+    }
   }
 
   padSdf(p, x, z) {
@@ -245,6 +274,25 @@ export class World {
   }
 
   // ------------------------------------------------ road meshes
+  // how far inside another road / pad a point is (negative = inside). `earlierOnly`: only roads
+  // built before `self` (+ far-away parts of `self`, for figure-eights). Used at junctions so the
+  // joining road tucks under the through road and no painted lines run across the junction.
+  overlap(x, z, self, k, earlierOnly) {
+    let best = 1e9;
+    const si = self.index;
+    for (const [ri, i, j] of this.roadHash.at(x, z)) {
+      const o = this.roads[ri];
+      if (o === self) {
+        const di = Math.min(Math.abs(i - k), self.closed ? self.n - Math.abs(i - k) : 1e9);
+        if (di < 30 || (earlierOnly && i > k)) continue;
+      } else if (earlierOnly && ri > si) continue;
+      const [d] = segDist(x, z, o.x[i], o.z[i], o.x[j], o.z[j]);
+      best = Math.min(best, d - o.half);
+    }
+    for (const p of this.pads) best = Math.min(best, this.padSdf(p, x, z));
+    return best;
+  }
+
   buildRoadMeshes() {
     const rand = this.rand;
     for (const r of this.roads) {
@@ -252,26 +300,36 @@ export class World {
       const C = r.color || [0.2, 0.2, 0.22];
       const L = (i, off, dy = 0) => [r.x[i] - r.tz[i] * off, r.h[i] + dy, r.z[i] + r.tx[i] * off];
       const Rr = (i, off, dy = 0) => [r.x[i] + r.tz[i] * off, r.h[i] + dy, r.z[i] - r.tx[i] * off];
+      // per sample: is this stretch inside an earlier road / pad (junction) -> drawn just underneath it
+      const under = new Uint8Array(r.n), near = new Uint8Array(r.n);
+      for (let i = 0; i < r.n; i++) {
+        const ov = this.overlap(r.x[i], r.z[i], r, i, false); // nearest other tarmac edge from the centre line
+        near[i] = ov < r.half + 2 ? 1 : 0;
+        under[i] = ov < -1.5 && this.overlap(r.x[i], r.z[i], r, i, true) < -1.5 ? 1 : 0;
+      }
+      const clear = (p, i) => !near[i] || this.overlap(p[0], p[2], r, i, false) > -0.3; // painted line point not on another road
       for (let i = 0; i < segs; i++) {
         const j = (i + 1) % r.n;
         const g = this.batch.geo(r.x[i], r.z[i]);
         const Q = (A, B, C2, D, c) => g.quad(D, C2, B, A, c); // ribbon winding (faces up)
         const shadeK = 0.96 + (i % 7 === 0 ? 0.04 : 0) + rand() * 0.02;
-        Q(Rr(i, r.half), Rr(j, r.half), L(j, r.half), L(i, r.half), shade(C, shadeK));
+        const dn = under[i] || under[j] ? -0.07 : 0;
+        Q(Rr(i, r.half, dn), Rr(j, r.half, dn), L(j, r.half, dn), L(i, r.half, dn), shade(C, shadeK));
+        if (under[i] && under[j]) continue;
         // edge lines
         if (r.edge !== false) {
           const e = r.half - 0.55, w = 0.18, lc = r.edgeColor || [0.9, 0.9, 0.88];
-          Q(Rr(i, e + w, 0.03), Rr(j, e + w, 0.03), Rr(j, e, 0.03), Rr(i, e, 0.03), lc);
-          Q(L(i, e, 0.03), L(j, e, 0.03), L(j, e + w, 0.03), L(i, e + w, 0.03), lc);
+          if (clear(Rr(i, e), i) && clear(Rr(j, e), j)) Q(Rr(i, e + w, 0.03), Rr(j, e + w, 0.03), Rr(j, e, 0.03), Rr(i, e, 0.03), lc);
+          if (clear(L(i, e), i) && clear(L(j, e), j)) Q(L(i, e, 0.03), L(j, e, 0.03), L(j, e + w, 0.03), L(i, e + w, 0.03), lc);
         }
-        if (r.center && (r.center === 'solid' || (i % 4) < 2)) {
+        if (r.center && (r.center === 'solid' || (i % 4) < 2) && clear(L(i, 0), i) && clear(L(j, 0), j)) {
           const cc = r.centerColor || [0.95, 0.8, 0.2], w = 0.12;
           Q(Rr(i, w, 0.03), Rr(j, w, 0.03), L(j, w, 0.03), L(i, w, 0.03), cc);
         }
         if (r.kerbs) {
           const kc = (Math.floor(i / 1) % 2) ? [0.85, 0.12, 0.12] : [0.95, 0.95, 0.95];
-          Q(Rr(i, r.half + 1.3, 0.05), Rr(j, r.half + 1.3, 0.05), Rr(j, r.half, 0.05), Rr(i, r.half, 0.05), kc);
-          Q(L(i, r.half, 0.05), L(j, r.half, 0.05), L(j, r.half + 1.3, 0.05), L(i, r.half + 1.3, 0.05), kc);
+          if (clear(Rr(i, r.half + 0.6), i) && clear(Rr(j, r.half + 0.6), j)) Q(Rr(i, r.half + 1.3, 0.05), Rr(j, r.half + 1.3, 0.05), Rr(j, r.half, 0.05), Rr(i, r.half, 0.05), kc);
+          if (clear(L(i, r.half + 0.6), i) && clear(L(j, r.half + 0.6), j)) Q(L(i, r.half, 0.05), L(j, r.half, 0.05), L(j, r.half + 1.3, 0.05), L(i, r.half + 1.3, 0.05), kc);
         }
         if (r.startLine !== undefined && i === r.startLine) {
           for (let k = 0; k < 8; k++) for (let m = 0; m < 2; m++) {
@@ -356,6 +414,14 @@ export class World {
         g.quad([-p.w / 2, 0, -p.d / 2], [-p.w / 2, 0, p.d / 2], [p.w / 2, 0, p.d / 2], [p.w / 2, 0, -p.d / 2], c);
         if (p.markings === 'lot') {
           for (let x = -p.w / 2 + 4; x < p.w / 2 - 3; x += 3.2) for (const zz of [-p.d / 2 + 4, p.d / 2 - 4]) g.box(x, 0.03, zz, 0.15, 0.01, 5, [0.9, 0.9, 0.85]);
+        }
+        if (p.markings === 'grid') { // practice pad: painted box lines + centre circle guides
+          for (let x = -p.w / 2 + 20; x < p.w / 2 - 10; x += 40) g.box(x, 0.03, 0, 0.3, 0.01, p.d - 20, [0.82, 0.8, 0.74]);
+          g.box(0, 0.03, 0, p.w - 20, 0.01, 0.3, [0.82, 0.8, 0.74]);
+        }
+        if (p.markings === 'strip') { // runway: centre dashes + threshold bars
+          for (let z = -p.d / 2 + 30; z < p.d / 2 - 30; z += 24) g.box(0, 0.03, z, 0.8, 0.01, 12, [0.85, 0.84, 0.8]);
+          for (const zz of [-p.d / 2 + 10, p.d / 2 - 10]) for (let x = -p.w / 2 + 5; x < p.w / 2 - 4; x += 4) g.box(x, 0.03, zz, 1.6, 0.01, 12, [0.85, 0.84, 0.8]);
         }
         g.reset();
       }
@@ -496,6 +562,11 @@ function lamp(ctx, x, z, yaw, night, colr = [1, 0.85, 0.55]) {
   ctx.circle(x, z, 0.3);
   if (night) ctx.glow(x + ax, y + 0.08, z + az, 9, [colr[0] * 0.35, colr[1] * 0.35, colr[2] * 0.35, 1]);
 }
+function tyres(ctx, x, z, n = 3) { // a small stack of old tyres (collides)
+  const y = ctx.h(x, z), g = ctx.geo(x, z);
+  for (let k = 0; k < n; k++) g.cylinder(x, y + 0.2 + k * 0.4, z, 0.55, 0.38, 8, k % 2 ? [0.12, 0.12, 0.13] : [0.16, 0.16, 0.17]);
+  ctx.circle(x, z, 0.6);
+}
 function billboard(g, x, y, z, yaw, c1, c2) {
   g.at(x, y, z, yaw);
   g.box(-3, 2.5, 0, 0.3, 5, 0.3, [0.3, 0.3, 0.3]); g.box(3, 2.5, 0, 0.3, 5, 0.3, [0.3, 0.3, 0.3]);
@@ -533,26 +604,28 @@ const SPECS = {
     const n = makeNoise(11);
     const grassA = col('#4f8a3a'), grassB = col('#5c9a44'), far = col('#6b9a4a');
     return {
-      seed: 101, size: 1000, natural: 'grass', boundary: 60, blend: 26,
-      terrain: (x, z) => n.fbm(x / 300, z / 300, 3) * 4 + smoothstep(420, 500, Math.max(Math.abs(x), Math.abs(z))) * 25,
+      seed: 101, size: 1300, natural: 'grass', boundary: 60, blend: 26,
+      terrain: (x, z) => n.fbm(x / 300, z / 300, 3) * 4 + smoothstep(575, 650, Math.max(Math.abs(x), Math.abs(z))) * 25,
       color: (x, z, h, slope, sd) => {
         if (sd < 40) return ((Math.floor((x + z) / 10) & 1) ? grassA : grassB);
         return mix3(grassB, far, smoothstep(40, 200, sd));
       },
       shoulder: col('#8a8a7a'),
-      roads: [
-        { ...GEO.track.roads[0], kerbs: true, walls: 22, color: [0.22, 0.22, 0.24], startLine: 30, smooth: 20 },
-        { ...GEO.track.roads[1], color: [0.22, 0.22, 0.24], edge: false },
-      ],
+      roads: GEO.track.roads.map((r, i) => i === 0 ? { ...r, kerbs: true, walls: 22, color: [0.22, 0.22, 0.24], startLine: 30, smooth: 20 }
+        : i === 2 ? { ...r, kerbs: true, color: [0.22, 0.22, 0.24] }
+        : { ...r, color: [0.25, 0.25, 0.26], edge: i !== 1 }),
       pads: [
         { ...GEO.track.pads[0], type: 2, markings: 'donut' },
         { ...GEO.track.pads[1], type: 2, markings: 'lot' },
+        { ...GEO.track.pads[2], type: 2, markings: 'lot' },
+        { ...GEO.track.pads[3], type: 2, color: [0.27, 0.27, 0.29] },
       ],
       spawns: (W) => W.roadSpawns(0, 30, 12, 1),
       challenges: [
-        { name: 'Skidpad Spin', x: 60, z: -170, r: 70, target: 18000, time: 30 },
-        { name: 'Carousel', x: 315, z: 220, r: 70, target: 12000, time: 25 },
-        { name: 'Hairpin', x: -250, z: 250, r: 70, target: 10000, time: 25 },
+        { name: 'Skidpad Spin', x: 75, z: -210, r: 80, target: 18000, time: 30 },
+        { name: 'Carousel', x: 395, z: 275, r: 75, target: 12000, time: 25 },
+        { name: 'Hairpin', x: -312, z: 312, r: 75, target: 10000, time: 25 },
+        { name: 'Autocross Pad', x: -330, z: 20, r: 60, target: 15000, time: 30 },
       ],
       env: {
         sky: { top: col('#2f6fdc'), horizon: col('#bcd8f0'), bottom: col('#9fb7a0') },
@@ -563,17 +636,17 @@ const SPECS = {
         const r = c.rand;
         // grandstands along main straight (inside of track)
         for (let i = 0; i < 4; i++) {
-          const x = -150 + i * 70, z = -268, g = c.geo(x, z), y = c.h(x, z);
+          const x = -210 + i * 70, z = -343, g = c.geo(x, z), y = c.h(x, z);
           for (let k = 0; k < 6; k++) g.box(x, y + 0.6 + k * 0.9, z + 2 + k * 1.6, 60, 1.2 + k * 1.8, 1.8, { top: (k % 2 ? [0.85, 0.2, 0.2] : [0.2, 0.35, 0.8]), side: [0.6, 0.6, 0.62] });
           g.box(x, y + 12, z + 6, 62, 0.4, 14, [0.9, 0.9, 0.92]);
           for (const sx of [-30, 30]) g.box(x + sx, y + 6, z + 12, 0.5, 12, 0.5, [0.5, 0.5, 0.5]);
           c.box(x, z + 6, 62, 12);
         }
         // pit building by paddock
-        { const x = 0, z = -385, g = c.geo(x, z), y = c.h(x, z);
-          g.box(x, y + 4, z, 240, 8, 16, { top: [0.8, 0.8, 0.82], side: [0.93, 0.93, 0.95] });
-          for (let i = 0; i < 12; i++) g.box(-110 + i * 20, y + 2.5, z + 8.05, 14, 4.5, 0.1, [0.15, 0.18, 0.25]);
-          g.box(x, y + 9, z, 60, 3, 10, [0.15, 0.15, 0.17]); c.box(x, z, 240, 16); }
+        { const x = 0, z = -477, g = c.geo(x, z), y = c.h(x, z);
+          g.box(x, y + 4, z, 280, 8, 16, { top: [0.8, 0.8, 0.82], side: [0.93, 0.93, 0.95] });
+          for (let i = 0; i < 14; i++) g.box(-130 + i * 20, y + 2.5, z + 8.05, 14, 4.5, 0.1, [0.15, 0.18, 0.25]);
+          g.box(x, y + 9, z, 60, 3, 10, [0.15, 0.15, 0.17]); c.box(x, z, 280, 16); }
         // start gantry
         { const rd = c.roads[0], i = rd.startLine, x = rd.x[i], z = rd.z[i], y = rd.h[i], g = c.geo(x, z);
           const yaw = Math.atan2(rd.tx[i], rd.tz[i]);
@@ -585,12 +658,12 @@ const SPECS = {
           const P = (s) => [x + rd.tz[i] * s, z - rd.tx[i] * s];
           for (const s of [-10.5, 10.5]) { const p = P(s); c.circle(p[0], p[1], 0.6); } }
         // trees & billboards outside the walls
-        c.scatter(Math.floor(2600 * q.density), (x, z) => {
+        c.scatter(Math.floor(4200 * q.density), (x, z) => {
           const y = c.h(x, z), g = c.geo(x, z), s = 0.8 + r() * 0.7;
           if (r() < 0.5) pine(g, x, y, z, s * 1.2, r); else leafy(g, x, y, z, s, r);
           c.circle(x, z, 0.5 * s); c.shadow(x, z, 2.6 * s);
-        }, (x, z) => c.sd(x, z) > 34);
-        for (let i = 0; i < 14; i++) {
+        }, (x, z) => c.sd(x, z) > 30);
+        for (let i = 0; i < 20; i++) {
           const rd = c.roads[0], k = Math.floor(r() * rd.n), side = r() < 0.5 ? -1 : 1, off = rd.half + 27;
           const x = rd.x[k] + rd.tz[k] * off * side, z = rd.z[k] - rd.tx[k] * off * side;
           if (c.sd(x, z) < 24) continue;
@@ -599,10 +672,12 @@ const SPECS = {
           c.box(x, z, 9, 1, Math.atan2(rd.tx[k], rd.tz[k]) + Math.PI / 2);
         }
         // light towers
-        for (const [x, z] of [[-260, -330], [260, -330], [0, 30], [-380, 0], [380, 0]]) {
+        for (const [x, z] of [[-325, -412], [325, -412], [40, 40], [-475, -40], [475, -60], [-80, 330], [80, 330]]) {
           const y = c.h(x, z), g = c.geo(x, z);
           g.cylinder(x, y + 12, z, 0.5, 24, 6, [0.5, 0.5, 0.52]); g.box(x, y + 24, z, 5, 3, 1, [0.9, 0.92, 0.95, 0.5]); c.circle(x, z, 0.8);
         }
+        // autocross pad: tyre-stack cones marking a slalom + corner tyre walls
+        for (const [x, z] of [[-370, -10], [-345, 25], [-320, -10], [-295, 25], [-370, 55], [-295, 55]]) tyres(c, x, z);
       },
     };
   },
@@ -610,12 +685,12 @@ const SPECS = {
   // ------------------------------------------------------------- DESERT
   desert(q) {
     const n = makeNoise(23);
-    const mesas = [[620, -520, 120], [-640, 560, 140], [640, 600, 110], [-620, -600, 130], [0, 690, 160], [-700, 0, 150], [700, 80, 140]];
+    const mesas = [[806, -676, 150], [-832, 728, 170], [832, 780, 140], [-806, -780, 160], [0, 897, 190], [-910, 0, 180], [910, 104, 170], [-330, 290, 62], [-230, 560, 50], [-415, 255, 40], [200, 520, 55], [460, -160, 45]];
     const sand = col('#e3b97a'), sand2 = col('#d4a467'), salt = col('#ece7da'), rockC = col('#b56a43'), rockD = col('#8e4f35');
     const terrain = (x, z) => {
       let h = n.fbm(x / 170, z / 170, 4) * 7 + Math.sin(x / 37 + n(x / 90, z / 90) * 3) * 1.2;
       const e = Math.max(Math.abs(x), Math.abs(z));
-      h += smoothstep(560, 690, e) * (40 + n.ridge(x / 120, z / 120, 3) * 60);
+      h += smoothstep(760, 900, e) * (40 + n.ridge(x / 120, z / 120, 3) * 60);
       for (const [mx, mz, mr] of mesas) {
         const d = Math.hypot(x - mx, z - mz) + n(x / 40, z / 40) * 18;
         h += smoothstep(mr, mr * 0.8, d) * 55;
@@ -623,27 +698,28 @@ const SPECS = {
       return h;
     };
     return {
-      seed: 202, size: 1400, natural: 'sand', boundary: 70, blend: 24,
+      seed: 202, size: 1900, natural: 'sand', boundary: 70, blend: 24,
       terrain,
       color: (x, z, h, slope, sd) => {
         if (h > 22 || slope > 0.55) return mix3(rockC, rockD, (Math.floor(h / 4) & 1) * 0.6 + n(x / 20, z / 20) * 0.2);
         return mix3(sand, sand2, n(x / 25, z / 25) * 0.5 + 0.5);
       },
       shoulder: col('#c99b62'),
-      roads: [
-        { ...GEO.desert.roads[0], center: 'dash', color: [0.26, 0.25, 0.25], smooth: 18 },
-        { ...GEO.desert.roads[1], center: 'dash', color: [0.26, 0.25, 0.25] },
-        { ...GEO.desert.roads[2], center: 'dash', color: [0.26, 0.25, 0.25] },
-      ],
+      roads: GEO.desert.roads.map((r, i) => i === 0 ? { ...r, center: 'dash', color: [0.26, 0.25, 0.25], smooth: 18 }
+        : i === 6 ? { ...r, surface: 3, color: [0.5, 0.42, 0.32], edge: false } // dusty gravel track
+        : { ...r, center: i <= 4 ? 'dash' : undefined, color: [0.26, 0.25, 0.25] }),
       pads: [
-        { ...GEO.desert.pads[0], type: 4, color: salt },
+        { ...GEO.desert.pads[0], type: 4, color: salt, h: -1 },
         { ...GEO.desert.pads[1], type: 2 },
+        { ...GEO.desert.pads[2], type: 2, color: [0.3, 0.29, 0.28], markings: 'strip', h: -1 }, // same level as the flat it joins
+        { ...GEO.desert.pads[3], type: 3, color: [0.55, 0.45, 0.33] },
       ],
       spawns: (W) => W.roadSpawns(0, 70, 12, 1),
       challenges: [
-        { name: 'Salt Flat Frenzy', x: 0, z: 0, r: 90, target: 20000, time: 30 },
-        { name: 'Highway Sweeper', x: 480, z: -280, r: 75, target: 12000, time: 25 },
-        { name: 'Canyon Bend', x: -470, z: 330, r: 75, target: 12000, time: 25 },
+        { name: 'Salt Flat Frenzy', x: 0, z: 0, r: 100, target: 20000, time: 30 },
+        { name: 'Highway Sweeper', x: 640, z: -330, r: 80, target: 12000, time: 25 },
+        { name: 'Canyon Run', x: -470, z: 330, r: 80, target: 12000, time: 25 },
+        { name: 'Airstrip Slide', x: 300, z: -300, r: 70, target: 15000, time: 30 },
       ],
       env: {
         sky: { top: col('#4a5f9c'), horizon: col('#ffb36b'), bottom: col('#d7a06a') },
@@ -652,7 +728,7 @@ const SPECS = {
       },
       scenery(c) {
         const r = c.rand;
-        c.scatter(Math.floor(1400 * q.density), (x, z, inPlay) => {
+        c.scatter(Math.floor(2400 * q.density), (x, z, inPlay) => {
           const y = c.h(x, z), g = c.geo(x, z), k = r();
           if (k < 0.45) { const s = 0.8 + r() * 0.6; cactus(g, x, y, z, s, r); if (inPlay) c.circle(x, z, 0.45 * s); c.shadow(x, z, 1.2 * s, 0.3); }
           else if (k < 0.75) { const s = 0.8 + r() * 2.2; rock(g, x, y, z, s, r, [0.7, 0.45, 0.32]); if (inPlay) c.circle(x, z, s * 1.1); }
@@ -669,7 +745,7 @@ const SPECS = {
           c.circle(x, z, 0.3);
         }
         // gas station
-        { const x = 560, z = 290, y = c.h(x, z), g = c.geo(x, z);
+        { const x = 690, z = 365, y = c.h(x, z), g = c.geo(x, z);
           g.at(x, y, z, 0.3);
           g.box(0, 5.5, 0, 26, 0.8, 16, { top: [0.9, 0.9, 0.9], side: [0.85, 0.15, 0.12] });
           for (const [px, pz] of [[-10, -6], [10, -6], [-10, 6], [10, 6]]) g.box(px, 2.7, pz, 0.6, 5.4, 0.6, [0.9, 0.9, 0.9]);
@@ -681,9 +757,23 @@ const SPECS = {
           c.box(x, z, 26, 16, 0.3); c.box(x + Math.sin(0.3) * 22, z + Math.cos(0.3) * 22, 20, 10, 0.3);
         }
         // abandoned trailer + signs
-        { const x = -30, z = 200, y = c.h(x, z), g = c.geo(x, z);
+        { const x = 120, z = 280, y = c.h(x, z), g = c.geo(x, z);
           g.at(x, y, z, 0.6).box(0, 1.6, 0, 3, 2.6, 9, { top: [0.75, 0.75, 0.78], side: [0.82, 0.8, 0.75] }).box(0, 0.4, -2, 3.2, 0.3, 0.3, [0.1, 0.1, 0.1]).reset();
           c.box(x, z, 3, 9, 0.6); }
+        // ghost town: weathered wooden shacks around the gravel square
+        for (const [x, z, w, d, yaw] of [[-395, -170, 12, 9, 0.1], [-392, -228, 10, 8, -0.05], [-268, -158, 11, 8, 0.05], [-270, -246, 14, 9, -0.1], [-330, -262, 9, 7, 0]]) {
+          const y = c.h(x, z), g = c.geo(x, z), wood = shade([0.55, 0.42, 0.3], 0.8 + r() * 0.3);
+          g.at(x, y, z, yaw).box(0, 2, 0, w, 4, d, { top: [0.42, 0.33, 0.26], side: wood }).box(0, 4.6, 0, w + 1, 0.4, d + 1, [0.38, 0.3, 0.24]).box(0, 1.2, d / 2 + 0.05, 1.4, 2.4, 0.1, [0.2, 0.15, 0.1]).reset();
+          c.box(x, z, w, d, yaw);
+        }
+        { const x = -290, z = -200, y = c.h(x, z), g = c.geo(x, z); // water tower
+          for (const [sx, sz] of [[-2, -2], [2, -2], [2, 2], [-2, 2]]) { g.cylinder(x + sx, y + 4, z + sz, 0.2, 8, 5, [0.4, 0.3, 0.22]); c.circle(x + sx, z + sz, 0.3); }
+          g.cylinder(x, y + 10, z, 3, 4, 10, [0.5, 0.4, 0.3]); g.cone(x, y + 12.8, z, 3.3, 1.6, 10, [0.4, 0.32, 0.26]); }
+        // airstrip hangar + windsock beside the runway
+        { const x = 395, z = -235, y = c.h(x, z), g = c.geo(x, z), yaw = 2.356;
+          g.at(x, y, z, yaw).box(0, 5, 0, 30, 10, 24, { top: [0.62, 0.6, 0.56], side: [0.72, 0.7, 0.66], front: [0.35, 0.33, 0.3] }).reset();
+          c.box(x, z, 30, 24, yaw);
+          g.cylinder(200, c.h(200, -330) + 4, -330, 0.1, 8, 5, [0.6, 0.6, 0.6]); g.cone(200.8, c.h(200, -330) + 7.6, -330, 0.5, 1.8, 6, [0.85, 0.45, 0.2]); c.circle(200, -330, 0.3); }
       },
     };
   },
@@ -696,12 +786,12 @@ const SPECS = {
       let h = 150 * Math.exp(-((rr / 430) ** 2));
       h += n.ridge(x / 260, z / 260, 4) * 45 - 18 + n.fbm(x / 60, z / 60, 2) * 4;
       const e = Math.max(Math.abs(x), Math.abs(z));
-      h += smoothstep(700, 790, e) * (90 + n.ridge(x / 150, z / 150, 3) * 120);
+      h += smoothstep(790, 880, e) * (90 + n.ridge(x / 150, z / 150, 3) * 120);
       return h;
     };
     const grass = col('#4a6b3a'), grass2 = col('#5e7b3e'), rockC = col('#6f6a68'), snow = col('#eef2f7');
     return {
-      seed: 303, size: 1600, natural: 'dirt', boundary: 70, blend: 20,
+      seed: 303, size: 1800, natural: 'dirt', boundary: 70, blend: 20,
       terrain,
       color: (x, z, h, slope, sd) => {
         let c = mix3(grass, grass2, n(x / 30, z / 30) * 0.5 + 0.5);
@@ -709,22 +799,25 @@ const SPECS = {
         return mix3(c, snow, smoothstep(125, 150, h + n(x / 25, z / 25) * 10) * (1 - smoothstep(0.9, 1.3, slope)));
       },
       shoulder: col('#6b5f50'),
-      roads: [
-        { ...GEO.mountain.roads[0], center: 'dash', centerColor: [0.95, 0.95, 0.9], guardrails: true, color: [0.24, 0.24, 0.26], smooth: 18, maxGrade: 0.11 },
-      ],
+      roads: GEO.mountain.roads.map((r, i) => i === 0 ? { ...r, center: 'dash', color: [0.25, 0.25, 0.27], smooth: 22, maxGrade: 0.1 }
+        : i === 3 ? { ...r, surface: 3, color: [0.4, 0.36, 0.3], edge: false, maxGrade: 0.12 }
+        : i === 4 ? { ...r, color: [0.25, 0.25, 0.27] }
+        : { ...r, center: 'dash', centerColor: [0.95, 0.95, 0.9], guardrails: true, color: [0.24, 0.24, 0.26], smooth: 18, maxGrade: i === 2 ? 0.135 : 0.11 }),
       pads: [
         { ...GEO.mountain.pads[0], type: 2, markings: 'lot' },
         { ...GEO.mountain.pads[1], type: 2 },
+        { ...GEO.mountain.pads[2], type: 2, markings: 'lot' },
       ],
-      spawns: (W) => {
-        const out = [];
-        for (let k = 0; k < 12; k++) out.push({ x: -110 + (k % 6) * 12, z: -670 + Math.floor(k / 6) * 16, h: 0.35 });
-        return out;
+      spawns: (W) => { // on the touge, just past the base car park, facing up the pass
+        const r = W.roads[1]; let bi = 0, bd = 1e18;
+        for (let i = 0; i < r.n; i++) { const d = (r.x[i] - 10) ** 2 + (r.z[i] + 603) ** 2; if (d < bd) { bd = d; bi = i; } }
+        return W.roadSpawns(1, bi, 12, 1);
       },
       challenges: [
         { name: 'Hairpin One', x: 270, z: -460, r: 70, target: 10000, time: 25 },
         { name: 'Switchback Run', x: -275, z: -300, r: 75, target: 11000, time: 25 },
         { name: 'Summit Donuts', x: 30, z: 205, r: 48, target: 14000, time: 25 },
+        { name: 'East Descent', x: 340, z: 440, r: 80, target: 11000, time: 25 },
       ],
       env: {
         sky: { top: col('#2e3d5e'), horizon: col('#e39c74'), bottom: col('#6e5f58') },
@@ -733,14 +826,14 @@ const SPECS = {
       },
       scenery(c) {
         const r = c.rand;
-        c.scatter(Math.floor(5000 * q.density), (x, z, inPlay) => {
+        c.scatter(Math.floor(6200 * q.density), (x, z, inPlay) => {
           const y = c.h(x, z);
           if (y > 132) return;
           const g = c.geo(x, z), s = 0.9 + r() * 0.8;
           pine(g, x, y, z, s * 1.3, r, y > 105);
           if (inPlay) c.circle(x, z, 0.5 * s); c.shadow(x, z, 2.8 * s, 0.3);
         }, (x, z) => c.sd(x, z) > 9);
-        c.scatter(Math.floor(500 * q.density), (x, z, inPlay) => {
+        c.scatter(Math.floor(640 * q.density), (x, z, inPlay) => {
           const s = 1 + r() * 2.5; rock(c.geo(x, z), x, c.h(x, z), z, s, r, [0.55, 0.53, 0.52]); if (inPlay) c.circle(x, z, s);
         }, (x, z) => c.sd(x, z) > 8);
         // summit shrine + lookout
@@ -751,10 +844,18 @@ const SPECS = {
           c.circle(x - 4, z - 3, 0.5); c.circle(x + 4, z - 3, 0.5);
           for (const [lx, lz] of [[-5, 170], [70, 190], [55, 240]]) lamp(c, lx, lz, 0, true); }
         // base parking lamps + a small cafe
-        for (const lx of [-120, -70, -20]) lamp(c, lx, -632, Math.PI, true);
-        { const x = -70, z = -705, y = c.h(x, z), g = c.geo(x, z);
+        for (const [lx, lz] of [[-140, -735], [-140, -685], [0, -735], [0, -685]]) lamp(c, lx, lz, lx < -70 ? Math.PI / 2 : -Math.PI / 2, true);
+        { const x = -70, z = -658, y = c.h(x, z), g = c.geo(x, z);
           g.box(x, y + 3, z, 24, 6, 10, { top: [0.3, 0.25, 0.22], side: [0.85, 0.8, 0.7] });
           g.box(x, y + 2.2, z + 5.05, 16, 2.5, 0.1, [1, 0.8, 0.5, 0.8]); c.box(x, z, 24, 10); }
+        // north valley village beside the rest stop: small timber houses with dark tiled roofs
+        for (const [x, z, yaw] of [[-30, 540, 0.1], [-35, 590, -0.05], [-195, 540, 0.08], [-190, 595, 0.15], [-110, 505, 0]]) {
+          const y = c.h(x, z) - 0.2, g = c.geo(x, z);
+          g.at(x, y, z, yaw).box(0, 2.5, 0, 12, 5, 9, { top: [0.3, 0.28, 0.27], side: [0.78, 0.72, 0.62] }).box(0, 1.6, 4.55, 4, 2, 0.1, [1, 0.8, 0.5, 0.75]).reset();
+          g.at(x, y + 5, z, yaw).extrude([[-5.3, 0], [5.3, 0], [0, 3]], 13, 0.05, [0.22, 0.22, 0.25]).reset();
+          c.box(x, z, 12, 9, yaw);
+        }
+        for (const [lx, lz] of [[-160, 560], [-60, 560]]) lamp(c, lx, lz, 0, true);
       },
     };
   },
@@ -762,17 +863,17 @@ const SPECS = {
   // ------------------------------------------------------------- FOREST
   forest(q) {
     const n = makeNoise(41);
-    const lake = [120, 120, 105];
+    const lake = [156, 156, 135];
     const terrain = (x, z) => {
       let h = n.fbm(x / 260, z / 260, 4) * 18 + n.fbm(x / 60, z / 60, 2) * 3;
       const d = Math.hypot(x - lake[0], z - lake[1]) + n(x / 40, z / 40) * 15;
       h = lerp(Math.max(h, 0.6 + Math.abs(h) * 0.15), -6, smoothstep(lake[2] + 40, lake[2] - 20, d));
-      h += smoothstep(480, 590, Math.max(Math.abs(x), Math.abs(z))) * 35;
+      h += smoothstep(660, 770, Math.max(Math.abs(x), Math.abs(z))) * 35;
       return h;
     };
     const g1 = col('#3f6b35'), g2 = col('#557d3d'), dirt = col('#6b5a43'), shore = col('#bfae85');
     return {
-      seed: 404, size: 1200, natural: 'dirt', boundary: 60, blend: 22,
+      seed: 404, size: 1600, natural: 'dirt', boundary: 60, blend: 22,
       terrain,
       water: { y: -1.2, color: [0.22, 0.42, 0.48] },
       color: (x, z, h, slope, sd) => {
@@ -782,19 +883,21 @@ const SPECS = {
         return c;
       },
       shoulder: col('#6e5e48'),
-      roads: [
-        { ...GEO.forest.roads[0], center: 'dash', color: [0.25, 0.25, 0.26], smooth: 14 },
-        { ...GEO.forest.roads[1], color: [0.3, 0.28, 0.25], edge: false },
-      ],
+      roads: GEO.forest.roads.map((r, i) => i === 0 ? { ...r, center: 'dash', color: [0.25, 0.25, 0.26], smooth: 14 }
+        : i === 4 || i === 6 || i === 7 ? { ...r, surface: 3, color: [0.42, 0.37, 0.3], edge: false } // gravel trails
+        : i === 1 ? { ...r, color: [0.3, 0.28, 0.25], edge: false }
+        : { ...r, center: 'dash', color: [0.26, 0.26, 0.27] }),
       pads: [
         { ...GEO.forest.pads[0], type: 3 },
         { ...GEO.forest.pads[1], type: 2, markings: 'lot' },
+        { ...GEO.forest.pads[2], type: 3, color: [0.55, 0.52, 0.47] },
       ],
       spawns: (W) => W.roadSpawns(0, 40, 12, 1),
       challenges: [
-        { name: 'Gravel Clearing', x: -175, z: -150, r: 88, target: 16000, time: 30 },
-        { name: 'Lakeside Esses', x: 410, z: 120, r: 80, target: 11000, time: 25 },
-        { name: 'North Bend', x: 300, z: 410, r: 75, target: 10000, time: 25 },
+        { name: 'Gravel Clearing', x: -228, z: -195, r: 95, target: 16000, time: 30 },
+        { name: 'Lakeside Esses', x: 533, z: 156, r: 85, target: 11000, time: 25 },
+        { name: 'North Bend', x: 390, z: 533, r: 80, target: 10000, time: 25 },
+        { name: 'Quarry Bowl', x: -435, z: -630, r: 58, target: 14000, time: 30 },
       ],
       env: {
         sky: { top: col('#5d8fc9'), horizon: col('#d6e2da'), bottom: col('#7d8f78') },
@@ -803,52 +906,58 @@ const SPECS = {
       },
       scenery(c) {
         const r = c.rand;
-        c.scatter(Math.floor(7000 * q.density), (x, z, inPlay) => {
+        c.scatter(Math.floor(10500 * q.density), (x, z, inPlay) => {
           const y = c.h(x, z);
           if (y < 0.6) return;
           const g = c.geo(x, z), s = 0.9 + r() * 0.8;
           if (r() < 0.62) pine(g, x, y, z, s * 1.35, r); else leafy(g, x, y, z, s * 1.1, r, r() < 0.2 ? [0.8, 0.5, 0.15] : undefined);
           if (inPlay) c.circle(x, z, 0.5 * s); c.shadow(x, z, 2.8 * s, 0.32);
         }, (x, z) => c.sd(x, z) > 8);
-        c.scatter(Math.floor(500 * q.density), (x, z, inPlay) => {
+        c.scatter(Math.floor(850 * q.density), (x, z, inPlay) => {
           const y = c.h(x, z); if (y < 0) return;
           const g = c.geo(x, z), s = 0.5 + r() * 1.5;
           if (r() < 0.5) { rock(g, x, y, z, s, r, [0.5, 0.5, 0.48]); if (inPlay) c.circle(x, z, s); }
           else g.blob(x, y + 0.5, z, 1.2, 0.8, 1.2, [0.25, 0.42, 0.2], 0.3, r);
         }, (x, z) => c.sd(x, z) > 6);
         // log cabin + jetty
-        { const x = 120, z = -335, y = c.h(x, z), g = c.geo(x, z);
+        { const x = 228, z = -395, y = c.h(x, z), g = c.geo(x, z);
           g.box(x, y + 2.5, z, 14, 5, 9, { top: [0.4, 0.28, 0.2], side: [0.55, 0.38, 0.25] });
           g.at(x, y + 5, z, 0).extrude([[-5, 0], [5, 0], [0, 3.2]], 15, 0.05, [0.3, 0.2, 0.16]).reset();
           c.box(x, z, 14, 9); }
-        { const x = 18, z = 120, g = c.geo(x, z); g.box(x, -0.6, z, 20, 0.4, 3, [0.5, 0.36, 0.22]); }
+        { const x = 30, z = 160, g = c.geo(x, z); g.box(x, -0.6, z, 20, 0.4, 3, [0.5, 0.36, 0.22]); }
+        // quarry: rock faces round the bowl + a rusty conveyor
+        for (let k = 0; k < 14; k++) { const a = -0.6 + k * 0.33, x = -435 + Math.cos(a) * 74, z = -630 + Math.sin(a) * 74; if (c.sd(x, z) < 6) continue; rock(c.geo(x, z), x, c.h(x, z), z, 4 + r() * 3, r, [0.55, 0.53, 0.5]); c.circle(x, z, 4.5); }
+        { const x = -485, z = -665, y = c.h(x, z), g = c.geo(x, z);
+          g.at(x, y, z, 0.7).box(0, 4, 0, 2.4, 0.5, 22, [0.5, 0.33, 0.2]).box(0, 2, -9, 0.4, 4, 0.4, [0.4, 0.3, 0.2]).box(0, 2, 9, 0.4, 4, 0.4, [0.4, 0.3, 0.2]).reset(); }
       },
     };
   },
 
   // ------------------------------------------------------------- CITY
   city(q) {
-    const B = 90, ST = 16, K = 4; // block pitch, street width, half count
+    const { B, ST, K } = CITY; // block pitch, street width, half count
     const lines = []; for (let i = -K; i <= K; i++) lines.push(i * B);
     const blocks = [];
     for (let i = 0; i < 2 * K; i++) for (let j = 0; j < 2 * K; j++) blocks.push({ i, j, x: (i - K + 0.5) * B, z: (j - K + 0.5) * B });
+    const has = (list, b) => list.some(([i, j]) => b.i === i && b.j === j);
     const kind = (b) => {
-      if ((b.i === 3 || b.i === 4) && (b.j === 3 || b.j === 4)) return 'plaza';
-      if ((b.i === 1 && b.j === 6) || (b.i === 6 && b.j === 1) || (b.i === 6 && b.j === 6) || (b.i === 1 && b.j === 2)) return 'lot';
-      if (b.i === 1 && b.j === 1) return 'park';
+      if ((b.i === K - 1 || b.i === K) && (b.j === K - 1 || b.j === K)) return 'plaza';
+      if (b.i === b.j) return 'diag'; // the diagonal boulevard cuts these blocks into two small parks
+      if (has([[1, 7], [7, 1], [7, 8], [2, 3], [8, 5]], b)) return 'lot';
+      if (has([[1, 3], [6, 8], [8, 2]], b)) return 'park';
       return 'build';
     };
     const roads = GEO.city.roads.map((r) => ({ ...r, flatH: 0, center: 'dash', color: [0.16, 0.16, 0.18], edge: false }));
-    const half = K * B;
+    const half = K * B, inner = (B - ST) / 2, DG = 11 * Math.SQRT2; // diagonal parks keep 11 m clear of the boulevard centre
     return {
-      seed: 505, size: 900, natural: 'asphalt', boundary: 450 - half - 8, blend: 4,
+      seed: 505, size: 1100, natural: 'asphalt', boundary: 550 - half - 8, blend: 4,
       terrain: () => 0,
       surfaceFn: (x, z) => {
         const bi = Math.floor(x / B + K), bj = Math.floor(z / B + K);
-        if (bi === 1 && bj === 1) {
-          const lx = x - (bi - K + 0.5) * B, lz = z - (bj - K + 0.5) * B;
-          if (Math.abs(lx) < (B - ST) / 2 - 4 && Math.abs(lz) < (B - ST) / 2 - 4) return 'grass';
-        }
+        const b = { i: bi, j: bj }, k = bi >= 0 && bj >= 0 && bi < 2 * K && bj < 2 * K ? kind(b) : '';
+        const lx = x - (bi - K + 0.5) * B, lz = z - (bj - K + 0.5) * B;
+        if (k === 'park' && Math.abs(lx) < inner - 4 && Math.abs(lz) < inner - 4) return 'grass';
+        if (k === 'diag' && Math.abs(lx) < inner - 4 && Math.abs(lz) < inner - 4 && Math.abs(lx - lz) > DG + 4) return 'grass';
         return 'asphalt';
       },
       color: () => [0.2, 0.2, 0.22],
@@ -857,8 +966,9 @@ const SPECS = {
       spawns: () => { const out = []; for (let k = 0; k < 12; k++) out.push({ x: -40 + (k % 4) * 26, z: -30 + Math.floor(k / 4) * 30, h: 0 }); return out; },
       challenges: [
         { name: 'Plaza Showtime', x: 0, z: 0, r: 70, target: 18000, time: 30 },
-        { name: 'Lot Shuffle', x: 225, z: 225, r: 40, target: 9000, time: 25 },
+        { name: 'Lot Shuffle', x: 225, z: -315, r: 40, target: 9000, time: 25 },
         { name: 'Downtown Sprint', x: -225, z: 45, r: 60, target: 10000, time: 25 },
+        { name: 'Boulevard Dash', x: -225, z: -225, r: 60, target: 11000, time: 25 },
       ],
       env: {
         sky: { top: col('#0a1220'), horizon: col('#2b3340'), bottom: col('#14171c') },
@@ -870,8 +980,27 @@ const SPECS = {
         const pal = [[0.32, 0.33, 0.38], [0.42, 0.36, 0.33], [0.25, 0.3, 0.38], [0.5, 0.48, 0.45], [0.3, 0.27, 0.3]];
         // ordinary shop signs: backlit white/cream panels and a few painted brand colours (no neon)
         const signs = [[0.92, 0.9, 0.84], [0.95, 0.82, 0.6], [0.72, 0.22, 0.18], [0.18, 0.42, 0.3], [0.22, 0.3, 0.5]];
+        const triUp = (g, A, Bp, C, col) => { const cy = (Bp[2] - A[2]) * (C[0] - A[0]) - (Bp[0] - A[0]) * (C[2] - A[2]); if (cy > 0) g.tri(A, Bp, C, col); else g.tri(A, C, Bp, col); };
         for (const b of blocks) {
           const k = kind(b), g = c.geo(b.x, b.z);
+          if (k === 'diag') {
+            // two triangular pocket parks either side of the boulevard: sidewalk rim + grass + trees
+            for (const sg of [1, -1]) {
+              const P = (lx, lz, y) => [b.x + lx, y, b.z + lz];
+              const tri = (d, y, col) => (sg > 0 ? triUp(g, P(-inner, -inner + d, y), P(-inner, inner, y), P(inner - d, inner, y), col) : triUp(g, P(-inner + d, -inner, y), P(inner, -inner, y), P(inner, inner - d, y), col));
+              tri(DG, 0.02, [0.36, 0.36, 0.38]);
+              tri(DG + 4 * Math.SQRT2 + 4, 0.035, [0.15, 0.3, 0.12]);
+              for (let t = 0; t < 8; t++) {
+                const u = r(), v = r() * (1 - u), lx = -inner + 8 + u * (2 * inner - 26), lz = inner - 8 - v * (2 * inner - 26);
+                const X = b.x + (sg > 0 ? lx : lz), Z = b.z + (sg > 0 ? lz : lx);
+                if (Math.abs((X - b.x) - (Z - b.z)) < DG + 9) continue;
+                leafy(g, X, 0, Z, 0.9 + r() * 0.4, r, [0.12, 0.3, 0.15]); c.circle(X, Z, 0.5);
+              }
+            }
+            for (const [sx, sz] of [[1, -1], [-1, 1]]) lamp(c, b.x + sx * (inner - 1), b.z + sz * (inner - 1), Math.atan2(sx, sz), true, [1, 0.88, 0.66]);
+            for (const t of [-0.3, 0, 0.3]) lamp(c, b.x + t * B - 10, b.z + t * B + 10, Math.PI * 0.75, true); // boulevard lights along the north-west kerb
+            continue;
+          }
           if (k !== 'plaza') {
             // sidewalk (flush) + curb line
             g.box(b.x, 0.015, b.z, inner * 2 + 0.01, 0.03, inner * 2 + 0.01, { top: [0.36, 0.36, 0.38], side: [0.5, 0.5, 0.5] });
@@ -879,12 +1008,12 @@ const SPECS = {
           } else {
             g.box(b.x, 0.015, b.z, B + 0.1, 0.03, B + 0.1, [0.38, 0.36, 0.33]); // stone paving
           }
-          // lamps at corners (all blocks)
-          for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) lamp(c, b.x + sx * (inner - 1), b.z + sz * (inner - 1), Math.atan2(sx, sz), true, sx * sz > 0 ? [1, 0.82, 0.55] : [1, 0.9, 0.74]); // warm street lights
+          // lamps at corners (all blocks; none on the diagonal boulevard where it crosses the plaza)
+          for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) if (!(k === 'plaza' && sx === sz && b.i === b.j)) lamp(c, b.x + sx * (inner - 1), b.z + sz * (inner - 1), Math.atan2(sx, sz), true, sx * sz > 0 ? [1, 0.82, 0.55] : [1, 0.9, 0.74]); // warm street lights
           if (k === 'build') {
             const split = r();
             const lots = split < 0.3 ? [[0, 0, 1, 1]] : split < 0.65 ? [[-0.5, 0, 0.5, 1], [0.5, 0, 0.5, 1]] : [[-0.5, -0.5, 0.5, 0.5], [0.5, -0.5, 0.5, 0.5], [-0.5, 0.5, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5]];
-            const centre = 1 - Math.hypot(b.x, b.z) / 520;
+            const centre = Math.max(0, 1 - Math.hypot(b.x, b.z) / 600);
             for (const [ox, oz, fw, fd] of lots) {
               const w = (inner * 2 - 8) * fw - 2, d = (inner * 2 - 8) * fd - 2;
               const x = b.x + ox * (inner * 2 - 8) * 0.5, z = b.z + oz * (inner * 2 - 8) * 0.5;
@@ -904,7 +1033,7 @@ const SPECS = {
             }
           } else if (k === 'lot') {
             for (let x = -inner + 6; x < inner - 4; x += 3.4) for (const zz of [-inner + 7, inner - 7]) g.box(b.x + x, 0.06, b.z + zz, 0.15, 0.01, 5.5, [0.85, 0.85, 0.8]);
-          } else if (k === 'plaza' && b.i === 3 && b.j === 3) {
+          } else if (k === 'plaza' && b.i === K - 1 && b.j === K - 1) {
             // centre fountain-like sculpture at the middle of the plaza (at block corner)
             const x = (b.i - K + 1) * B, z = (b.j - K + 1) * B;
             g.cylinder(x, 0.4, z, 6, 0.8, 16, [0.5, 0.5, 0.55]);
@@ -932,12 +1061,137 @@ const SPECS = {
             c.geo(x, z).at(x, 0.5, z, yaw).box(0, 0, 0, 0.7, 1, 6, { top: [0.6, 0.6, 0.6], side: (Math.floor(v / 6) & 1) ? [0.9, 0.9, 0.9] : [0.95, 0.75, 0.1] }).reset();
           }
         }
-        for (let t = 0; t < 120; t++) {
+        for (let t = 0; t < 150; t++) {
           const a = r() * Math.PI * 2, d = e + 25 + r() * 30;
           const x = Math.cos(a) * d * 1.05, z = Math.sin(a) * d * 1.05;
           if (Math.max(Math.abs(x), Math.abs(z)) < e + 15) continue;
           building(c, x, z, 18 + r() * 20, 18 + r() * 20, 25 + r() * 90, pal[t % pal.length], true, r);
         }
+      },
+    };
+  },
+
+  // ------------------------------------------------------------- DRIFT PARK (Ironbay)
+  drift(q) {
+    const n = makeNoise(61);
+    const QUAY = 436; // harbour wall (north); hills on the other three sides
+    const terrain = (x, z) => {
+      let h = 1.6 + n.fbm(x / 230, z / 230, 3) * 1.4;
+      const e = Math.max(Math.abs(x), -z);
+      h += smoothstep(600, 690, e) * (28 + n.ridge(x / 110, z / 110, 3) * 42);
+      return lerp(h, -7, smoothstep(QUAY - 2, QUAY + 30, z)); // harbour basin
+    };
+    const grassA = col('#5f7f45'), grassB = col('#6f8a4c'), dry = col('#8f8a68'), rockC = col('#7a756c'), conc = col('#8d8b85'), conc2 = col('#7d7c77'), shoreC = col('#6d6a60');
+    const yard = GEO.drift.pads[3];
+    const inYard = (x, z, m = 0) => Math.abs(x - yard.x) < yard.w / 2 + m && Math.abs(z - yard.z) < yard.d / 2 + m;
+    return {
+      seed: 606, size: 1400, natural: 'grass', boundary: 60, blend: 24,
+      terrain,
+      water: { y: -1.2, color: [0.2, 0.34, 0.4] },
+      color: (x, z, h, slope, sd) => {
+        if (z > QUAY - 4) return h < -0.6 ? shoreC : conc2;
+        if (inYard(x, z, 6)) return mix3(conc, conc2, n(x / 14, z / 14) * 0.5 + 0.5);
+        let c = mix3(grassA, grassB, n(x / 30, z / 30) * 0.5 + 0.5);
+        if (sd < 24) c = mix3(dry, c, smoothstep(5, 24, sd)); // worn, dusty verges round the tarmac
+        return mix3(c, rockC, smoothstep(0.45, 0.85, slope));
+      },
+      shoulder: col('#8a8676'),
+      roads: GEO.drift.roads.map((r, i) => i === 0 ? { ...r, kerbs: true, color: [0.21, 0.21, 0.22], startLine: 40, smooth: 20 }
+        : { ...r, color: [0.25, 0.25, 0.26] }),
+      pads: [
+        { ...GEO.drift.pads[0], type: 2, markings: 'lot' },
+        { ...GEO.drift.pads[1], type: 2, color: [0.24, 0.24, 0.25], markings: 'grid' },
+        { ...GEO.drift.pads[2], type: 2, markings: 'donut' },
+        { ...yard, type: 2, color: [0.4, 0.4, 0.39] },
+      ],
+      spawns: (W) => W.roadSpawns(0, 40, 12, 1),
+      challenges: [
+        { name: 'Practice Pad', x: -410, z: 240, r: 70, target: 18000, time: 30 },
+        { name: 'Donut Circle', x: -110, z: 205, r: 42, target: 12000, time: 25 },
+        { name: 'Figure-Eight', x: 0, z: -120, r: 80, target: 14000, time: 25 },
+        { name: 'Harbour Hairpin', x: 300, z: 120, r: 70, target: 11000, time: 25 },
+        { name: 'S-Bends', x: 415, z: -140, r: 80, target: 13000, time: 25 },
+      ],
+      env: {
+        sky: { top: col('#56789e'), horizon: col('#e3cfb2'), bottom: col('#8f8a7c') },
+        sunDir: norm([-0.45, 0.4, 0.8]), sunCol: [1.08, 0.92, 0.74], sunGlow: [1.15, 0.78, 0.48], ambSky: [0.5, 0.54, 0.62], ambGround: [0.32, 0.3, 0.26],
+        fogCol: col('#cbbfa9'), fogNear: 240, fogFar: 1000, night: false, music: 'bright',
+      },
+      scenery(c) {
+        const r = c.rand;
+        // --- harbour wall: concrete quay edge with bollards (collides — no driving into the sea)
+        for (let x = -660; x < 660; x += 20) {
+          const g = c.geo(x + 10, QUAY);
+          g.box(x + 10, c.h(x + 10, QUAY - 3) + 0.35, QUAY - 1, 20, 0.9, 2, { top: [0.66, 0.65, 0.62], side: [0.55, 0.54, 0.5] });
+          if ((x / 20) % 3 === 0) g.cylinder(x + 10, c.h(x + 10, QUAY - 3) + 1.1, QUAY - 1, 0.35, 0.7, 8, [0.2, 0.2, 0.22]);
+        }
+        c.seg(-700, QUAY - 2, 700, QUAY - 2);
+        // --- container stacks in rows across the yard, alleys left open between them
+        const pal = [[0.55, 0.24, 0.17], [0.22, 0.3, 0.42], [0.36, 0.42, 0.3], [0.6, 0.58, 0.52], [0.66, 0.5, 0.3], [0.32, 0.33, 0.35], [0.45, 0.2, 0.2]];
+        const x0 = yard.x - yard.w / 2;
+        for (const [bx0, bx1] of [[x0 + 30, 90], [114, 200], [224, 286], [314, 400], [424, 518], [562, 592]]) {
+          for (const [bz0, bz1] of [[318, 342], [352, 378]]) {
+            for (let z = bz0; z < bz1 - 1; z += 2.7) for (let x = bx0; x < bx1 - 6; x += 12.6) {
+              if (r() < 0.12) continue;
+              const k = 1 + Math.floor(r() * 3), g = c.geo(x + 6, z), y = c.h(x + 6, z), cc = pal[Math.floor(r() * pal.length)];
+              for (let m = 0; m < k; m++) g.box(x + 6.15, y + 1.3 + m * 2.6, z + 1.25, 12.2, 2.55, 2.45, { top: shade(cc, 0.85), side: shade(cc, 0.95 + (m % 2) * 0.08), noBottom: true });
+            }
+            c.box((bx0 + bx1) / 2, (bz0 + bz1) / 2 + 0.6, bx1 - bx0, bz1 - bz0 + 1.2);
+          }
+        }
+        // --- gantry cranes along the quay (legs collide; booms reach out over the water)
+        for (const cx of [20, 250, 470]) {
+          const y = c.h(cx, 418), g = c.geo(cx, 418), steel = [0.72, 0.52, 0.22], dark = [0.3, 0.3, 0.32];
+          for (const sx of [-9, 9]) for (const sz of [405, 431]) { g.box(cx + sx, y + 15, sz, 1.2, 30, 1.2, steel); c.circle(cx + sx, sz, 1); }
+          for (const sz of [405, 431]) g.box(cx, y + 30.5, sz, 20, 1.4, 1.4, steel);
+          g.box(cx - 9, y + 28, 418, 1.4, 1.4, 27, steel); g.box(cx + 9, y + 28, 418, 1.4, 1.4, 27, steel);
+          g.box(cx, y + 33, 445, 3, 1.6, 78, steel); g.box(cx, y + 35, 412, 6, 4, 8, dark);
+        }
+        // --- warehouses between the course and the yard
+        for (const [x, z, w, d] of [[140, 240, 84, 30], [450, 236, 70, 28]]) {
+          const y = c.h(x, z) - 0.2, g = c.geo(x, z);
+          g.box(x, y + 6, z, w, 12, d, { top: [0.5, 0.52, 0.53], side: [0.62, 0.6, 0.55], noBottom: true });
+          g.at(x, y + 12, z, 0).extrude([[-d / 2 - 0.5, 0], [d / 2 + 0.5, 0], [0, 3.5]], w + 1, 0.05, [0.45, 0.47, 0.48]).reset();
+          for (let k = -2; k <= 2; k++) g.box(x + k * (w / 5), y + 3.5, z + d / 2 + 0.05, 7, 7, 0.1, [0.32, 0.34, 0.36]);
+          c.box(x, z, w, d);
+        }
+        // --- start gantry over the main straight
+        { const rd = c.roads[0], i = rd.startLine, x = rd.x[i], z = rd.z[i], y = rd.h[i], g = c.geo(x, z);
+          const yaw = Math.atan2(rd.tx[i], rd.tz[i]);
+          g.at(x, y, z, yaw);
+          for (const sx of [-11.5, 11.5]) g.box(sx, 4, 0, 0.8, 8, 0.8, [0.3, 0.3, 0.32]);
+          g.box(0, 8, 0, 24, 1.6, 1.2, { side: [0.15, 0.15, 0.18], front: [0.85, 0.75, 0.3], back: [0.85, 0.75, 0.3] });
+          g.reset();
+          for (const s of [-11.5, 11.5]) c.circle(x + rd.tz[i] * s, z - rd.tx[i] * s, 0.6); }
+        // --- paddock: team garages behind the pad
+        { const x = -40, z = -548, y = c.h(x, z), g = c.geo(x, z);
+          g.box(x, y + 3.5, z, 280, 7, 14, { top: [0.6, 0.6, 0.62], side: [0.82, 0.8, 0.76] });
+          for (let i = 0; i < 12; i++) g.box(-150 + i * 20 + 10, y + 2.3, z + 7.05, 14, 4, 0.1, [0.2, 0.22, 0.26]);
+          c.box(x, z, 280, 14); }
+        // --- spectator terrace facing the figure-eight crossover
+        { const x = -40, z = -300, yaw = Math.atan2(40, 180), g = c.geo(x, z), y = c.h(x, z);
+          g.at(x, y, z, yaw);
+          for (let k = 0; k < 5; k++) g.box(0, 0.5 + k * 0.8, -k * 1.6, 50, 1 + k * 1.6, 1.6, { top: k % 2 ? [0.62, 0.6, 0.56] : [0.55, 0.53, 0.5], side: [0.5, 0.49, 0.46] });
+          g.box(0, 9, -4, 52, 0.4, 10, [0.85, 0.85, 0.82]); g.reset();
+          c.box(x - Math.sin(yaw) * 3, z - Math.cos(yaw) * 3, 50, 9, yaw); }
+        // --- tyre stacks: donut centre post and practice-pad corners
+        tyres(c, -110, 205, 4);
+        for (const [x, z] of [[-470, 180], [-515, 305], [-305, 305], [-470, 240], [-410, 200], [-350, 240], [-410, 280]]) tyres(c, x, z);
+        // --- light towers
+        for (const [x, z] of [[-410, 330], [-200, 150], [110, -150], [-110, -110], [300, -300], [-300, -540], [200, -545], [300, 30], [-230, -160]]) {
+          if (c.sd(x, z) < 15) continue;
+          const y = c.h(x, z), g = c.geo(x, z);
+          g.cylinder(x, y + 12, z, 0.5, 24, 6, [0.5, 0.5, 0.52]); g.box(x, y + 24, z, 5, 3, 1, [0.9, 0.92, 0.95, 0.5]); c.circle(x, z, 0.8);
+        }
+        // --- trees on the hills and round the venue (none on the yard / quay)
+        c.scatter(Math.floor(3800 * q.density), (x, z, inPlay) => {
+          const y = c.h(x, z), g = c.geo(x, z), s = 0.8 + r() * 0.7;
+          if (r() < 0.55) pine(g, x, y, z, s * 1.25, r); else leafy(g, x, y, z, s, r);
+          if (inPlay) c.circle(x, z, 0.5 * s); c.shadow(x, z, 2.6 * s, 0.3);
+        }, (x, z) => c.sd(x, z) > 26 && z < QUAY - 30 && !inYard(x, z, 30) && (Math.max(Math.abs(x), -z) > 520 || r() < 0.35));
+        c.scatter(Math.floor(300 * q.density), (x, z, inPlay) => {
+          const s = 0.8 + r() * 1.6; rock(c.geo(x, z), x, c.h(x, z), z, s, r, [0.55, 0.53, 0.5]); if (inPlay) c.circle(x, z, s);
+        }, (x, z) => c.sd(x, z) > 20 && z < QUAY - 30 && !inYard(x, z, 30));
       },
     };
   },

@@ -13,7 +13,7 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT) || 3000;
 const PUB = path.join(__dirname, 'public');
 
-const MAPS = ['track', 'desert', 'mountain', 'forest', 'city'];
+const MAPS = ['track', 'desert', 'mountain', 'forest', 'city', 'drift'];
 const MODES = ['endless', 'standard', 'chill', 'competitive', 'challenge', 'race', 'battle'];
 const COMP_MODES = ['challenge', 'race', 'battle'];
 const SNAPSHOT_HZ = 20;
@@ -442,7 +442,7 @@ function endGame(r) {
 // -------------------------------------------------------------
 function startMatch(r) {
   const valid = r.mode === 'race' ? SH.RACE_MAPS : r.mode === 'battle' ? SH.BATTLE_MAPS : MAPS;
-  if (!valid.includes(r.map)) return r.mode === 'race' ? 'Pick a map with a race circuit (Apex Circuit, Dune Valley, Pinewood Trails or City Nights)' : 'Pick a map with a battle course (Apex Circuit, Dune Valley, Kurogane Pass or Pinewood Trails)';
+  if (!valid.includes(r.map)) return r.mode === 'race' ? 'Pick a map with a race circuit' : 'Pick a map with a battle course (Apex Circuit, Dune Valley, Kurogane Pass, Pinewood Trails or Ironbay Drift Park)';
   const present = [...r.players].filter((id) => !clients.get(id).suspended);
   if (r.mode === 'battle' && present.length < 2) return 'Drift Battle needs 2 players in the room (solo players can battle their own ghost from Play → Drift Battle)';
   clearTimers(r);
