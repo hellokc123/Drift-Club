@@ -4,7 +4,8 @@
   "description": "3D browser drifting game with real-time multiplayer rooms",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node tests/multiplayer.test.mjs"
   },
   "engines": {
     "node": ">=18"

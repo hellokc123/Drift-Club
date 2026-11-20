@@ -86,9 +86,9 @@ export class Game {
     const N = this.net;
     const on = (t, fn) => this.unsub.push(N.on(t, fn));
     on('snap', (m) => {
-      const t = N.localTime(m.ts);
       for (const p of m.ps) {
         if (p[0] === N.id) continue;
+        const t = N.localTime(m.ts - (p[12] || 0)); // p[12] = how old this state was when the server sent it
         let r = this.remotes.get(p[0]);
         if (!r) r = this.addRemote(p[0]);
         r.buf.push({ t, x: p[1], y: p[2], z: p[3], h: p[4], vx: p[5], vz: p[6], s: p[7], f: p[8], sl: p[9], pi: p[10] || 0, ro: p[11] || 0 });
@@ -168,7 +168,7 @@ export class Game {
       r.x = s.x; r.y = s.y; r.z = s.z; r.h = s.h; r.vx = s.vx; r.vz = s.vz; r.steer = s.s; r.flags = s.f; r.slip = s.sl; r.pitch = s.pi; r.roll = s.ro;
       r.speed = Math.hypot(s.vx, s.vz);
       if (r.dims) r.spin += (fwd / r.dims.wheelR) * dt;
-      r.seen = now - b[b.length - 1].t < 3000;
+      r.seen = now - b[b.length - 1].t < 1000 + (this.net.interpDelay || 120); // no updates for ~1 s: hide (no frozen ghosts on the road)
     }
   }
 
@@ -359,7 +359,7 @@ export class Game {
     if (this.comp) this.comp.update(dt, !simPaused);
     if (this.mp) {
       this.interpRemotes(dt);
-      this.sendT -= dt; if (this.sendT <= 0) { this.sendT = 0.05; if (!this.comp && !this.spectator) this.sendState(); }
+      this.sendT -= dt; if (this.sendT <= 0) { this.sendT = Math.max(0, this.sendT + 0.05); if (!this.comp && !this.spectator) this.sendState(); } // keep the leftover: steady 20 Hz
       this.scoreT -= dt; if (this.scoreT <= 0) { this.scoreT = 0.25; if (!this.comp && (!this.round || this.round.phase === 'running')) this.sendScore(); }
     }
     const c = this.car;

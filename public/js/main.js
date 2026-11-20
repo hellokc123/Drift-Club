@@ -8,6 +8,7 @@ import { Showroom } from './showroom.js';
 import { Game } from './game.js';
 import { loadSettings, saveSettings } from './settings.js';
 import { MAP_LIST } from './maps.js';
+import { MODES } from './scoring.js';
 
 class App {
   constructor() {
@@ -117,9 +118,14 @@ class App {
     N.on('joined', () => { if (!this.game) this.ui.show('lobby'); });
     N.on('room', () => { if (this.ui.current === 'lobby') this.ui.renderLobby(); });
     N.on('left', () => { this.settings.lastRoom = ''; this.saveSettings(); if (!this.game) this.ui.show('mp'); });
-    N.on('error', (m) => toast(esc(m.msg), 3000, 'bad'));
+    N.on('error', (m) => {
+      toast(esc(m.msg), 4000, 'bad');
+      if (m.gone && this.settings.lastRoom === m.gone) { this.settings.lastRoom = ''; this.saveSettings(); if (this.ui.current === 'mp') this.ui.enterMP(); }
+    });
     N.on('chat', (m) => { if (!this.game) this.ui.chatLine(m); });
     N.on('gameStart', (m) => {
+      // never guess a mode: an unknown one used to silently fall back to Endless
+      if (!MODES.find((x) => x.id === m.mode)) { toast(`This room uses a game mode your page doesn't know (${esc(m.mode)}). Refresh the page.`, 6000, 'bad'); return; }
       if (this.game && this.game.mp) this.endGame();
       this.startGame({ mp: true, mapId: m.map, modeId: m.mode, spawn: m.spawn, rounds: m.rounds, roundTime: m.roundTime, comp: m.comp, spectator: m.spectator, grid: m.grid, resume: m.resume, rules: m.rules || 'open' });
     });
@@ -129,16 +135,38 @@ class App {
     N.inGame = () => !!(this.game && this.game.mp);
     const banner = (on, text) => { const b = $('#netbanner'); b.classList.toggle('hidden', !on); if (text) b.textContent = text; };
     N.on('reconnecting', () => banner(true, 'Connection lost — reconnecting…'));
-    N.on('reconnected', () => { banner(false); toast('Reconnected', 1500, 'good'); if (this.ui.current === 'lobby') this.ui.renderLobby(); });
-    N.on('resumeFailed', () => {
+    N.on('reconnected', () => {
+      banner(false);
+      if (!N.room) return; // fresh session (no room): 'roomLost' explains what happened if needed
+      toast('Reconnected', 1500, 'good');
+      if (this.ui.current === 'lobby') this.ui.renderLobby();
+    });
+    // our room is gone for us (server restarted, or we were away too long): say so clearly, never
+    // leave a stale lobby on screen or drop the player into some other room
+    N.on('roomLost', ({ code, reason }) => {
       banner(false);
       if (this.game && this.game.mp) { this.endGame(); this.audio.playMusic('menu'); }
-      if (['lobby', 'none', 'create'].includes(this.ui.current) || !this.game) this.ui.show('mp');
-      toast('Reconnected, but your room slot had expired — rejoin with the room code', 4000, 'bad');
+      if (this.settings.lastRoom === code) { this.settings.lastRoom = ''; this.saveSettings(); }
+      if (!this.game) this.ui.show('mp');
+      const why = reason === 'restart' ? 'the multiplayer server restarted, which closes every room'
+        : reason === 'offline' ? 'the server could not be reached for too long'
+          : 'you were disconnected for more than 30 seconds, so your place was given up';
+      toast(`Room ${esc(code)} is gone: ${why}. Create a new room (or rejoin if your friends are still there).`, 7000, 'bad');
     });
+    N.on('host', (m) => {
+      if (m.id === N.id) toast(`${esc(m.prev)} left — <b>you are now the host</b> (you can change mode and map)`, 5000, 'good');
+      else toast(`<b>${esc(m.name)}</b> is now the host`, 4000);
+      if (this.ui.current === 'lobby') this.ui.renderLobby();
+    });
+    N.on('replaced', () => {
+      if (this.game && this.game.mp) { this.endGame(); this.audio.playMusic('menu'); }
+      if (!this.game) this.ui.show('main');
+      toast('Multiplayer was opened in another tab or window, so this one was disconnected.', 6000, 'bad');
+    });
+    N.on('serverRestart', (m) => banner(true, m.msg || 'Server restarting…'));
     N.on('disconnect', ({ was }) => {
       banner(false);
-      if (!was) return;
+      if (!was || N.replaced) return;
       if (this.game && this.game.mp) { this.endGame(); this.audio.playMusic('menu'); }
       if (this.game == null && ['lobby', 'create', 'mp', 'none'].includes(this.ui.current)) { this.ui.show('mp'); }
       toast('Disconnected from the multiplayer server', 3500, 'bad');

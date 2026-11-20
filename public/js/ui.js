@@ -349,7 +349,11 @@ export class UI {
     try { await N.connect(S.playerName, S.car, S.serverUrl, { patience: 30000 }); } catch { return toast('Multiplayer server unreachable', 3000, 'bad'); }
     // look at the room first: if it restricts performance mods, show its rules before joining
     const info = await new Promise((res) => { const off = N.on('peek', (m) => { off(); res(m.room); }); N.send({ t: 'peek', code }); setTimeout(() => { off(); res(undefined); }, 4000); });
-    if (info === null) return toast(`Room "${esc(code)}" not found`, 3000, 'bad');
+    if (info === null) {
+      // the room is gone (closed, or the server restarted): say so and forget it, never join something else
+      if (S.lastRoom === code) { S.lastRoom = ''; this.app.saveSettings(); if (this.current === 'mp') $('#mp-rejoin').classList.add('hidden'); }
+      return toast(`Room ${esc(code)} doesn't exist any more (it closed, or the server restarted). Create a new room.`, 5000, 'bad');
+    }
     if (info && info.rules && info.rules !== 'open') {
       const ok = await this.confirmRules(info); if (!ok) return;
     }
@@ -406,8 +410,11 @@ export class UI {
     draw();
     $('#create-go').onclick = async () => {
       this.click();
-      const N = this.app.net, val = (id, d) => ($('#' + id) ? $('#' + id).value : d);
-      try { await N.connect(S.playerName, S.car, S.serverUrl, { patience: 30000 }); } catch { return toast('Multiplayer server unreachable', 3000, 'bad'); }
+      const N = this.app.net, val = (id, d) => ($('#' + id) ? $('#' + id).value : d), btn = $('#create-go');
+      if (btn.disabled) return; // one room per click, even while a sleeping server wakes up
+      btn.disabled = true;
+      try { await N.connect(S.playerName, S.car, S.serverUrl, { patience: 30000 }); } catch { btn.disabled = false; return toast('Multiplayer server unreachable', 3000, 'bad'); }
+      setTimeout(() => { btn.disabled = false; }, 1500);
       N.send({ t: 'create', car: S.car, settings: { name: $('#cr-name').value, isPublic: st.pub, map: $('#cr-map').value, mode: $('#cr-mode').value, maxPlayers: +$('#cr-max').value, rounds: +val('cr-rounds', 3), roundTime: +val('cr-time', 90), variant: val('cr-variant', 'timed'), matchTime: +val('cr-mtime', 120), laps: +val('cr-laps', 3), rules: val('cr-rules', 'open') } });
     };
     this.show('create');
@@ -434,7 +441,8 @@ export class UI {
       <label>Performance mods<select id="lb-rules" ${dis}>${Object.entries(RULES).map(([k, x]) => `<option value="${k}" ${k === (room.rules || 'open') ? 'selected' : ''}>${x.name}</option>`).join('')}</select></label>
       <p class="muted">${RULES[room.rules || 'open'].desc}</p>
       ${this.compMaps(room.mode).includes(room.map) ? '' : '<p class="bad-note">This map has no ' + (room.mode === 'race' ? 'race circuit' : 'battle course') + ' — pick another map.</p>'}
-      ${host ? '' : '<p class="muted">Only the host can change settings.</p>'}`;
+      ${host ? (room.status === 'lobby' ? '<p class="muted"><b>You are the host:</b> you choose the mode and map.</p>' : '<p class="muted">A game is running. Press <b>End game</b> to change mode or map.</p>')
+        : `<p class="muted">Only the host (<b>${esc((room.players.find((p) => p.id === room.hostId) || {}).name || '?')}</b>) can change settings.</p>`}`;
     const send = (patch) => N.send({ t: 'settings', settings: patch });
     if (host) {
       $('#lb-name').onchange = (e) => send({ name: e.target.value });
@@ -447,9 +455,11 @@ export class UI {
     }
     const start = $('#lobby-start');
     start.classList.toggle('hidden', !host);
-    start.textContent = room.status === 'playing' ? 'Game in progress' : room.mode === 'battle' && room.players.length < 2 ? 'Need 2 players' : 'Start game';
-    start.disabled = room.status !== 'lobby';
-    start.onclick = () => { this.click(); N.send({ t: 'start' }); };
+    const playing = room.status === 'playing';
+    // while a game runs the host's button ends it (everyone back to the lobby), so the host can never be locked out
+    start.textContent = playing ? 'End game (everyone → lobby)' : room.mode === 'battle' && room.players.length < 2 ? 'Need 2 players' : 'Start game';
+    start.disabled = false;
+    start.onclick = () => { this.click(); N.send({ t: playing ? 'end' : 'start' }); };
     const jn = $('#lobby-joinrun');
     jn.classList.toggle('hidden', room.status !== 'playing'); jn.textContent = room.match && room.match.phase !== 'results' ? 'Watch the match ›' : 'Join the running game ›';
     jn.onclick = () => { this.click(); N.send({ t: 'join', code: room.code, car: this.S.car }); };
