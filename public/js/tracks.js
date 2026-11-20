@@ -76,75 +76,220 @@ export function samplePath(pts, closed, { linear = false } = {}) {
 }
 
 // ------------------------------------------------------------------ map geometry (rendered by maps.js)
-const CITY_B = 90, CITY_ST = 16, CITY_K = 4;
+const CITY_B = 90, CITY_ST = 16, CITY_K = 5;
 function cityRoads() {
-  const roads = [];
+  const roads = [], e = CITY_K * CITY_B;
   for (let i = -CITY_K; i <= CITY_K; i++) {
     const v = i * CITY_B;
-    roads.push({ pts: [[v, -CITY_K * CITY_B], [v, 0], [v, CITY_K * CITY_B]], width: CITY_ST });
-    roads.push({ pts: [[-CITY_K * CITY_B, v], [0, v], [CITY_K * CITY_B, v]], width: CITY_ST });
+    roads.push({ pts: [[v, -e], [v, 0], [v, e]], width: CITY_ST });
+    roads.push({ pts: [[-e, v], [0, v], [e, v]], width: CITY_ST });
   }
+  roads.push({ pts: [[-e, -e], [0, 0], [e, e]], width: CITY_ST, diagonal: true }); // the diagonal boulevard
   return roads;
 }
 export const CITY = { B: CITY_B, ST: CITY_ST, K: CITY_K };
 
+const sc = (k, pts) => pts.map(([x, z]) => [Math.round(x * k), Math.round(z * k)]);
+
+// Every map is a road NETWORK: road 0 is the main loop (the Speed Race circuit on most maps);
+// the other roads are connectors, cut-throughs and side roads whose ends sit on another road
+// (a junction) or inside a pad (car parks, skidpads, plazas).
 export const GEO = {
   track: {
     roads: [
-      { pts: [[-200, -300], [100, -300], [260, -290], [330, -230], [340, -140], [290, -80], [200, -60], [150, 0], [190, 70], [290, 110], [340, 190], [310, 290], [210, 320], [120, 270], [90, 180], [20, 120], [-60, 150], [-110, 240], [-200, 300], [-300, 280], [-330, 190], [-270, 120], [-170, 90], [-140, 10], [-210, -60], [-320, -120], [-340, -220], [-290, -290]], closed: true, width: 16 },
-      { pts: [[60, -300], [60, -270], [60, -245]], width: 12 },
+      // 0: the Grand Prix circuit
+      { pts: sc(1.25, [[-200, -300], [100, -300], [260, -290], [330, -230], [340, -140], [290, -80], [200, -60], [150, 0], [190, 70], [290, 110], [340, 190], [310, 290], [210, 320], [120, 270], [90, 180], [20, 120], [-60, 150], [-110, 240], [-200, 300], [-300, 280], [-330, 190], [-270, 120], [-170, 90], [-140, 10], [-210, -60], [-320, -120], [-340, -220], [-290, -290]]), closed: true, width: 16 },
+      // 1: pit link from the main straight to the infield skidpad
+      { pts: [[75, -375], [75, -335], [75, -290]], width: 12 },
+      // 2: "National" cut-through across the infield (short circuit / shortcut)
+      { pts: [[188, 0], [110, -40], [0, -60], [-100, -40], [-175, 12]], width: 14 },
+      // 3: outer service road all the way round the venue (outside the circuit walls)
+      { pts: [[0, -540], [330, -540], [520, -470], [545, -250], [540, 60], [545, 330], [470, 500], [250, 525], [0, 520], [-250, 525], [-470, 500], [-545, 330], [-545, 60], [-545, -250], [-520, -470], [-330, -540]], closed: true, width: 12 },
+      // 4,5: paddock exits to the service road
+      { pts: [[-160, -440], [-240, -490], [-300, -539]], width: 12 },
+      { pts: [[160, -440], [240, -490], [300, -539]], width: 12 },
+      // 6: east crossover: service road -> circuit (marshal access)
+      { pts: [[542, 120], [440, 110], [330, 128]], width: 12 },
+      // 7: north car park access
+      { pts: [[0, 519], [0, 460], [0, 395]], width: 12 },
+      // 8: autocross pad access (west)
+      { pts: [[-545, 20], [-470, 20], [-395, 20]], width: 12 },
+      // 9: infield back road: National -> hairpin infield
+      { pts: [[-60, -50], [-100, 60], [-118, 150], [-101, 240]], width: 11 },
     ],
-    pads: [{ x: 60, z: -170, r: 70 }, { x: 0, z: -345, w: 280, d: 56 }],
+    pads: [
+      { x: 75, z: -210, r: 80 }, // infield skidpad
+      { x: 0, z: -430, w: 340, d: 70 }, // paddock
+      { x: 0, z: 330, w: 130, d: 120 }, // north car park
+      { x: -330, z: 20, w: 120, d: 110 }, // autocross pad
+    ],
   },
   desert: {
     roads: [
-      { pts: [[-450, -400], [0, -470], [450, -420], [520, -100], [470, 250], [300, 480], [-100, 500], [-420, 420], [-520, 100], [-500, -200]], closed: true, width: 14 },
-      { pts: [[0, -462], [10, -320], [0, -175]], width: 12 },
-      { pts: [[512, -100], [330, -60], [175, -20]], width: 12 },
+      // 0: the highway loop round the valley
+      { pts: sc(1.3, [[-450, -400], [0, -470], [450, -420], [520, -100], [470, 250], [300, 480], [-100, 500], [-420, 420], [-520, 100], [-500, -200]]), closed: true, width: 14 },
+      // 1-4: four spokes from the highway into the salt flat (crossroads in the middle of the valley)
+      { pts: [[0, -606], [12, -420], [0, -200]], width: 12 },
+      { pts: [[674, -130], [430, -80], [200, -20]], width: 12 },
+      { pts: [[-20, 200], [-30, 420], [-90, 648]], width: 12 },
+      { pts: [[-200, 30], [-450, 70], [-670, 140]], width: 12 },
+      // 5: canyon road between the west mesas (west spoke -> north spoke)
+      { pts: [[-460, 72], [-500, 250], [-420, 400], [-280, 450], [-140, 410], [-28, 380]], width: 12 },
+      // 6: ghost-town road (west spoke -> south highway)
+      { pts: [[-330, 52], [-345, -100], [-330, -200], [-300, -350], [-320, -582]], width: 11 },
+      // 7: airstrip -> south-east highway
+      { pts: [[430, -430], [510, -500], [585, -546]], width: 12 },
+      // 8: gas station access
+      { pts: [[588, 360], [630, 362], [662, 362]], width: 12 },
     ],
-    pads: [{ x: 0, z: 0, r: 165 }, { x: 560, z: 290, w: 70, d: 50, yaw: 0.3 }],
+    pads: [{ x: 0, z: 0, r: 210 }, { x: 690, z: 365, w: 70, d: 50, yaw: 0.3 }, { x: 300, z: -300, w: 46, d: 420, yaw: 2.356 }, { x: -330, z: -200, w: 90, d: 70 }],
   },
   mountain: {
     roads: [
-      { pts: [[-40, -620], [120, -590], [250, -540], [290, -470], [240, -420], [100, -410], [-60, -400], [-220, -380], [-300, -320], [-270, -250], [-150, -230], [0, -230], [150, -210], [250, -160], [270, -90], [200, -40], [80, -40], [-60, -30], [-180, 0], [-220, 70], [-170, 130], [-80, 150], [-10, 180]], width: 11 },
+      // 0: valley ring road round the mountain
+      { pts: [[-300, -728], [100, -740], [420, -660], [610, -470], [700, -160], [690, 200], [570, 500], [300, 690], [0, 750], [-300, 700], [-560, 510], [-690, 200], [-710, -160], [-600, -470]], closed: true, width: 11 },
+      // 1: the Kurogane touge: base car park -> switchbacks -> summit lookout
+      { pts: [[-180, -730], [-238, -705], [-254, -655], [-212, -616], [-110, -609], [0, -604], [120, -590], [250, -540], [290, -470], [240, -420], [100, -410], [-60, -400], [-220, -380], [-300, -320], [-270, -250], [-150, -230], [0, -230], [150, -210], [250, -160], [270, -90], [200, -40], [80, -40], [-60, -30], [-180, 0], [-220, 70], [-170, 130], [-80, 150], [-10, 180]], width: 11 },
+      // 2: east descent: summit -> winding down the north-east face -> ring road
+      { pts: [[-10, 180], [60, 222], [170, 300], [300, 290], [405, 360], [340, 460], [215, 520], [250, 600], [360, 560], [460, 470], [598, 445]], width: 10.5 },
+      // 3: old forestry road: touge hairpin -> west valley
+      { pts: [[-296, -322], [-420, -300], [-560, -250], [-706, -170]], width: 9.5 },
+      // 4: lakeside rest-stop lane off the north ring (village)
+      { pts: [[-150, 728], [-140, 640], [-120, 590]], width: 10 },
     ],
-    pads: [{ x: -70, z: -660, w: 130, d: 70 }, { x: 30, z: 205, r: 48 }],
+    pads: [{ x: -70, z: -708, w: 130, d: 84 }, { x: 30, z: 205, r: 48 }, { x: -110, z: 560, w: 90, d: 60 }],
   },
   forest: {
     roads: [
-      { pts: [[-380, -320], [-150, -400], [120, -380], [330, -300], [430, -120], [390, 40], [420, 200], [360, 380], [160, 430], [-40, 380], [-120, 240], [-260, 200], [-400, 260], [-470, 80], [-430, -60], [-450, -200]], closed: true, width: 12 },
-      { pts: [[-440, -130], [-340, -145], [-262, -150]], width: 10 },
+      // 0: the main forest loop
+      { pts: sc(1.3, [[-380, -320], [-150, -400], [120, -380], [330, -300], [430, -120], [390, 40], [420, 200], [360, 380], [160, 430], [-40, 380], [-120, 240], [-260, 200], [-400, 260], [-470, 80], [-430, -60], [-450, -200]]), closed: true, width: 12 },
+      // 1: west spur into the gravel clearing
+      { pts: [[-572, -169], [-442, -188], [-320, -195]], width: 10 },
+      // 2: lakeside road along the south and west shore
+      { pts: [[505, 40], [360, -20], [180, -45], [20, 40], [-40, 180], [-20, 330], [-58, 490]], width: 11 },
+      // 3: north shore road
+      { pts: [[-22, 325], [120, 352], [300, 330], [420, 400], [466, 490]], width: 11 },
+      // 4: gravel logging trail: clearing -> north-west loop
+      { pts: [[-228, -110], [-250, 40], [-300, 170], [-336, 262]], width: 9 },
+      // 5: forest road through the middle: south loop -> cabin car park -> lakeside
+      { pts: [[156, -490], [158, -440], [156, -400], [160, -300], [175, -160], [180, -50]], width: 10 },
+      // 6: quarry track (outside the loop, south-west)
+      { pts: [[-490, -420], [-470, -520], [-445, -575]], width: 9 },
+      // 7: east forest track: east loop -> lakeside east end (short cut)
+      { pts: [[430, -390], [470, -200], [505, 40]], width: 9 },
     ],
-    pads: [{ x: -175, z: -150, r: 88 }, { x: 120, z: -290, w: 70, d: 40 }],
+    pads: [{ x: -228, z: -195, r: 100 }, { x: 156, z: -380, w: 70, d: 40 }, { x: -435, z: -630, r: 62 }],
   },
   city: { roads: cityRoads(), pads: [], openArea: true },
+  drift: {
+    roads: [
+      // 0: the drift course — main straight, fast right-hander, S-bends, hairpin, a figure-eight
+      // crossover in the middle, the long west sweeper and a final hairpin onto the straight
+      { pts: [[-250, -480], [0, -480], [200, -478], [330, -450], [425, -350], [440, -230], [380, -140], [450, -40], [410, 60], [345, 140], [280, 160], [225, 110], [150, 25], [0, -120], [-150, -265], [-270, -320], [-380, -260], [-420, -120], [-370, 10], [-250, 60], [-150, 30], [0, -120], [150, -270], [210, -340], [150, -395], [0, -405], [-250, -400], [-370, -420], [-380, -460]], closed: true, width: 18 },
+      // 1: paddock road along the south of the main straight -> west service road
+      { pts: [[-250, -480], [-420, -520], [-540, -420], [-560, -150], [-540, 120], [-500, 210]], width: 12 },
+      // 2: hairpin -> harbour container yard (north access)
+      { pts: [[282, 156], [300, 230], [300, 300]], width: 12 },
+      // 3: practice pad -> donut circle, and donut circle -> container yard
+      { pts: [[-300, 215], [-200, 200], [-145, 185]], width: 12 },
+      { pts: [[-80, 228], [-55, 262], [-40, 300]], width: 12 },
+      // 5: infield link: west sweeper -> practice pad
+      { pts: [[-300, 46], [-330, 140], [-360, 175]], width: 12 },
+      // 6: east service road: S-bends -> container yard east end
+      { pts: [[449, -40], [520, 40], [545, 160], [540, 300]], width: 11 },
+    ],
+    pads: [
+      { x: -40, z: -506, w: 300, d: 60 }, // paddock
+      { x: -410, z: 240, w: 230, d: 150 }, // practice pad
+      { x: -110, z: 205, r: 42 }, // donut circle
+      { x: 240, z: 357, w: 720, d: 150 }, // harbour container yard (alleys between the stacks)
+    ],
+  },
 };
+
+// Junctions: the end of a side road is snapped exactly onto the centre line of the road it joins
+// (the nearest earlier road within 40 m), unless it ends inside a pad. Done once here, so the
+// browser world, the server's off-track checks and the race routes all use the same points.
+function snapNetwork(G) {
+  const done = [];
+  const inPad = ([x, z]) => G.pads.some((p) => {
+    if (p.r) return Math.hypot(x - p.x, z - p.z) < p.r;
+    const c = Math.cos(p.yaw || 0), s = Math.sin(p.yaw || 0), lx = (x - p.x) * c - (z - p.z) * s, lz = (x - p.x) * s + (z - p.z) * c;
+    return Math.abs(lx) < p.w / 2 && Math.abs(lz) < p.d / 2;
+  });
+  for (const rd of G.roads) {
+    if (!rd.closed && done.length) {
+      for (const end of [0, rd.pts.length - 1]) {
+        const q = rd.pts[end]; if (inPad(q)) continue;
+        let best = 40, bp = null;
+        for (const o of done) for (let i = 0; i < o.n - (o.closed ? 0 : 1); i++) {
+          const j = (i + 1) % o.n, [d, t] = segDist(q[0], q[1], o.x[i], o.z[i], o.x[j], o.z[j]);
+          if (d < best) { best = d; bp = [o.x[i] + (o.x[j] - o.x[i]) * t, o.z[i] + (o.z[j] - o.z[i]) * t]; }
+        }
+        if (bp) rd.pts[end] = [Math.round(bp[0] * 10) / 10, Math.round(bp[1] * 10) / 10];
+      }
+    }
+    done.push(samplePath(rd.pts, !!rd.closed));
+  }
+}
+for (const id of Object.keys(GEO)) snapNetwork(GEO[id]);
 
 // ------------------------------------------------------------------ Speed Race circuits
 // Each route = the circuit centreline (closed). `start` = sample index of the start/finish
 // line; race direction = increasing sample index. Gates every GATE_SPACING samples.
 const GATE_SPACING = 16; // 16 samples × 3 m = 48 m between checkpoints
-function cityLoop() {
-  // rectangle along the streets x=±180, z=±180 with rounded corners (stays on the tarmac)
-  const a = 180, r = 10, pts = [];
-  const corner = (cx, cz, a0) => { for (let k = 0; k <= 4; k++) { const ang = a0 + (k / 4) * (Math.PI / 2); pts.push([cx + Math.cos(ang) * r, cz + Math.sin(ang) * r]); } };
-  corner(a - r, -a + r, -Math.PI / 2); corner(a - r, a - r, 0); corner(-a + r, a - r, Math.PI / 2); corner(-a + r, -a + r, Math.PI);
+// A street circuit through the given grid corners, corners rounded with radius r (stays on the tarmac)
+function streetLoop(wp, r = 10) {
+  const pts = [], n = wp.length;
+  for (let k = 0; k < n; k++) {
+    const p = wp[k], a = wp[(k - 1 + n) % n], b = wp[(k + 1) % n];
+    const ux = p[0] - a[0], uz = p[1] - a[1], ul = Math.hypot(ux, uz), vx = b[0] - p[0], vz = b[1] - p[1], vl = Math.hypot(vx, vz);
+    const turn = Math.acos(clamp((ux * vx + uz * vz) / (ul * vl), -1, 1));
+    if (turn < 0.05) { pts.push(p); continue; }
+    const cut = r / Math.tan((Math.PI - turn) / 2); // tangent length of a radius-r fillet
+    const s0 = [p[0] - (ux / ul) * cut, p[1] - (uz / ul) * cut], s1 = [p[0] + (vx / vl) * cut, p[1] + (vz / vl) * cut];
+    for (let t = 0; t <= 4; t++) { const f = t / 4, q0 = [s0[0] + (p[0] - s0[0]) * f, s0[1] + (p[1] - s0[1]) * f], q1 = [p[0] + (s1[0] - p[0]) * f, p[1] + (s1[1] - p[1]) * f]; pts.push([q0[0] + (q1[0] - q0[0]) * f, q0[1] + (q1[1] - q0[1]) * f]); }
+  }
   return pts;
 }
+// Downtown: the long south avenue, up the east side, a jog round the plaza, back down the west and
+// the diagonal boulevard into a hairpin at the south-west corner
+const CITY_LOOP = [[-180, -360], [270, -360], [270, 180], [90, 180], [90, 360], [-90, 360], [-90, -90], [-360, -360]];
 export const RACE = {
   track: { name: 'Apex Circuit', road: 0, start: 30, width: 16, margin: 14 },
   desert: { name: 'Dune Valley Highway', road: 0, start: 70, width: 14, margin: 16 },
+  mountain: { name: 'Kurogane Pass Loop', legs: [[0, [598, 445], [-182, -753], -1], [1, [-182, -753], [-10, 180], 1], [2, [-10, 180], [598, 445], 1]], start: 20, width: 10.5, margin: 12 },
   forest: { name: 'Pinewood Loop', road: 0, start: 40, width: 12, margin: 12 },
-  city: { name: 'Downtown Street Circuit', pts: cityLoop(), linear: true, start: 0, width: 16, margin: 6 },
+  drift: { name: 'Ironbay Figure-Eight', road: 0, start: 40, width: 18, margin: 12 },
+  city: { name: 'Downtown Street Circuit', pts: streetLoop(CITY_LOOP, 12), linear: true, start: 0, width: 16, margin: 6 },
 };
 export const RACE_MAPS = Object.keys(RACE);
+
+// A circuit made of pieces of several roads of the network: legs = [[road, [fromX, fromZ], [toX, toZ], dir]]
+// (dir +1 = along the road's point order, -1 = against it). Uses the roads' own 3 m samples, so the
+// race line lies exactly on the tarmac the world builds.
+function chainLegs(mapId, legs) {
+  const out = [];
+  for (const [ri, from, to, dir = 1] of legs) {
+    const rd = GEO[mapId].roads[ri], p = samplePath(rd.pts, !!rd.closed);
+    const near = ([x, z]) => { let b = 0, bd = 1e18; for (let i = 0; i < p.n; i++) { const d = (p.x[i] - x) ** 2 + (p.z[i] - z) ** 2; if (d < bd) { bd = d; b = i; } } return b; };
+    let i = near(from); const j = near(to);
+    for (let guard = 0; guard <= p.n; guard++) {
+      out.push([p.x[i], p.z[i]]);
+      if (i === j) break;
+      i = p.closed ? (i + dir + p.n) % p.n : clamp(i + dir, 0, p.n - 1);
+    }
+  }
+  // drop near-duplicate points where legs meet
+  return out.filter((q, k) => k === 0 || Math.hypot(q[0] - out[k - 1][0], q[1] - out[k - 1][1]) > 1);
+}
 
 const routeCache = new Map();
 export function raceRoute(mapId) {
   if (routeCache.has(mapId)) return routeCache.get(mapId);
   const R = RACE[mapId]; if (!R) return null;
-  const rd = R.pts ? { pts: R.pts, closed: true } : GEO[mapId].roads[R.road];
-  let path = samplePath(rd.pts, true, { linear: !!R.linear });
+  const rd = R.pts ? { pts: R.pts, closed: true } : R.legs ? { pts: chainLegs(mapId, R.legs), closed: true } : GEO[mapId].roads[R.road];
+  let path = samplePath(rd.pts, true, { linear: !!(R.linear || R.legs) });
   // rotate so sample 0 is the start/finish line
   if (R.start) {
     const rot = (arr) => { const o = new Float64Array(arr.length); for (let i = 0; i < arr.length; i++) o[i] = arr[(i + R.start) % arr.length]; return o; };
@@ -235,8 +380,9 @@ function figure8(r) {
 export const BATTLE = {
   track: { name: 'Esses & Carousel', road: 0, from: 0.175, to: 0.445, dir: 1, width: 16 },
   desert: { name: 'Salt Flat Figure-8', pts: figure8(55), width: 16 },
-  mountain: { name: 'Kurogane Downhill', road: 0, from: 0.93, to: 0.58, dir: -1, width: 11 },
+  mountain: { name: 'Kurogane Downhill', road: 1, from: 0.94, to: 0.6, dir: -1, width: 11 },
   forest: { name: 'Lakeside Esses', road: 0, from: 0.607, to: 0.878, dir: 1, width: 12 },
+  drift: { name: 'Ironbay S-Bends', road: 0, from: 0.13, to: 0.36, dir: 1, width: 18 },
 };
 export const BATTLE_MAPS = Object.keys(BATTLE);
 const courseCache = new Map();

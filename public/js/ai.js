@@ -16,6 +16,10 @@ export class AIDriver {
     this.idx = this.nearest(0, path.n); this.lane = 0; this.laneT = 0; this.stuckT = 0; this.seed = seed;
     this.rand = () => { this.seed = (this.seed * 16807) % 2147483647; return this.seed / 2147483647; };
     this.wobble = 0; this.teleported = false;
+    // start in the lane we were placed in (grid column) and merge onto the line gradually,
+    // instead of every car aiming for the centre line at once and wedging together on narrow roads
+    const i = this.idx;
+    this.lane = clamp((vehicle.x - path.x[i]) * -path.tz[i] + (vehicle.z - path.z[i]) * path.tx[i], -3.5, 3.5); this.laneT = 2.5;
   }
   nearest(from, span) {
     const p = this.path, v = this.v; let best = 1e18, bi = from;
@@ -54,6 +58,8 @@ export class AIDriver {
       // side: + = to my right (same convention as this.lane)
       const rx = o.x - v.x, rz = o.z - v.z, ahead = rx * fx + rz * fz, side = -rx * fz + rz * fx;
       if (ahead > 0 && ahead < 16 && Math.abs(side) < 2.8) blocked = side >= 0 ? -1 : 1;
+      // a car right alongside: ease away from it rather than both squeezing into the same lane
+      if (Math.abs(ahead) < 5 && Math.abs(side) < 4.2) { this.lane = clamp(this.lane - Math.sign(side || 1) * 3 * dt, -3.5, 3.5); this.laneT = Math.max(this.laneT, 0.6); }
     }
     if (blocked) { this.lane = clamp(this.lane + blocked * 4 * dt, -3.5, 3.5); this.laneT = 1.5; }
     else if ((this.laneT -= dt) < 0) this.lane *= 1 - dt * 0.8;

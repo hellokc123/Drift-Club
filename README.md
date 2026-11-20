@@ -6,7 +6,7 @@ A 3D browser drifting game: relax and cruise on your own, or compete with friend
 
 - 28 cars across 7 categories (Basic, Sports, Supercars, Drift, Muscle, Pickups, SUVs), four per category, each with its own acceleration, top speed, handling, drift behaviour, engine sound and body shape
 - Customisation: paint (16 presets plus any custom colour), wheel colour, 6 rim styles, 3 spoilers, racing stripes in any colour, body kit, lowered suspension, underglow
-- 5 maps with their own atmosphere: **Apex Circuit** (race track, sunny), **Dune Valley** (desert, golden hour), **Kurogane Pass** (mountain touge, dusk), **Pinewood Trails** (forest and lake, misty morning) and **City Nights** (city, night)
+- 6 maps with their own atmosphere, each a road network (connected roads, junctions, shortcuts, side roads to car parks / pads) rather than a single loop: **Apex Circuit** (race track, sunny), **Dune Valley** (desert, golden hour), **Kurogane Pass** (mountain touge, dusk), **Pinewood Trails** (forest and lake, misty morning), **City Nights** (city, night) and **Ironbay Drift Park** (harbourside drift venue: figure-eight course, hairpins, practice pad, donut circle, container yard)
 - 4 modes: **Endless**, **Standard** (with timed drift challenges), **Chill** and **Competitive** (timed rounds, leaderboard, round winners)
 - Room-based multiplayer: create, join by code, public room list, private rooms, host controls, live positions, name tags, synced scores and rounds, lobby and in-game chat, leaving and rejoining
 - No downloads, no external libraries and no asset files. The renderer, models, terrain, engine sounds and music are all generated in code.
@@ -243,7 +243,7 @@ public/
 
 **Car designs:** all 14 cars have their own 3D model, generated from their `LOOKS` design. Same-category cars differ in body shape and proportions, not just paint. All designs are original and fictional, with no real brands or logos.
 
-**Add a map:** write a spec function in `SPECS` in `maps.js` (terrain function, road control points, pads, scenery, sky/fog/sun), add it to `MAP_LIST`, and add its id to `MAPS` in `server.js`.
+**Add a map:** put its road network in `GEO` in `tracks.js` (road 0 = main loop; side roads whose ends sit on another road are snapped onto it as junctions; pads for car parks / skidpads), give it a Speed Race circuit in `RACE` (a road, a polyline, or `legs` chaining pieces of several roads), write a spec function in `SPECS` in `maps.js` (terrain function, road styles, pads, scenery, sky/fog/sun), add it to `MAP_LIST`, and add its id to `MAPS` in `server.js`.
 
 **Add a mode:** add it to `MODES` in `scoring.js` (flags for score, timer, challenges, crash penalty) and to `MODES` in `server.js`.
 

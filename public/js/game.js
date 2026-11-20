@@ -12,7 +12,7 @@ import { $, fmt, toast, esc } from './ui.js';
 import { createComp } from './compmodes.js';
 import { round2 } from './judge.js';
 
-const MUSIC = { track: 'bright', desert: 'warm', mountain: 'dusk', forest: 'calm', city: 'night' };
+const MUSIC = { track: 'bright', desert: 'warm', mountain: 'dusk', forest: 'calm', city: 'night', drift: 'bright' };
 
 export class Game {
   constructor(app, opts) {
