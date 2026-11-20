@@ -4,7 +4,7 @@ A 3D browser drifting game: relax and cruise on your own, or compete with friend
 
 **▶ Play now: [drift-club-qvkk.onrender.com](https://drift-club-qvkk.onrender.com)** (free server — the first load can take ~30 s while it wakes up)
 
-- 14 cars across 7 categories (Basic, Sports, Supercars, Drift, Muscle, Pickups, SUVs), each with its own acceleration, top speed, handling, drift behaviour, engine sound and body shape
+- 28 cars across 7 categories (Basic, Sports, Supercars, Drift, Muscle, Pickups, SUVs), four per category, each with its own acceleration, top speed, handling, drift behaviour, engine sound and body shape
 - Customisation: paint (16 presets plus any custom colour), wheel colour, 6 rim styles, 3 spoilers, racing stripes in any colour, body kit, lowered suspension, underglow
 - 5 maps with their own atmosphere: **Apex Circuit** (race track, sunny), **Dune Valley** (desert, golden hour), **Kurogane Pass** (mountain touge, dusk), **Pinewood Trails** (forest and lake, misty morning) and **City Nights** (city, night)
 - 4 modes: **Endless**, **Standard** (with timed drift challenges), **Chill** and **Competitive** (timed rounds, leaderboard, round winners)

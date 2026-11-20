@@ -79,6 +79,32 @@ test('drifting never creates speed out of nothing (energy) and does not gain spe
   }
 });
 
+test('every car (new ones and the secret car too) drifts both ways, never gains speed sliding, and survives a wall', () => {
+  for (const def of CARS) {
+    const id = def.id;
+    for (const dir of [1, -1]) {
+      const v = makeCar(id); upTo(v, 18); run(v, 0.3, { ...N, throttle: 0.6, steer: dir, handbrake: true });
+      let slid = 0, n = 0, ang = 0;
+      run(v, 4, { ...N, throttle: 0.8, steer: 0.6 * dir }, (c) => { n++; if (c.drifting) { slid++; ang += Math.abs(c.rel); } });
+      const mean = (ang / Math.max(1, slid)) * 57.3;
+      assert.ok(slid / n > 0.9, `${id} (${dir > 0 ? 'left' : 'right'}) drifted only ${(100 * slid / n).toFixed(0)}% of the time`);
+      assert.ok(mean > 25 && mean < 80, `${id} (${dir > 0 ? 'left' : 'right'}) mean drift angle ${mean.toFixed(0)} deg`);
+    }
+    const u = makeCar(id); enterDrift(u, 22); let prev = u.speed;
+    run(u, 1.5, { ...N, throttle: 0, steer: 1, handbrake: true }, (c) => { assert.ok(c.speed <= prev + 1e-6, `${id} gained speed while coasting sideways`); prev = c.speed; });
+    const w = makeCar(id); enterDrift(w); let top = 0;
+    run(w, 12, { ...N, throttle: 1, steer: 0.5 }, (c) => { top = Math.max(top, c.speed); });
+    assert.ok(top < def.top * 0.75, `${id} drifts too fast (${top.toFixed(1)} m/s)`);
+    // wall mid-drift
+    const walls = []; const x = makeCar(id, 'drift', pad(walls)); enterDrift(x); run(x, 1.0, { ...N, throttle: 0.8, steer: 0.5 });
+    const sp = x.speed, ux = x.vx / sp, uz = x.vz / sp, side = Math.sign(x.rel) || 1, nx = -Math.cos(x.h) * side, nz = Math.sin(x.h) * side;
+    const wx = ux * Math.cos(0.4) - nx * Math.sin(0.4), wz = uz * Math.cos(0.4) - nz * Math.sin(0.4), cx = x.x + nx * 1.6, cz = x.z + nz * 1.6;
+    walls.push([cx - wx * 60, cz - wz * 60, cx + wx * 60, cz + wz * 60]);
+    let spun = false, maxW = 0; run(x, 2, { ...N, throttle: 0.8, steer: 0.5 }, (c) => { if (c.mode === 'spin') spun = true; maxW = Math.max(maxW, Math.abs(c.w)); });
+    assert.ok(!spun && maxW < 4.5 && finite(x), `${id} lost it at the wall (spin ${spun}, yaw ${maxW.toFixed(1)})`);
+  }
+});
+
 test('hitting a wall mid-drift does not spin the car', () => {
   for (const id of ['shiro', 'hatch', 'brute']) for (const tilt of [0.3, 0.5]) {
     const walls = [];
