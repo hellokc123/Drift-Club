@@ -12,7 +12,7 @@ const ENTRY = path.join(ROOT, 'js', 'main.js');
 const OUT = path.join(__dirname, 'DriftClub.html');
 
 const IMPORT_RE = /^import\s*\{([^}]*)\}\s*from\s*['"](.+?)['"];?\s*$/gm;
-const EXPORT_RE = /^export\s+(?:const|let|var|function\*?|class)\s+([A-Za-z_$][\w$]*)/gm;
+const EXPORT_RE = /^export\s+(?:const|let|var|(?:async\s+)?function\*?|class)\s+([A-Za-z_$][\w$]*)/gm;
 
 const mods = new Map(); // abs path -> {id, deps, code}
 const order = [];
@@ -49,6 +49,8 @@ for (const f of order) {
 
 let html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 const css = fs.readFileSync(path.join(ROOT, 'css', 'style.css'), 'utf8');
+// PWA bits (manifest, home-screen icon) need a web server; the standalone file skips them
+html = html.replace(/^\s*<link rel="(?:manifest|apple-touch-icon)"[^>]*>\n?/gm, '');
 html = html.replace(/<link rel="stylesheet" href="css\/style.css">/, () => `<style>\n${css}\n</style>`);
 const safeJs = js.replace(/<\/script/gi, '<\\/script');
 html = html.replace(/<script type="module" src="js\/main.js"><\/script>/, () => `<script>\n${safeJs}\n</script>`);

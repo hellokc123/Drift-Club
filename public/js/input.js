@@ -83,10 +83,16 @@ export class Input {
   // driving input snapshot
   read() {
     const s = this.settings;
-    this.rampKeys(this.key('throttle'), this.key('brake'));
+    // touch controls (phones/tablets): the on-screen pedals ramp like keys, the steering pad is analog
+    const t = this.touch && this.touch.active ? this.touch.read() : null;
+    this.rampKeys(this.key('throttle') || !!(t && t.throttle), this.key('brake') || !!(t && t.brake));
     let throttle = this.kThr, brake = this.kBrk;
     let steer = (this.key('left') ? 1 : 0) - (this.key('right') ? 1 : 0);
     let handbrake = this.key('handbrake'), boost = this.key('boost'), analog = false;
+    if (t) {
+      if (t.steer && !steer) { steer = t.steer; analog = true; }
+      handbrake = handbrake || t.handbrake; boost = boost || t.boost;
+    }
     const p = s.gamepad !== false ? this.pad() : null;
     if (p) {
       const dz = s.deadzone ?? 0.15;

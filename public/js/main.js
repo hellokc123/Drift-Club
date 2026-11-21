@@ -9,6 +9,7 @@ import { Game } from './game.js';
 import { loadSettings, saveSettings } from './settings.js';
 import { MAP_LIST } from './maps.js';
 import { MODES } from './scoring.js';
+import { TouchControls, goFullscreen } from './touch.js';
 
 class App {
   constructor() {
@@ -25,6 +26,7 @@ class App {
     this.input = new Input(this.settings);
     this.net = new Net();
     this.ui = new UI(this);
+    this.touch = new TouchControls(this);
     this.showroom = new Showroom(this);
     this.game = null; this.fps = 60; this.frames = 0; this.fpsT = 0;
     this.bindNet();
@@ -74,7 +76,8 @@ class App {
     const dt = Math.min(0.1, (t - this.last) / 1000); this.last = t;
     this.frames++; this.fpsT += dt;
     if (this.fpsT >= 0.5) { this.fps = Math.round(this.frames / this.fpsT); this.frames = 0; this.fpsT = 0; if (!this.game && this.settings.showFps) $('#fps').textContent = `${this.fps} fps`; }
-    this.renderer.resize(this.settings.renderScale || 1);
+    this.renderer.resize(this.settings.renderScale || 1, this.settings.maxDpr || 2);
+    this.touch.sync();
     try {
       if (this.game && this.game.ready) this.game.frame(dt);
       else if (!this.game) this.showroom.frame(dt, this.ui.current);
@@ -84,6 +87,8 @@ class App {
 
   startGame(opts) {
     if (this.game) this.endGame();
+    // phones: go fullscreen + landscape when a drive starts (works when started by a tap)
+    if (this.touch.active && this.settings.touchFullscreen !== false) goFullscreen(true);
     this.lastOpts = opts;
     const info = MAP_LIST.find((m) => m.id === opts.mapId);
     this.ui.loading(true, `Loading ${info ? info.name : 'map'}…`);
@@ -180,3 +185,8 @@ class App {
 }
 
 new App();
+
+// "Add to Home Screen" / offline shell. Not on file:// (the standalone DriftClub.html).
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Service worker not registered:', e.message)); });
+}

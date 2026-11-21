@@ -2,7 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#111316">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Drift Club">
 <title>Drift Club</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23111316'/%3E%3Cpath d='M6 21 L14 9 L26 9 L18 21 Z' fill='%23e2703c'/%3E%3C/svg%3E">
 <style>
@@ -459,6 +464,183 @@ p.tiny { font-size: 10.5px; margin: 4px 0 8px; }
 .modal { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, 0.6); z-index: 50; }
 .modal .panel { max-width: 440px; } .row-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
 
+/* =====================================================================
+   Phones & tablets: touch controls, rotate overlay, compact menus.
+   Everything here is either scoped to body.touch-on (set only on touch
+   devices) or to small-screen media queries, so PC layouts don't change.
+   ===================================================================== */
+html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
+canvas#gl { touch-action: none; }
+.screen { touch-action: pan-x pan-y; }
+#scr-garage { touch-action: pan-y; } /* horizontal drags rotate the car */
+button, .chip, .tab, .card { touch-action: manipulation; }
+.touch-only { display: none !important; }
+body.touch-on .touch-only { display: initial !important; }
+body.touch-on .kb-only, body.touch-on .kb-help { display: none !important; }
+.fs-btn { position: absolute; top: calc(14px + env(safe-area-inset-top)); right: calc(16px + env(safe-area-inset-right)); }
+
+/* ---------- on-screen driving controls */
+#touch { position: fixed; inset: 0; z-index: 6; pointer-events: none; touch-action: none; user-select: none; -webkit-user-select: none; --tc: 72px; }
+#touch * { -webkit-user-select: none; user-select: none; }
+.tc-steer { position: absolute; left: 0; top: calc(64px + env(safe-area-inset-top)); bottom: 0; width: 46%; pointer-events: auto; touch-action: none; }
+.tc-track { position: absolute; left: calc(env(safe-area-inset-left) + 128px); bottom: calc(env(safe-area-inset-bottom) + 34px); width: 208px; height: 58px; transform: translate(-50%, 0); border-radius: 99px;
+  background: rgba(18, 20, 24, 0.32); border: 1px solid rgba(255, 255, 255, 0.22); transition: opacity 0.15s; opacity: 0.75; }
+.tc-steer.on .tc-track { opacity: 1; bottom: auto; transform: translate(-50%, -50%); transition: none; }
+.tc-mid { position: absolute; left: 50%; top: 12px; bottom: 12px; width: 2px; margin-left: -1px; background: rgba(255, 255, 255, 0.25); }
+.tc-knob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin-left: -27px; border-radius: 50%; transform: translate(0, -50%);
+  background: rgba(236, 237, 239, 0.55); border: 2px solid rgba(255, 255, 255, 0.7); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
+.tc-steer.on .tc-knob { background: rgba(236, 237, 239, 0.8); }
+.tc-tilt-label { display: none; position: absolute; left: calc(env(safe-area-inset-left) + 128px); bottom: calc(env(safe-area-inset-bottom) + 98px); transform: translateX(-50%);
+  font-size: 11px; font-weight: 800; letter-spacing: 0.2em; color: rgba(236, 237, 239, 0.75); text-shadow: var(--text-shadow); }
+#touch.tilt .tc-steer { pointer-events: none; }
+#touch.tilt .tc-tilt-label { display: block; }
+#touch.tilt .tc-track { opacity: 0.5; }
+.tc-pedals { position: absolute; right: calc(16px + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom)); width: calc(var(--tc) * 3.35 + 20px); height: calc(var(--tc) * 2.55 + 10px); }
+.tc-btn { position: absolute; pointer-events: auto; touch-action: none; border-radius: 18px; border: 2px solid rgba(255, 255, 255, 0.28); color: #fff; padding: 0;
+  font-weight: 900; font-size: 12px; letter-spacing: 0.08em; line-height: 1.1; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); display: flex; align-items: center; justify-content: center;
+  transition: transform 0.06s, background 0.06s; -webkit-user-select: none; }
+.tc-btn.down { transform: scale(0.93); border-color: rgba(255, 255, 255, 0.75); }
+.tc-gas { right: 0; bottom: 0; width: calc(var(--tc) * 1.15); height: calc(var(--tc) * 1.75); background: rgba(84, 140, 96, 0.5); }
+.tc-gas.down { background: rgba(84, 140, 96, 0.82); }
+.tc-hb { right: calc(var(--tc) * 1.15 + 10px); bottom: 0; width: calc(var(--tc) * 1.15); height: calc(var(--tc) * 1.15); background: rgba(184, 77, 28, 0.5); border-radius: 50%; }
+.tc-hb.down { background: rgba(184, 77, 28, 0.85); }
+.tc-brake { right: calc(var(--tc) * 2.3 + 20px); bottom: 0; width: var(--tc); height: var(--tc); background: rgba(150, 62, 54, 0.48); }
+.tc-brake.down { background: rgba(150, 62, 54, 0.82); }
+.tc-boost { right: 0; bottom: calc(var(--tc) * 1.75 + 10px); width: calc(var(--tc) * 1.15); height: calc(var(--tc) * 0.8); background: rgba(160, 128, 58, 0.48); }
+.tc-boost.down { background: rgba(160, 128, 58, 0.85); }
+/* top-left in-game buttons */
+#touch-bar { position: fixed; top: calc(10px + env(safe-area-inset-top)); left: calc(12px + env(safe-area-inset-left)); z-index: 7; display: flex; gap: 8px; touch-action: none; }
+.tc-top { width: 46px; height: 46px; border-radius: 12px; border: 1px solid var(--line-strong); background: rgba(18, 20, 24, 0.6); color: var(--text); display: flex; align-items: center; justify-content: center; padding: 0; touch-action: manipulation; }
+.tc-top svg { width: 22px; height: 22px; fill: currentColor; }
+.tc-top.down { background: rgba(60, 66, 74, 0.85); }
+#touch-bar .tc-chat { display: none; }
+#touch-bar.mp .tc-chat { display: flex; }
+#touch-bar.spec .tc-reset { display: none; }
+/* "rotate your phone" */
+#rotate { position: fixed; inset: 0; z-index: 60; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 30px; touch-action: none; }
+#rotate b { font-size: 22px; font-style: italic; font-weight: 900; text-transform: uppercase; }
+#rotate p { color: var(--muted); margin: 0; }
+.rot-phone { width: 46px; height: 78px; border: 4px solid var(--text); border-radius: 10px; margin-bottom: 14px; position: relative; animation: rot 2.2s ease-in-out infinite; }
+.rot-phone::after { content: ''; position: absolute; left: 50%; bottom: 5px; width: 10px; height: 3px; margin-left: -5px; border-radius: 2px; background: var(--accent); }
+@keyframes rot { 0%, 25% { transform: rotate(0); } 55%, 100% { transform: rotate(-90deg); } }
+
+/* ---------- HUD layout while touch controls are on (keeps the thumbs' corners clear) */
+body.touch-on #hud-hint { display: none; }
+body.touch-on #hud-mode { max-width: 30vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 10.5px; }
+body.touch-on #hud-name { font-size: 13px; }
+body.touch-on .hud-tl { top: calc(64px + env(safe-area-inset-top)); left: calc(16px + env(safe-area-inset-left)); }
+body.touch-on #hud-score { top: calc(104px + env(safe-area-inset-top)); bottom: auto; left: calc(14px + env(safe-area-inset-left)); padding: 6px 12px; gap: 14px; }
+body.touch-on #hud-score b { font-size: 17px; }
+body.touch-on #hud-challenge { top: calc(160px + env(safe-area-inset-top)); bottom: auto; left: calc(14px + env(safe-area-inset-left)); width: 220px; }
+body.touch-on #speedo { left: 50%; right: auto; bottom: calc(2px + env(safe-area-inset-bottom)); transform: translateX(-50%) scale(0.62); transform-origin: 50% 100%; }
+body.touch-on #spec-banner { bottom: 120px; }
+body.touch-on #chat-log { bottom: calc(132px + env(safe-area-inset-bottom)); left: calc(16px + env(safe-area-inset-left)); width: min(300px, 40vw); }
+body.touch-on #chat-input { top: calc(64px + env(safe-area-inset-top)); bottom: auto; left: 50%; transform: translateX(-50%); width: min(380px, 70vw); }
+body.touch-on #minimap { top: calc(10px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right)); bottom: auto; left: auto; transform: scale(0.62); transform-origin: 100% 0; }
+body.touch-on #hud[data-mm]:not([data-mm=""]) #hud-board, body.touch-on #hud[data-mm]:not([data-mm=""]) #comp-hud .cboard { top: calc(var(--mm, 180px) * 0.62 + 20px); }
+body.touch-on #hud-board, body.touch-on #comp-hud .cboard { right: calc(12px + env(safe-area-inset-right)); width: 190px; font-size: 12px; padding: 6px 10px; }
+body.touch-on #toasts { top: calc(64px + env(safe-area-inset-top)); right: 50%; transform: translateX(50%); align-items: center; }
+body.touch-on .toast { max-width: min(380px, 80vw); }
+body.touch-on #netbanner { top: env(safe-area-inset-top); }
+
+/* ---------- bigger tap targets on touch screens (≥ 44 px) */
+body.touch-on .btn, body.touch-on .back, body.touch-on .tab, body.touch-on .chip, body.touch-on .key { min-height: 44px; }
+body.touch-on .btn.small { min-height: 44px; padding: 8px 14px; }
+body.touch-on .chip, body.touch-on .tab { padding: 8px 14px; display: inline-flex; align-items: center; }
+body.touch-on .back { padding: 8px 16px; }
+body.touch-on .sw { width: 40px; height: 40px; }
+body.touch-on input:not([type=range]), body.touch-on select { min-height: 44px; font-size: 16px; } /* 16px: no auto-zoom on focus */
+body.touch-on input[type=range] { height: 44px; }
+body.touch-on input[type=range]::-webkit-slider-thumb { width: 26px; height: 26px; margin-top: -10px; }
+body.touch-on .code-link { min-height: 44px; padding: 12px 8px 12px 0; font-size: 12px; }
+body.touch-on .code-form input { font-size: 16px; padding: 8px 10px; }
+body.touch-on .car-item { min-height: 52px; }
+body.touch-on .preset { min-height: 48px; }
+body.touch-on .mp-row input, body.touch-on .mp-save input { font-size: 16px; }
+body.touch-on .drag-hint::after { content: ' (swipe sideways on it)'; }
+body.touch-on .controls-help { font-size: 13px; }
+
+/* ---------- short screens: phones held sideways (and small laptops) */
+@media (max-height: 520px) {
+  .screen { padding: max(10px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left)); }
+  #scr-main { justify-content: flex-start; padding-left: max(5vw, env(safe-area-inset-left)); }
+  #scr-main .main-left { margin: auto 0; }
+  .logo { font-size: 46px; }
+  .brand p { margin: 6px 0 12px; font-size: 14px; }
+  .main-nav { display: grid; grid-template-columns: 1fr 1fr; width: min(560px, 92vw); gap: 8px; }
+  .nav-btn { padding: 8px 14px; min-height: 52px; }
+  .nav-btn b { font-size: 16px; }
+  .nav-btn small { font-size: 11.5px; }
+  .nav-btn:hover { transform: none; }
+  .main-foot { bottom: max(8px, env(safe-area-inset-bottom)); font-size: 12px; left: max(5vw, env(safe-area-inset-left)); }
+  .panel { padding: 12px 16px; border-radius: 14px; }
+  .phead { margin-bottom: 4px; }
+  .phead h2 { font-size: 22px; }
+  h3 { margin: 10px 0 6px; }
+  .map-thumb { height: 50px; }
+  .cards.comp { grid-template-columns: repeat(3, 1fr); }
+  .cards.comp .card span { font-size: 12px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .cards.maps { grid-template-columns: repeat(4, 1fr); }
+  .compcard .map-thumb { height: 60px; }
+  .card { padding: 10px; }
+  .card b { font-size: 15px; }
+  .play-foot { margin-top: 12px; }
+  .garage-left, .garage-right { max-height: calc(100vh - 20px); }
+  .car-name { font-size: 22px; }
+  .room-list { max-height: none; }
+  .mp-grid, .lobby-grid { grid-template-columns: minmax(260px, 1fr) 1.3fr; gap: 18px; }
+  #lobby-chat-log { height: 80px; }
+  .lobby-foot { flex-wrap: wrap; }
+  .pause-card { max-height: calc(100vh - 16px); overflow-y: auto; padding: 16px 18px; gap: 8px; }
+  .pause-card h2 { font-size: 20px; margin: 0; }
+  #pause { touch-action: pan-y; }
+  .res-card { max-height: calc(100vh - 16px); overflow-y: auto; padding: 16px 20px; }
+  .res-card.wide-res { max-height: calc(100vh - 16px); }
+  #results { touch-action: pan-y; }
+  #bigtext { font-size: 64px; }
+  #hud-timer, #comp-hud .cbig { font-size: 30px; }
+  .race-top .pos { font-size: 34px; }
+  #drift-score { font-size: 30px; } #drift-mult { font-size: 21px; }
+  #hud-drift { top: 58px; }
+  #pops { top: 120px; }
+  .pop { font-size: 21px; } .pop.big { font-size: 26px; } .pop.trick { font-size: 23px; }
+  .setting { padding: 6px 0; }
+}
+/* tablets / narrow windows in landscape: let the garage panels breathe */
+@media (max-width: 900px) and (min-height: 521px) { .garage-left, .garage-right { width: 290px; } }
+/* ---------- narrow screens: phones held upright */
+@media (max-width: 600px) {
+  .screen { padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom)); }
+  #scr-main { padding-left: 6vw; justify-content: flex-start; }
+  #scr-main .main-left { margin: auto 0; }
+  .main-nav { width: 88vw; }
+  .main-foot { display: none; }
+  .panel { padding: 14px; border-radius: 14px; }
+  .panel.wide, .panel.narrow { margin: 0 auto auto; }
+  .phead h2 { font-size: 22px; }
+  .cards.maps, .cards.modes { grid-template-columns: 1fr 1fr; }
+  .play-foot .btn.big, .play-foot .row { width: 100%; }
+  .play-foot .row .btn { flex: 1; }
+  .mp-grid, .lobby-grid { gap: 16px; }
+  .code-box { margin-left: 0; }
+  .code-box code { font-size: 20px; }
+  .lobby-foot { flex-wrap: wrap; }
+  .lobby-foot #lobby-wait { margin-left: 0; width: 100%; }
+  .room-row { grid-template-columns: 1fr auto; gap: 8px; }
+  .bind, .bind-head { grid-template-columns: 1fr 88px 88px; }
+  .tstat { grid-template-columns: 74px 1fr 118px; font-size: 11.5px; }
+  .tslider { grid-template-columns: 90px 1fr 26px; }
+  .setup-row { grid-template-columns: 1fr; }
+  .comp-only { grid-template-columns: 1fr; }
+  #rec-personal, #rec-online { overflow-x: auto; }
+  .res-card { padding: 16px; }
+  .battle-cols { grid-template-columns: 1fr; }
+  #scr-garage { padding: 10px; }
+  .garage-left, .garage-right { max-height: none; overflow: visible; width: 100%; }
+  .gtabs { top: -14px; }
+  .fs-btn { top: max(10px, env(safe-area-inset-top)); }
+}
+
 </style>
 </head>
 <body>
@@ -478,7 +660,8 @@ p.tiny { font-size: 10.5px; margin: 4px 0 8px; }
       <button class="nav-btn" data-go="credits"><b>Credits</b></button>
     </nav>
   </div>
-  <div class="main-foot"><span>W A S D drive · Space handbrake · Shift boost · Gamepad supported</span></div>
+  <div class="main-foot"><span class="kb-only">W A S D drive · Space handbrake · Shift boost · Gamepad supported</span><span class="touch-only">Touch controls on · tilt steering in Settings › Controls</span></div>
+  <button class="btn small fs-btn touch-only" id="btn-fs" type="button">Fullscreen</button>
 </section>
 
 <!-- ======================= PLAY SETUP ======================= -->
@@ -876,9 +1059,9 @@ class Renderer {
     this.tmpM = mat4.create();
   }
 
-  resize(scale = 1) {
+  resize(scale = 1, maxDpr = 2) {
     this.scale = scale;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2) * scale;
+    const dpr = Math.min(window.devicePixelRatio || 1, maxDpr || 2) * scale;
     const w = Math.max(1, Math.floor(this.canvas.clientWidth * dpr)), h = Math.max(1, Math.floor(this.canvas.clientHeight * dpr));
     if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
   }
@@ -1344,10 +1527,16 @@ class Input {
   // driving input snapshot
   read() {
     const s = this.settings;
-    this.rampKeys(this.key('throttle'), this.key('brake'));
+    // touch controls (phones/tablets): the on-screen pedals ramp like keys, the steering pad is analog
+    const t = this.touch && this.touch.active ? this.touch.read() : null;
+    this.rampKeys(this.key('throttle') || !!(t && t.throttle), this.key('brake') || !!(t && t.brake));
     let throttle = this.kThr, brake = this.kBrk;
     let steer = (this.key('left') ? 1 : 0) - (this.key('right') ? 1 : 0);
     let handbrake = this.key('handbrake'), boost = this.key('boost'), analog = false;
+    if (t) {
+      if (t.steer && !steer) { steer = t.steer; analog = true; }
+      handbrake = handbrake || t.handbrake; boost = boost || t.boost;
+    }
     const p = s.gamepad !== false ? this.pad() : null;
     if (p) {
       const dz = s.deadzone ?? 0.15;
@@ -6147,6 +6336,267 @@ const isCreatorUnlocked = () => unlockedThisSession || creatorUnlocked();
 return { sha256Fallback, sha256Hex, creatorUnlocked, tryCreatorCode, isCreatorUnlocked };
 })();
 
+// ===== js/touch.js =====
+__mod["js/touch.js"] = (function () {
+// Touch controls for phones and tablets: a steering pad on the left (drag, or tilt the device),
+// Gas / Brake / Handbrake / Boost thumb buttons on the right, and a small top bar (pause, camera,
+// reset, chat). Everything feeds the same Input object the keyboard and gamepad use.
+// Shown only on touch devices; hidden again as soon as a keyboard or gamepad is used.
+
+function isTouchDevice() {
+  try {
+    if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) return true;
+  } catch { /* old browser */ }
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '') && (navigator.maxTouchPoints || 0) > 0;
+}
+
+const STEER_RANGE = 74;   // px of drag for full lock
+const STEER_DEAD = 0.07;  // dead zone (fraction of full lock)
+const TILT_FULL = 24;     // degrees of tilt for full lock (scaled by the tilt sensitivity setting)
+
+class TouchControls {
+  constructor(app) {
+    this.app = app; this.input = app.input;
+    this.state = { throttle: 0, brake: 0, steer: 0, handbrake: false, boost: false };
+    this.held = { gas: 0, brake: 0, hb: 0, boost: 0 }; // pointer counts per button
+    this.hbLatch = false; // a quick handbrake flick (down+up between two frames) still counts once
+    this.steerPtr = null; this.steerX0 = 0; this.steerDrag = 0;
+    this.tilt = null; this.tiltZero = 0; this.tiltOn = false;
+    this.active = this.mode() === 'on' || (this.mode() === 'auto' && isTouchDevice());
+    this.build();
+    this.bindGlobal();
+    this.applyLayout();
+    if (this.S.touchSteer === 'tilt') this.enableTilt(false);
+    this.input.touch = this; // Input.read() merges our state
+    this.sync(true);
+  }
+  get S() { return this.app.settings; }
+  mode() { return this.S.touchControls || 'auto'; } // auto | on | off
+
+  // ------------------------------------------------------------- DOM
+  build() {
+    const root = this.root = document.createElement('div');
+    root.id = 'touch';
+    root.className = 'hidden';
+    root.innerHTML = `
+      <div class="tc-steer" data-z="steer"><div class="tc-track"><div class="tc-mid"></div><div class="tc-knob"></div></div><div class="tc-tilt-label">TILT</div></div>
+      <div class="tc-pedals">
+        <button class="tc-btn tc-boost" data-b="boost" aria-label="Boost"><span>BOOST</span></button>
+        <button class="tc-btn tc-hb" data-b="hb" aria-label="Handbrake"><span>HAND<br>BRAKE</span></button>
+        <button class="tc-btn tc-brake" data-b="brake" aria-label="Brake / reverse"><span>BRAKE</span></button>
+        <button class="tc-btn tc-gas" data-b="gas" aria-label="Gas"><span>GAS</span></button>
+      </div>`;
+    document.body.appendChild(root);
+    const bar = this.bar = document.createElement('div');
+    bar.id = 'touch-bar';
+    bar.className = 'hidden';
+    const svg = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+    bar.innerHTML = `<button class="tc-top" data-a="pause" aria-label="Pause menu">${svg('<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>')}</button>
+      <button class="tc-top" data-a="camera" aria-label="Change camera">${svg('<path d="M4 8h3l2-2.5h6L17 8h3v11H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="13" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/>')}</button>
+      <button class="tc-top tc-reset" data-a="reset" aria-label="Reset car">${svg('<path d="M5.5 12a6.5 6.5 0 1 0 2-4.7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M4 4.5v4.5h4.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>')}</button>
+      <button class="tc-top tc-chat" data-a="chat" aria-label="Chat">${svg('<path d="M4 5h16v10H10l-4 4v-4H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>')}</button>`;
+    document.body.appendChild(bar);
+    const rot = this.rotate = document.createElement('div');
+    rot.id = 'rotate';
+    rot.className = 'hidden';
+    rot.innerHTML = '<div class="rot-phone"></div><b>Rotate your phone</b><p>Drift Club is played sideways (landscape).</p>';
+    document.body.appendChild(rot);
+    this.knob = root.querySelector('.tc-knob');
+    this.track = root.querySelector('.tc-track');
+    this.steerZone = root.querySelector('.tc-steer');
+
+    // ---- steering: touch anywhere in the left zone; the slider jumps under your thumb
+    const z = this.steerZone;
+    z.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (this.steerPtr !== null || this.tiltOn) return;
+      this.steerPtr = e.pointerId; this.steerX0 = e.clientX; this.steerDrag = 0;
+      try { z.setPointerCapture(e.pointerId); } catch { /* synthetic */ }
+      const r = z.getBoundingClientRect();
+      this.track.style.left = `${Math.max(STEER_RANGE + 20, Math.min(r.width - STEER_RANGE - 20, e.clientX - r.left))}px`;
+      this.track.style.top = `${Math.max(40, Math.min(r.height - 40, e.clientY - r.top))}px`;
+      z.classList.add('on');
+      this.drawKnob();
+    });
+    const mv = (e) => {
+      if (e.pointerId !== this.steerPtr) return;
+      e.preventDefault();
+      this.steerDrag = Math.max(-1, Math.min(1, (e.clientX - this.steerX0) / STEER_RANGE));
+      this.drawKnob();
+    };
+    const up = (e) => {
+      if (e.pointerId !== this.steerPtr) return;
+      this.steerPtr = null; this.steerDrag = 0; z.classList.remove('on');
+      this.track.style.left = ''; this.track.style.top = '';
+      this.drawKnob();
+    };
+    z.addEventListener('pointermove', mv);
+    z.addEventListener('pointerup', up); z.addEventListener('pointercancel', up); z.addEventListener('lostpointercapture', up);
+
+    // ---- buttons: each pointer counts separately, so several fingers / slides work
+    root.querySelectorAll('.tc-btn').forEach((b) => {
+      const k = b.dataset.b, ptrs = new Set();
+      const set = () => { this.held[k] = ptrs.size; b.classList.toggle('down', ptrs.size > 0); };
+      b.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        ptrs.add(e.pointerId);
+        try { b.releasePointerCapture(e.pointerId); } catch { /* fine */ }
+        if (k === 'hb') this.hbLatch = true;
+        set();
+      });
+      const off = (e) => { if (ptrs.delete(e.pointerId)) set(); };
+      b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off);
+      b.addEventListener('pointerleave', off);
+      // sliding a thumb onto a button presses it (e.g. roll from gas onto handbrake)
+      b.addEventListener('pointerenter', (e) => { if (e.pointerType === 'touch' && e.buttons) { ptrs.add(e.pointerId); if (k === 'hb') this.hbLatch = true; set(); } });
+      b.addEventListener('contextmenu', (e) => e.preventDefault());
+    });
+
+    bar.querySelectorAll('[data-a]').forEach((b) => {
+      b.addEventListener('pointerdown', (e) => { e.preventDefault(); b.classList.add('down'); });
+      const off = () => b.classList.remove('down');
+      b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('pointerleave', off);
+      b.addEventListener('click', (e) => { e.preventDefault(); this.input.pressedQ.push(b.dataset.a); });
+    });
+
+    for (const el of [root, bar, rot]) {
+      el.addEventListener('contextmenu', (e) => e.preventDefault());
+      el.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+    }
+  }
+  drawKnob() {
+    const v = this.tiltOn ? this.state.steer * -1 : this.steerDrag;
+    this.knob.style.transform = `translate(${(v * STEER_RANGE).toFixed(1)}px, -50%)`;
+  }
+
+  // ------------------------------------------------------------- show / hide
+  bindGlobal() {
+    // any real touch -> touch mode on; keyboard (not typing into a field) -> off
+    window.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'touch' && this.mode() !== 'off' && !this.active) { this.active = true; this.sync(); }
+    }, true);
+    window.addEventListener('keydown', (e) => {
+      if (this.mode() === 'on' || !this.active) return;
+      const tag = (e.target && e.target.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (e.key === 'Unidentified' || e.keyCode === 229 || e.isComposing) return; // phone soft keyboards
+      this.active = false; this.release(); this.sync();
+    });
+    const orient = () => { this.calcOrient(); this.sync(); };
+    window.addEventListener('resize', orient);
+    window.addEventListener('orientationchange', orient);
+    document.addEventListener('fullscreenchange', () => this.sync(true));
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this.release(); });
+    window.addEventListener('blur', () => this.release());
+    this.calcOrient();
+  }
+  calcOrient() { this.portrait = window.innerHeight > window.innerWidth * 1.05; }
+  release() {
+    this.held = { gas: 0, brake: 0, hb: 0, boost: 0 }; this.hbLatch = false;
+    this.steerPtr = null; this.steerDrag = 0;
+    this.root.querySelectorAll('.down').forEach((b) => b.classList.remove('down'));
+    if (this.steerZone) this.steerZone.classList.remove('on');
+    this.drawKnob();
+  }
+  // called every frame by the app (cheap: only touches the DOM when something changed)
+  sync(force) {
+    const g = this.app.game;
+    const inGame = !!(g && g.ready);
+    if (this.mode() === 'off') this.active = false;
+    if (this.input.usingPad && this.active && this.mode() !== 'on') { this.active = false; this.release(); }
+    const res = document.getElementById('results');
+    const playing = inGame && !g.paused && !g.spectator && this.active && !(res && !res.classList.contains('hidden'));
+    const key = [this.active, inGame, playing, this.app.ui && this.app.ui.current, !!(g && g.paused), !!(g && g.mp), !!(g && g.spectator), this.portrait, this.tiltOn].join();
+    if (!force && key === this.key) return;
+    this.key = key;
+    document.body.classList.toggle('touch-on', this.active);
+    this.root.classList.toggle('hidden', !playing);
+    this.bar.classList.toggle('hidden', !(inGame && this.active));
+    this.bar.classList.toggle('mp', !!(g && g.mp));
+    this.bar.classList.toggle('spec', !!(g && g.spectator));
+    this.rotate.classList.toggle('hidden', !(inGame && this.active && this.portrait));
+    this.root.classList.toggle('tilt', this.tiltOn);
+    if (!playing) this.release();
+  }
+  applyLayout() {
+    const sz = { s: 62, m: 72, l: 84 }[this.S.touchSize || 'm'] || 72;
+    document.documentElement.style.setProperty('--tc', `${sz}px`);
+  }
+
+  // ------------------------------------------------------------- tilt steering
+  // iOS needs DeviceOrientationEvent.requestPermission() from a tap; Android Chrome doesn't.
+  async enableTilt(fromTap) {
+    const DOE = window.DeviceOrientationEvent;
+    if (!DOE) return { ok: false, msg: 'This device has no tilt sensor.' };
+    if (typeof DOE.requestPermission === 'function') {
+      if (!fromTap) return { ok: false, msg: 'Tap "Tilt" in Settings to allow motion access.' };
+      try { if ((await DOE.requestPermission()) !== 'granted') return { ok: false, msg: 'Motion access was not allowed.' }; } catch (e) { return { ok: false, msg: 'Motion access failed: ' + e.message }; }
+    }
+    if (!this.onTilt) {
+      this.onTilt = (e) => {
+        if (e.beta == null) return;
+        this.tilt = this.tiltValue(e.beta, e.gamma);
+        if (this.needZero) { this.tiltZero = this.tilt; this.needZero = false; }
+      };
+      window.addEventListener('deviceorientation', this.onTilt);
+    }
+    this.tiltOn = true; this.needZero = true; this.sync(true);
+    return { ok: true };
+  }
+  disableTilt() {
+    if (this.onTilt) window.removeEventListener('deviceorientation', this.onTilt);
+    this.onTilt = null; this.tiltOn = false; this.tilt = null; this.sync(true); this.drawKnob();
+  }
+  recalibrate() { this.needZero = true; }
+  // "how far is the phone turned like a steering wheel": the component of the up-vector along the
+  // screen's horizontal axis (device y in landscape), which works held upright or lying fairly flat
+  tiltValue(beta, gamma) {
+    const d = Math.PI / 180;
+    const ang = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (window.orientation || 0);
+    const a = ((ang % 360) + 360) % 360;
+    if (a === 90) return Math.sin(beta * d);        // landscape, top of phone to the left
+    if (a === 270) return -Math.sin(beta * d);      // landscape, top of phone to the right
+    const x = -Math.sin(gamma * d) * Math.cos(beta * d); // portrait (rotate overlay shows anyway)
+    return a === 180 ? -x : x;
+  }
+
+  // ------------------------------------------------------------- per-frame state for Input.read()
+  read() {
+    const st = this.state, h = this.held;
+    st.throttle = h.gas ? 1 : 0;
+    st.brake = h.brake ? 1 : 0;
+    st.handbrake = h.hb > 0 || this.hbLatch;
+    this.hbLatch = false;
+    st.boost = h.boost > 0;
+    let s = 0;
+    if (this.tiltOn && this.tilt !== null) {
+      const full = Math.sin(TILT_FULL / (this.S.tiltSens || 1) * Math.PI / 180);
+      s = -(this.tilt - this.tiltZero) / full; // tilt right (clockwise) -> steer right (negative)
+    } else s = -this.steerDrag; // drag right -> steer right (negative = right in Input)
+    const a = Math.abs(s);
+    st.steer = a < STEER_DEAD ? 0 : Math.sign(s) * Math.min(1, (a - STEER_DEAD) / (1 - STEER_DEAD));
+    if (this.tiltOn) this.drawKnob();
+    st.any = !!(h.gas || h.brake || h.hb || h.boost || st.steer || st.handbrake);
+    return st;
+  }
+}
+
+// Fullscreen + landscape lock (both optional; every browser handles these differently)
+async function goFullscreen(lock = true) {
+  try {
+    const el = document.documentElement;
+    if (!document.fullscreenElement) {
+      if (el.requestFullscreen) await el.requestFullscreen({ navigationUI: 'hide' });
+      else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    }
+  } catch { /* not allowed (no user tap, iPhone Safari, ...) */ }
+  if (lock) { try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch { /* unsupported */ } }
+}
+function exitFullscreen() { try { if (document.fullscreenElement) document.exitFullscreen(); } catch { /* fine */ } }
+
+return { isTouchDevice, TouchControls, goFullscreen, exitFullscreen };
+})();
+
 // ===== js/ui.js =====
 __mod["js/ui.js"] = (function () {
 // DOM menus: main menu, play setup, garage, multiplayer rooms, settings, pause, HUD helpers.
@@ -6163,6 +6613,7 @@ const { ACTIONS, DEFAULT_BINDINGS, keyLabel } = __mod["js/input.js"];
 const { VIEWS } = __mod["js/camera.js"];
 const { DRIVE_STYLES } = __mod["js/physics.js"];
 const { isCreatorUnlocked, tryCreatorCode } = __mod["js/secret.js"];
+const { goFullscreen, exitFullscreen } = __mod["js/touch.js"];
 const isRaceMode = (m) => m === 'race' || m === 'driftrace'; // modes run on the race circuits
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -6206,6 +6657,11 @@ class UI {
       const b = e.target.closest('[data-go]');
       if (b) { this.click(); const g = b.dataset.go; if (g === 'settings') this.settingsReturn = this.current; this.show(g); }
     });
+    const fs = $('#btn-fs');
+    if (fs) {
+      fs.onclick = async () => { this.click(); if (document.fullscreenElement) exitFullscreen(); else await goFullscreen(true); };
+      document.addEventListener('fullscreenchange', () => { fs.textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen'; });
+    }
     $('#btn-start').onclick = () => { this.click(); this.app.startGame({ mapId: this.playSel.map, modeId: this.playSel.mode, mp: false }); };
     $('#settings-back').onclick = () => { this.click(); this.app.saveSettings(); if (this.app.game) { this.show('none'); this.showPause(true, this.app.game); } else this.show(this.settingsReturn === 'settings' ? 'main' : this.settingsReturn); };
   }
@@ -6672,9 +7128,10 @@ class UI {
     if (tab === 'graphics') {
       h = choice('g-q', 'Graphics quality', [['low', 'Low (Chromebook)'], ['medium', 'Medium'], ['high', 'High']], S.quality)
         + slider('g-scale', 'Render resolution', 0.5, 1, 0.05, S.renderScale, pct)
+        + choice('g-dpr', 'Sharpness on high-DPI screens', [[1, 'Low (1×)'], [1.5, 'Phone (1.5×)'], [2, 'Full (2×)']], S.maxDpr || 2)
         + choice('g-fps', 'Show FPS', [[true, 'On'], [false, 'Off']], S.showFps)
         + `<div class="setting"><span>Fullscreen</span><button class="btn small" id="g-full">${document.fullscreenElement ? 'Exit fullscreen' : 'Enter fullscreen'}</button></div>
-        <p class="muted">Quality changes scenery density, terrain detail, smoke and draw distance. It applies the next time a map loads (anti-aliasing on High applies after a page reload).</p>`;
+        <p class="muted">Quality changes scenery density, terrain detail, smoke and draw distance. It applies the next time a map loads (anti-aliasing on High applies after a page reload). Phones and tablets start on Low with sharpness 1.5× so they run smoothly; raise them if yours is fast.</p>`;
     } else if (tab === 'audio') {
       h = slider('a-master', 'Master volume', 0, 1, 0.05, S.master, pct) + slider('a-sfx', 'Effects (engine, tyres)', 0, 1, 0.05, S.sfx, pct) + slider('a-music', 'Music volume', 0, 1, 0.05, S.music, pct)
         + '<p class="muted">Press M while driving to toggle music.</p>';
@@ -6690,7 +7147,14 @@ class UI {
         + slider('k-dz', 'Stick deadzone', 0, 0.4, 0.01, S.deadzone, pct)
         + `<div class="binds"><div class="bind-head"><span>Action</span><span>Primary</span><span>Secondary</span></div>${ACTIONS.map((a) => `<div class="bind"><span>${a.label}</span>${[0, 1].map((i) => `<button class="key" data-bind="${a.id}" data-slot="${i}">${keyLabel((S.bindings[a.id] || [])[i])}</button>`).join('')}</div>`).join('')}</div>
         <button class="btn small ghost" id="k-reset">Reset key bindings</button>
-        <p class="muted">Gamepad: Left stick steer · RT accelerate · LT brake/reverse · A or RB handbrake · X/B boost · Y camera · View reset · Menu pause.</p>`;
+        <p class="muted">Gamepad: Left stick steer · RT accelerate · LT brake/reverse · A or RB handbrake · X/B boost · Y camera · View reset · Menu pause.</p>
+        <h3>Touch screen (phones &amp; tablets)</h3>
+        ${choice('t-on', 'Touch controls', [['auto', 'Auto'], ['on', 'Always'], ['off', 'Off']], S.touchControls || 'auto')}
+        ${choice('t-steer', 'Touch steering', [['drag', 'Drag (left thumb)'], ['tilt', 'Tilt the device']], S.touchSteer || 'drag')}
+        ${S.touchSteer === 'tilt' ? slider('t-tilt', 'Tilt sensitivity', 0.5, 2, 0.05, S.tiltSens || 1, (v) => `${v.toFixed(2)}×`) + '<div class="setting"><span>Tilt centre</span><button class="btn small" id="t-cal">Set centre now (hold it level)</button></div>' : ''}
+        ${choice('t-size', 'Button size', [['s', 'Small'], ['m', 'Medium'], ['l', 'Large']], S.touchSize || 'm')}
+        ${choice('t-fs', 'Fullscreen when a drive starts', [[true, 'On'], [false, 'Off']], S.touchFullscreen !== false)}
+        <p class="muted">Left thumb: slide left/right to steer (it springs back to centre). Right thumb: Gas, Brake/Reverse, Handbrake (tap it to flick into a drift) and Boost. Use several fingers at once. Top-left buttons: pause, camera, reset${'' /* chat appears in multiplayer */}. Auto shows them when you touch the screen and hides them when you use a keyboard or controller.</p>`;
     } else if (tab === 'minimap') {
       const M = S.minimap;
       h = choice('m-on', 'Minimap', [[true, 'On'], [false, 'Off']], M.on)
@@ -6710,12 +7174,28 @@ class UI {
     const bindChoice = (id, key, conv, after) => $$(`#${id} .chip`).forEach((b) => (b.onclick = () => { this.click(); S[key] = conv(b.dataset.v); this.app.saveSettings(); after && after(); this.renderSettings(); }));
     const bool = (v) => v === 'true', num = (v) => +v, str = (v) => v;
     bindChoice('g-q', 'quality', str); bindSlider('g-scale', 'renderScale'); bindChoice('g-fps', 'showFps', bool, () => $('#fps').classList.toggle('hidden', !S.showFps));
-    if ($('#g-full')) $('#g-full').onclick = () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); setTimeout(() => this.renderSettings(), 300); };
+    if ($('#g-full')) $('#g-full').onclick = async () => { if (document.fullscreenElement) exitFullscreen(); else await goFullscreen(!!(this.app.touch && this.app.touch.active)); setTimeout(() => this.renderSettings(), 300); };
     const vol = () => this.app.audio.setVolumes({ master: S.master, sfx: S.sfx, music: S.music });
     bindSlider('a-master', 'master', vol); bindSlider('a-sfx', 'sfx', vol); bindSlider('a-music', 'music', vol);
     bindChoice('c-view', 'camView', num, () => { if (this.app.game) { this.app.game.cam.view = S.camView; this.app.game.cam.snap(); } });
     bindSlider('c-dist', 'camDist'); bindSlider('c-smooth', 'camSmooth'); bindSlider('c-fov', 'fov'); bindChoice('c-shake', 'camShake', bool);
     bindSlider('k-steer', 'steerSens'); bindChoice('k-pad', 'gamepad', bool); bindSlider('k-dz', 'deadzone');
+    bindChoice('g-dpr', 'maxDpr', num);
+    const T = this.app.touch;
+    bindChoice('t-on', 'touchControls', str, () => { if (T) { T.active = S.touchControls === 'on' || (S.touchControls === 'auto' && T.active); T.sync(true); } });
+    bindChoice('t-size', 'touchSize', str, () => T && T.applyLayout());
+    bindChoice('t-fs', 'touchFullscreen', bool);
+    bindSlider('t-tilt', 'tiltSens');
+    if ($('#t-cal')) $('#t-cal').onclick = () => { this.click(); if (T) T.recalibrate(); toast('Tilt centre set', 1200, 'good'); };
+    $$('#t-steer .chip').forEach((b) => (b.onclick = async () => {
+      this.click();
+      if (b.dataset.v === 'tilt') {
+        const r = T ? await T.enableTilt(true) : { ok: false, msg: 'Touch controls unavailable' };
+        if (!r.ok) { toast(esc(r.msg), 3500, 'bad'); return; }
+        S.touchSteer = 'tilt'; toast('Tilt steering on. Hold the phone the way you like to drive, then press "Set centre now" if it pulls to one side.', 4500, 'good');
+      } else { S.touchSteer = 'drag'; if (T) T.disableTilt(); }
+      this.app.saveSettings(); this.renderSettings();
+    }));
     $$('[data-bind]').forEach((b) => (b.onclick = () => {
       this.click(); b.textContent = 'Press a key…'; b.classList.add('listening');
       this.app.input.capture = (code) => {
@@ -6736,6 +7216,7 @@ class UI {
   fmtSlider(id, v) {
     if (id.startsWith('a-') || id === 'g-scale' || id === 'k-dz') return `${Math.round(v * 100)}%`;
     if (id === 'c-fov') return `${v}°`;
+    if (id === 't-tilt') return `${v.toFixed(2)}×`;
     return `${v.toFixed(2)}×`;
   }
 
@@ -6752,11 +7233,13 @@ class UI {
       <button class="btn" data-p="settings">Settings</button>
       ${host ? '<button class="btn" data-p="end">End session (everyone → lobby)</button>' : ''}
       ${mp ? '<button class="btn" data-p="lobby">Back to room lobby</button><button class="btn danger" data-p="leave">Leave room</button>' : '<button class="btn danger" data-p="quit">Quit to main menu</button>'}
-      <div class="controls-help"><b>Controls</b> W/S accelerate·brake · A/D steer · Space handbrake · Shift boost · C camera · R reset · H hide HUD · M music${mp ? ' · T chat' : ''}<br><b>Tricks</b> Throttle sets the drift angle · opposite lock (+ handbrake tap in Race) = transition · hold handbrake + steer into the slide = 360 · keep sliding past 180° = reverse drift · slow + full lock + throttle = donuts</div></div>`;
+      ${this.app.touch && this.app.touch.active ? `<button class="btn" data-p="fs">${document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen'}</button><div class="controls-help"><b>Touch</b> left thumb: slide to steer · right thumb: Gas, Brake/Reverse, Handbrake (tap = flick), Boost · top-left: pause, camera, reset${mp ? ', chat' : ''}. Tilt steering and button size: Settings › Controls.</div>` : ''}
+      <div class="controls-help kb-help"><b>Controls</b> W/S accelerate·brake · A/D steer · Space handbrake · Shift boost · C camera · R reset · H hide HUD · M music${mp ? ' · T chat' : ''}<br><b>Tricks</b> Throttle sets the drift angle · opposite lock (+ handbrake tap in Race) = transition · hold handbrake + steer into the slide = 360 · keep sliding past 180° = reverse drift · slow + full lock + throttle = donuts</div></div>`;
     $$('[data-p]', el).forEach((b) => (b.onclick = () => {
       this.click();
       const a = b.dataset.p, N = this.app.net;
       if (a === 'resume') game.togglePause(false);
+      if (a === 'fs') { if (document.fullscreenElement) exitFullscreen(); else goFullscreen(true); setTimeout(() => this.showPause(true, game), 300); }
       if (a === 'restart') { el.classList.add('hidden'); this.app.restartGame(); }
       if (a === 'style') { game.setStyle(game.car.styleId === 'drift' ? 'race' : 'drift'); this.showPause(true, game); }
       if (a === 'settings') { el.classList.add('hidden'); this.settingsReturn = 'none'; this.show('settings'); }
@@ -8185,7 +8668,16 @@ const { DEFAULT_BINDINGS } = __mod["js/input.js"];
 const { defaultConfig, normalizeColors } = __mod["js/cars.js"];
 const KEY = 'driftclub.settings.v1';
 
+// phones / tablets (touch-first): lighter graphics so they run smoothly and don't overheat
+function isMobileDevice() {
+  const ua = navigator.userAgent || '';
+  if (/Android|iPhone|iPad|iPod|Mobile/i.test(ua)) return true;
+  try { return !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches && !window.matchMedia('(any-pointer: fine)').matches); } catch { return false; }
+}
+const MOBILE = typeof navigator !== 'undefined' && typeof window !== 'undefined' && isMobileDevice();
+
 function guessQuality() {
+  if (MOBILE) return 'low';
   const mem = navigator.deviceMemory || 8, cores = navigator.hardwareConcurrency || 8;
   const ua = navigator.userAgent || '';
   if (/CrOS/.test(ua) || mem <= 4 || cores <= 4) return 'low';
@@ -8195,6 +8687,9 @@ function guessQuality() {
 const DEFAULTS = {
   playerName: 'Driver' + Math.floor(100 + Math.random() * 900),
   quality: guessQuality(), renderScale: 1, showFps: false,
+  maxDpr: MOBILE ? 1.5 : 2, // sharpness cap on high-DPI screens (phones: 1.5)
+  // touch controls: auto (touch devices) | on | off · steering drag | tilt · button size s|m|l
+  touchControls: 'auto', touchSteer: 'drag', tiltSens: 1, touchSize: 'm', touchFullscreen: true,
   master: 0.8, sfx: 0.8, music: 0.45,
   camView: 0, camDist: 1, camSmooth: 1, fov: 68, camShake: true,
   steerSens: 1, deadzone: 0.15, gamepad: true, units: 'kmh',
@@ -8216,11 +8711,13 @@ function loadSettings() {
   out.bindings = { ...DEFAULT_BINDINGS, ...(s.bindings || {}) };
   out.car = normalizeColors({ ...defaultConfig(out.car && out.car.id), ...(s.car || {}) }); // old neon colours -> nearest normal ones
   out.minimap = { ...DEFAULTS.minimap, ...(s.minimap || {}) };
+  // one-time phone preset for players who already had saved (PC-style) settings on a phone
+  if (MOBILE && !s.mobileTuned) { out.quality = 'low'; out.maxDpr = 1.5; out.mobileTuned = true; }
   return out;
 }
 function saveSettings(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* private mode */ } }
 
-return { DEFAULTS, loadSettings, saveSettings };
+return { isMobileDevice, DEFAULTS, loadSettings, saveSettings };
 })();
 
 // ===== js/main.js =====
@@ -8236,6 +8733,7 @@ const { Game } = __mod["js/game.js"];
 const { loadSettings, saveSettings } = __mod["js/settings.js"];
 const { MAP_LIST } = __mod["js/maps.js"];
 const { MODES } = __mod["js/scoring.js"];
+const { TouchControls, goFullscreen } = __mod["js/touch.js"];
 class App {
   constructor() {
     this.settings = loadSettings();
@@ -8251,6 +8749,7 @@ class App {
     this.input = new Input(this.settings);
     this.net = new Net();
     this.ui = new UI(this);
+    this.touch = new TouchControls(this);
     this.showroom = new Showroom(this);
     this.game = null; this.fps = 60; this.frames = 0; this.fpsT = 0;
     this.bindNet();
@@ -8300,7 +8799,8 @@ class App {
     const dt = Math.min(0.1, (t - this.last) / 1000); this.last = t;
     this.frames++; this.fpsT += dt;
     if (this.fpsT >= 0.5) { this.fps = Math.round(this.frames / this.fpsT); this.frames = 0; this.fpsT = 0; if (!this.game && this.settings.showFps) $('#fps').textContent = `${this.fps} fps`; }
-    this.renderer.resize(this.settings.renderScale || 1);
+    this.renderer.resize(this.settings.renderScale || 1, this.settings.maxDpr || 2);
+    this.touch.sync();
     try {
       if (this.game && this.game.ready) this.game.frame(dt);
       else if (!this.game) this.showroom.frame(dt, this.ui.current);
@@ -8310,6 +8810,8 @@ class App {
 
   startGame(opts) {
     if (this.game) this.endGame();
+    // phones: go fullscreen + landscape when a drive starts (works when started by a tap)
+    if (this.touch.active && this.settings.touchFullscreen !== false) goFullscreen(true);
     this.lastOpts = opts;
     const info = MAP_LIST.find((m) => m.id === opts.mapId);
     this.ui.loading(true, `Loading ${info ? info.name : 'map'}…`);
@@ -8406,6 +8908,11 @@ class App {
 }
 
 new App();
+
+// "Add to Home Screen" / offline shell. Not on file:// (the standalone DriftClub.html).
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch((e) => console.warn('Service worker not registered:', e.message)); });
+}
 
 return {  };
 })();

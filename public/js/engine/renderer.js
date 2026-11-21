@@ -144,9 +144,9 @@ export class Renderer {
     this.tmpM = mat4.create();
   }
 
-  resize(scale = 1) {
+  resize(scale = 1, maxDpr = 2) {
     this.scale = scale;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2) * scale;
+    const dpr = Math.min(window.devicePixelRatio || 1, maxDpr || 2) * scale;
     const w = Math.max(1, Math.floor(this.canvas.clientWidth * dpr)), h = Math.max(1, Math.floor(this.canvas.clientHeight * dpr));
     if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
   }

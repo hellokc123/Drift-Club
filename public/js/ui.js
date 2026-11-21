@@ -12,6 +12,7 @@ import { ACTIONS, DEFAULT_BINDINGS, keyLabel } from './input.js';
 import { VIEWS } from './camera.js';
 import { DRIVE_STYLES } from './physics.js';
 import { isCreatorUnlocked, tryCreatorCode } from './secret.js';
+import { goFullscreen, exitFullscreen } from './touch.js';
 const isRaceMode = (m) => m === 'race' || m === 'driftrace'; // modes run on the race circuits
 
 export const $ = (s, el = document) => el.querySelector(s);
@@ -55,6 +56,11 @@ export class UI {
       const b = e.target.closest('[data-go]');
       if (b) { this.click(); const g = b.dataset.go; if (g === 'settings') this.settingsReturn = this.current; this.show(g); }
     });
+    const fs = $('#btn-fs');
+    if (fs) {
+      fs.onclick = async () => { this.click(); if (document.fullscreenElement) exitFullscreen(); else await goFullscreen(true); };
+      document.addEventListener('fullscreenchange', () => { fs.textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen'; });
+    }
     $('#btn-start').onclick = () => { this.click(); this.app.startGame({ mapId: this.playSel.map, modeId: this.playSel.mode, mp: false }); };
     $('#settings-back').onclick = () => { this.click(); this.app.saveSettings(); if (this.app.game) { this.show('none'); this.showPause(true, this.app.game); } else this.show(this.settingsReturn === 'settings' ? 'main' : this.settingsReturn); };
   }
@@ -521,9 +527,10 @@ export class UI {
     if (tab === 'graphics') {
       h = choice('g-q', 'Graphics quality', [['low', 'Low (Chromebook)'], ['medium', 'Medium'], ['high', 'High']], S.quality)
         + slider('g-scale', 'Render resolution', 0.5, 1, 0.05, S.renderScale, pct)
+        + choice('g-dpr', 'Sharpness on high-DPI screens', [[1, 'Low (1×)'], [1.5, 'Phone (1.5×)'], [2, 'Full (2×)']], S.maxDpr || 2)
         + choice('g-fps', 'Show FPS', [[true, 'On'], [false, 'Off']], S.showFps)
         + `<div class="setting"><span>Fullscreen</span><button class="btn small" id="g-full">${document.fullscreenElement ? 'Exit fullscreen' : 'Enter fullscreen'}</button></div>
-        <p class="muted">Quality changes scenery density, terrain detail, smoke and draw distance. It applies the next time a map loads (anti-aliasing on High applies after a page reload).</p>`;
+        <p class="muted">Quality changes scenery density, terrain detail, smoke and draw distance. It applies the next time a map loads (anti-aliasing on High applies after a page reload). Phones and tablets start on Low with sharpness 1.5× so they run smoothly; raise them if yours is fast.</p>`;
     } else if (tab === 'audio') {
       h = slider('a-master', 'Master volume', 0, 1, 0.05, S.master, pct) + slider('a-sfx', 'Effects (engine, tyres)', 0, 1, 0.05, S.sfx, pct) + slider('a-music', 'Music volume', 0, 1, 0.05, S.music, pct)
         + '<p class="muted">Press M while driving to toggle music.</p>';
@@ -539,7 +546,14 @@ export class UI {
         + slider('k-dz', 'Stick deadzone', 0, 0.4, 0.01, S.deadzone, pct)
         + `<div class="binds"><div class="bind-head"><span>Action</span><span>Primary</span><span>Secondary</span></div>${ACTIONS.map((a) => `<div class="bind"><span>${a.label}</span>${[0, 1].map((i) => `<button class="key" data-bind="${a.id}" data-slot="${i}">${keyLabel((S.bindings[a.id] || [])[i])}</button>`).join('')}</div>`).join('')}</div>
         <button class="btn small ghost" id="k-reset">Reset key bindings</button>
-        <p class="muted">Gamepad: Left stick steer · RT accelerate · LT brake/reverse · A or RB handbrake · X/B boost · Y camera · View reset · Menu pause.</p>`;
+        <p class="muted">Gamepad: Left stick steer · RT accelerate · LT brake/reverse · A or RB handbrake · X/B boost · Y camera · View reset · Menu pause.</p>
+        <h3>Touch screen (phones &amp; tablets)</h3>
+        ${choice('t-on', 'Touch controls', [['auto', 'Auto'], ['on', 'Always'], ['off', 'Off']], S.touchControls || 'auto')}
+        ${choice('t-steer', 'Touch steering', [['drag', 'Drag (left thumb)'], ['tilt', 'Tilt the device']], S.touchSteer || 'drag')}
+        ${S.touchSteer === 'tilt' ? slider('t-tilt', 'Tilt sensitivity', 0.5, 2, 0.05, S.tiltSens || 1, (v) => `${v.toFixed(2)}×`) + '<div class="setting"><span>Tilt centre</span><button class="btn small" id="t-cal">Set centre now (hold it level)</button></div>' : ''}
+        ${choice('t-size', 'Button size', [['s', 'Small'], ['m', 'Medium'], ['l', 'Large']], S.touchSize || 'm')}
+        ${choice('t-fs', 'Fullscreen when a drive starts', [[true, 'On'], [false, 'Off']], S.touchFullscreen !== false)}
+        <p class="muted">Left thumb: slide left/right to steer (it springs back to centre). Right thumb: Gas, Brake/Reverse, Handbrake (tap it to flick into a drift) and Boost. Use several fingers at once. Top-left buttons: pause, camera, reset${'' /* chat appears in multiplayer */}. Auto shows them when you touch the screen and hides them when you use a keyboard or controller.</p>`;
     } else if (tab === 'minimap') {
       const M = S.minimap;
       h = choice('m-on', 'Minimap', [[true, 'On'], [false, 'Off']], M.on)
@@ -559,12 +573,28 @@ export class UI {
     const bindChoice = (id, key, conv, after) => $$(`#${id} .chip`).forEach((b) => (b.onclick = () => { this.click(); S[key] = conv(b.dataset.v); this.app.saveSettings(); after && after(); this.renderSettings(); }));
     const bool = (v) => v === 'true', num = (v) => +v, str = (v) => v;
     bindChoice('g-q', 'quality', str); bindSlider('g-scale', 'renderScale'); bindChoice('g-fps', 'showFps', bool, () => $('#fps').classList.toggle('hidden', !S.showFps));
-    if ($('#g-full')) $('#g-full').onclick = () => { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); setTimeout(() => this.renderSettings(), 300); };
+    if ($('#g-full')) $('#g-full').onclick = async () => { if (document.fullscreenElement) exitFullscreen(); else await goFullscreen(!!(this.app.touch && this.app.touch.active)); setTimeout(() => this.renderSettings(), 300); };
     const vol = () => this.app.audio.setVolumes({ master: S.master, sfx: S.sfx, music: S.music });
     bindSlider('a-master', 'master', vol); bindSlider('a-sfx', 'sfx', vol); bindSlider('a-music', 'music', vol);
     bindChoice('c-view', 'camView', num, () => { if (this.app.game) { this.app.game.cam.view = S.camView; this.app.game.cam.snap(); } });
     bindSlider('c-dist', 'camDist'); bindSlider('c-smooth', 'camSmooth'); bindSlider('c-fov', 'fov'); bindChoice('c-shake', 'camShake', bool);
     bindSlider('k-steer', 'steerSens'); bindChoice('k-pad', 'gamepad', bool); bindSlider('k-dz', 'deadzone');
+    bindChoice('g-dpr', 'maxDpr', num);
+    const T = this.app.touch;
+    bindChoice('t-on', 'touchControls', str, () => { if (T) { T.active = S.touchControls === 'on' || (S.touchControls === 'auto' && T.active); T.sync(true); } });
+    bindChoice('t-size', 'touchSize', str, () => T && T.applyLayout());
+    bindChoice('t-fs', 'touchFullscreen', bool);
+    bindSlider('t-tilt', 'tiltSens');
+    if ($('#t-cal')) $('#t-cal').onclick = () => { this.click(); if (T) T.recalibrate(); toast('Tilt centre set', 1200, 'good'); };
+    $$('#t-steer .chip').forEach((b) => (b.onclick = async () => {
+      this.click();
+      if (b.dataset.v === 'tilt') {
+        const r = T ? await T.enableTilt(true) : { ok: false, msg: 'Touch controls unavailable' };
+        if (!r.ok) { toast(esc(r.msg), 3500, 'bad'); return; }
+        S.touchSteer = 'tilt'; toast('Tilt steering on. Hold the phone the way you like to drive, then press "Set centre now" if it pulls to one side.', 4500, 'good');
+      } else { S.touchSteer = 'drag'; if (T) T.disableTilt(); }
+      this.app.saveSettings(); this.renderSettings();
+    }));
     $$('[data-bind]').forEach((b) => (b.onclick = () => {
       this.click(); b.textContent = 'Press a key…'; b.classList.add('listening');
       this.app.input.capture = (code) => {
@@ -585,6 +615,7 @@ export class UI {
   fmtSlider(id, v) {
     if (id.startsWith('a-') || id === 'g-scale' || id === 'k-dz') return `${Math.round(v * 100)}%`;
     if (id === 'c-fov') return `${v}°`;
+    if (id === 't-tilt') return `${v.toFixed(2)}×`;
     return `${v.toFixed(2)}×`;
   }
 
@@ -601,11 +632,13 @@ export class UI {
       <button class="btn" data-p="settings">Settings</button>
       ${host ? '<button class="btn" data-p="end">End session (everyone → lobby)</button>' : ''}
       ${mp ? '<button class="btn" data-p="lobby">Back to room lobby</button><button class="btn danger" data-p="leave">Leave room</button>' : '<button class="btn danger" data-p="quit">Quit to main menu</button>'}
-      <div class="controls-help"><b>Controls</b> W/S accelerate·brake · A/D steer · Space handbrake · Shift boost · C camera · R reset · H hide HUD · M music${mp ? ' · T chat' : ''}<br><b>Tricks</b> Throttle sets the drift angle · opposite lock (+ handbrake tap in Race) = transition · hold handbrake + steer into the slide = 360 · keep sliding past 180° = reverse drift · slow + full lock + throttle = donuts</div></div>`;
+      ${this.app.touch && this.app.touch.active ? `<button class="btn" data-p="fs">${document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen'}</button><div class="controls-help"><b>Touch</b> left thumb: slide to steer · right thumb: Gas, Brake/Reverse, Handbrake (tap = flick), Boost · top-left: pause, camera, reset${mp ? ', chat' : ''}. Tilt steering and button size: Settings › Controls.</div>` : ''}
+      <div class="controls-help kb-help"><b>Controls</b> W/S accelerate·brake · A/D steer · Space handbrake · Shift boost · C camera · R reset · H hide HUD · M music${mp ? ' · T chat' : ''}<br><b>Tricks</b> Throttle sets the drift angle · opposite lock (+ handbrake tap in Race) = transition · hold handbrake + steer into the slide = 360 · keep sliding past 180° = reverse drift · slow + full lock + throttle = donuts</div></div>`;
     $$('[data-p]', el).forEach((b) => (b.onclick = () => {
       this.click();
       const a = b.dataset.p, N = this.app.net;
       if (a === 'resume') game.togglePause(false);
+      if (a === 'fs') { if (document.fullscreenElement) exitFullscreen(); else goFullscreen(true); setTimeout(() => this.showPause(true, game), 300); }
       if (a === 'restart') { el.classList.add('hidden'); this.app.restartGame(); }
       if (a === 'style') { game.setStyle(game.car.styleId === 'drift' ? 'race' : 'drift'); this.showPause(true, game); }
       if (a === 'settings') { el.classList.add('hidden'); this.settingsReturn = 'none'; this.show('settings'); }
