@@ -94,6 +94,24 @@ const sc = (k, pts) => pts.map(([x, z]) => [Math.round(x * k), Math.round(z * k)
 // Every map is a road NETWORK: road 0 is the main loop (the Speed Race circuit on most maps);
 // the other roads are connectors, cut-throughs and side roads whose ends sit on another road
 // (a junction) or inside a pad (car parks, skidpads, plazas).
+// A ladder of switchbacks (Japanese touge hairpins): `legs` traverses of length `len`, the first one
+// starting at (x0, z0) heading +x (dir 1) or -x (dir -1), each hairpin stepping `gap` metres in z
+// (sign of gap = which way up the ladder goes). Legs get a slight S-bend so they flow.
+function ladder(x0, z0, legs, len, gap, dir) {
+  const pts = [], r = Math.abs(gap) / 2, sz = Math.sign(gap);
+  let x = x0, z = z0, d = dir;
+  for (let i = 0; i < legs; i++) {
+    const xe = x + d * len;
+    pts.push([x + d * len * 0.12, z], [x + d * len * 0.5, z + sz * gap * 0.12 * (i % 2 ? 1 : -1)], [xe - d * len * 0.12, z]);
+    if (i < legs - 1) { // hairpin: half circle round (xe, z + gap/2), bulging a little wider than the legs
+      const cz = z + gap / 2;
+      for (const t of [-0.6, 0, 0.6]) pts.push([xe + d * r * 1.25 * Math.cos(t), cz + sz * r * Math.sin(t)]);
+      z += gap; x = xe; d = -d;
+    }
+  }
+  return pts;
+}
+
 export const GEO = {
   track: {
     roads: [
@@ -163,19 +181,25 @@ export const GEO = {
     ],
   },
   mountain: {
+    // Kurogane Pass: a 3.4 km mountain with Japanese touge roads — an uphill with a ladder of
+    // hairpins, an Irohazaka-style switchback descent, flowing ridge esses, all narrow two-lane
+    // roads with guardrails, round a big valley ring road.
     roads: [
       // 0: valley ring road round the mountain
-      { pts: [[-300, -728], [100, -740], [420, -660], [610, -470], [700, -160], [690, 200], [570, 500], [300, 690], [0, 750], [-300, 700], [-560, 510], [-690, 200], [-710, -160], [-600, -470]], closed: true, width: 11 },
-      // 1: the Kurogane touge: base car park -> switchbacks -> summit lookout
-      { pts: [[-180, -730], [-238, -705], [-254, -655], [-212, -616], [-110, -609], [0, -604], [120, -590], [250, -540], [290, -470], [240, -420], [100, -410], [-60, -400], [-220, -380], [-300, -320], [-270, -250], [-150, -230], [0, -230], [150, -210], [250, -160], [270, -90], [200, -40], [80, -40], [-60, -30], [-180, 0], [-220, 70], [-170, 130], [-80, 150], [-10, 180]], width: 11 },
-      // 2: east descent: summit -> winding down the north-east face -> ring road
-      { pts: [[-10, 180], [60, 222], [170, 300], [300, 290], [405, 360], [340, 460], [215, 520], [250, 600], [360, 560], [460, 470], [598, 445]], width: 10.5 },
-      // 3: old forestry road: touge hairpin -> west valley
-      { pts: [[-296, -322], [-420, -300], [-560, -250], [-706, -170]], width: 9.5 },
-      // 4: lakeside rest-stop lane off the north ring (village)
-      { pts: [[-150, 728], [-140, 640], [-120, 590]], width: 10 },
+      { pts: [[0, -1350], [600, -1250], [1050, -900], [1280, -450], [1320, 0], [1250, 500], [950, 950], [500, 1250], [0, 1320], [-500, 1260], [-950, 980], [-1250, 520], [-1330, 0], [-1250, -500], [-1000, -950], [-550, -1250]], closed: true, width: 11 },
+      // 1: Kurogane uphill: base -> fast esses -> five-hairpin ladder -> sweepers -> summit hairpins -> summit
+      { pts: [[0, -1350], [20, -1200], [-50, -1110], [20, -1040], [-60, -990], [-160, -978], [-222, -952], [-226, -915], ...ladder(-150, -900, 6, 300, 60, 1),
+        [-230, -520], [-160, -420], [-40, -390], [90, -330], [160, -250], ...ladder(170, -190, 4, 150, 46, -1), [198, -42], [218, -8], [185, 24], [90, 36], [0, 50]], width: 10 },
+      // 2: Irohazaka descent: summit -> nine switchbacks down the north face -> esses -> ring
+      { pts: [[0, 50], [10, 120], [-80, 140], [-160, 150], [-210, 172], [-190, 197], ...ladder(-130, 200, 9, 260, 52, 1), [195, 655], [140, 740], [0, 800], [-70, 900], [40, 1020], [-30, 1150], [0, 1320]], width: 10 },
+      // 3: ridge run: east ring -> flowing esses up the east ridge -> summit
+      { pts: [[1320, 0], [1180, 110], [1040, -90], [900, 120], [770, -100], [650, 110], [530, -90], [420, 100], [320, -60], [220, 110], [130, 85], [65, 85]], width: 10 },
+      // 4: village lane (north-west ring)
+      { pts: [[-950, 980], [-830, 900], [-720, 860]], width: 10 },
+      // 5: gravel forestry road -> clearing (west ring)
+      { pts: [[-1330, 0], [-1180, 40], [-1050, -20]], width: 9.5 },
     ],
-    pads: [{ x: -70, z: -708, w: 130, d: 84 }, { x: 30, z: 205, r: 48 }, { x: -110, z: 560, w: 90, d: 60 }],
+    pads: [{ x: -75, z: -1262, w: 110, d: 70 }, { x: 0, z: 60, w: 130, d: 90 }, { x: -700, z: 840, w: 80, d: 50 }, { x: -990, z: -20, r: 55 }],
   },
   forest: {
     roads: [
@@ -276,7 +300,7 @@ const CITY_LOOP = [[-180, -360], [270, -360], [270, 180], [90, 180], [90, 360], 
 export const RACE = {
   track: { name: 'Apex Circuit', road: 0, start: 30, width: 16, margin: 14 },
   desert: { name: 'Dune Valley Highway', road: 0, start: 70, width: 14, margin: 16 },
-  mountain: { name: 'Kurogane Pass Loop', legs: [[0, [598, 445], [-182, -753], -1], [1, [-182, -753], [-10, 180], 1], [2, [-10, 180], [598, 445], 1]], start: 20, width: 10.5, margin: 12 },
+  mountain: { name: 'Kurogane Pass Loop', legs: [[1, [0, -1350], [0, 50], 1], [3, [65, 85], [1320, 0], -1], [0, [1320, 0], [0, -1350], -1]], start: 20, width: 10, margin: 12 },
   forest: { name: 'Pinewood Loop', road: 0, start: 40, width: 12, margin: 12 },
   drift: { name: 'Ironbay Figure-Eight', road: 0, start: 40, width: 18, margin: 12 },
   city: { name: 'Downtown Street Circuit', pts: streetLoop(CITY_LOOP, 12), linear: true, start: 0, width: 16, margin: 6 },
@@ -398,7 +422,7 @@ function figure8(r) {
 export const BATTLE = {
   track: { name: 'Esses & Carousel', road: 0, from: 0.175, to: 0.445, dir: 1, width: 16 },
   desert: { name: 'Salt Flat Figure-8', pts: figure8(55), width: 16 },
-  mountain: { name: 'Kurogane Downhill', road: 1, from: 0.94, to: 0.6, dir: -1, width: 11 },
+  mountain: { name: 'Irohazaka Downhill', road: 2, from: 0.05, to: 0.5, dir: 1, width: 10 },
   forest: { name: 'Lakeside Esses', road: 0, from: 0.607, to: 0.878, dir: 1, width: 12 },
   drift: { name: 'Ironbay S-Bends', road: 0, from: 0.13, to: 0.36, dir: 1, width: 18 },
 };

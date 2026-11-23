@@ -9,7 +9,7 @@ import { crSample, segDist, GEO, CITY } from './tracks.js';
 export const MAP_LIST = [
   { id: 'track', name: 'Apex Circuit', type: 'Race Track', desc: 'A proper racing circuit with a National cut-through, service roads, an infield skidpad, an autocross pad and car parks.', accent: '#8fb3d1' },
   { id: 'desert', name: 'Dune Valley', type: 'Desert', desc: 'Huge open desert, 4 km wide. A 12 km winding highway, an interstate, a canyon road, salt flat, dry lake, airstrip and a ghost town.', accent: '#d9a46a' },
-  { id: 'mountain', name: 'Kurogane Pass', type: 'Mountains', desc: 'A dusk touge up to the summit lookout, a winding east descent, a valley ring road and a village rest stop.', accent: '#d48d6e' },
+  { id: 'mountain', name: 'Kurogane Pass', type: 'Mountains', desc: 'Big Japanese touge at dusk: a five-hairpin uphill, a nine-switchback Irohazaka descent, ridge esses and a valley ring road.', accent: '#d48d6e' },
   { id: 'forest', name: 'Pinewood Trails', type: 'Forest', desc: 'Misty forest roads round a lake, gravel logging trails, a big clearing and a quarry.', accent: '#86b77a' },
   { id: 'city', name: 'City Nights', type: 'City', desc: 'Night-time grid of streets cut by a diagonal boulevard, a central plaza and open parking lots.', accent: '#d8b25c' },
   { id: 'drift', name: 'Ironbay Drift Park', type: 'Drift Park', desc: 'A harbourside drift venue: figure-eight course, hairpins, a huge practice pad, a donut circle and container alleys.', accent: '#7fa8a3' },
@@ -553,6 +553,24 @@ function cactus(g, x, y, z, s, r) {
   g.box(x + side * 0.45 * s, y + 1.6 * s, z, 0.8 * s, 0.4 * s, 0.4 * s, c);
   if (r() < 0.6) { g.cylinder(x - side * 0.7 * s, y + 2.9 * s, z, 0.22 * s, 1.4 * s, 6, c); g.box(x - side * 0.4 * s, y + 2.3 * s, z, 0.7 * s, 0.35 * s, 0.35 * s, c); }
 }
+function cedar(g, x, y, z, s, r) { // tall, narrow, dark Japanese cedar
+  g.cylinder(x, y + 1.6 * s, z, 0.2 * s, 3.2 * s, 5, [0.36, 0.24, 0.16]);
+  const c = shade([0.16, 0.27, 0.17], 0.85 + r() * 0.3);
+  g.cone(x, y + 2.4 * s, z, 1.5 * s, 4.2 * s, 7, c);
+  g.cone(x, y + 4.6 * s, z, 1.15 * s, 3.6 * s, 7, shade(c, 1.08));
+  g.cone(x, y + 6.6 * s, z, 0.75 * s, 3.0 * s, 6, shade(c, 1.15));
+}
+function stoneLantern(ctx, x, z) { // toro
+  const y = ctx.h(x, z), g = ctx.geo(x, z), st = [0.6, 0.59, 0.56];
+  g.box(x, y + 0.2, z, 0.9, 0.4, 0.9, st); g.cylinder(x, y + 1, z, 0.18, 1.2, 6, st);
+  g.box(x, y + 1.8, z, 0.7, 0.55, 0.7, { side: [1, 0.75, 0.4, 0.6], top: st, bottom: st }); g.cone(x, y + 2.15, z, 0.7, 0.5, 6, st);
+  ctx.circle(x, z, 0.5);
+}
+function vending(ctx, x, z, yaw) { // glowing roadside vending machine
+  const y = ctx.h(x, z), g = ctx.geo(x, z);
+  g.at(x, y, z, yaw).box(0, 0.95, 0, 1.0, 1.9, 0.8, { top: [0.8, 0.8, 0.84], side: [0.85, 0.86, 0.9], front: [0.55, 0.8, 1, 0.8] }).box(0, 1.3, 0.41, 0.8, 0.7, 0.02, [1, 1, 0.95, 1]).reset();
+  ctx.box(x, z, 1.0, 0.8, yaw); ctx.glow(x, y + 0.08, z, 3, [0.25, 0.32, 0.38, 1]);
+}
 function lamp(ctx, x, z, yaw, night, colr = [1, 0.85, 0.55]) {
   const y = ctx.h(x, z), g = ctx.geo(x, z);
   g.cylinder(x, y + 3.5, z, 0.12, 7, 6, [0.25, 0.25, 0.28]);
@@ -784,80 +802,107 @@ const SPECS = {
   mountain(q) {
     const n = makeNoise(37);
     const terrain = (x, z) => {
-      const rr = Math.hypot(x, z - 150);
-      let h = 150 * Math.exp(-((rr / 430) ** 2));
-      h += n.ridge(x / 260, z / 260, 4) * 45 - 18 + n.fbm(x / 60, z / 60, 2) * 4;
+      const rr = Math.hypot(x, z);
+      let h = 300 * Math.exp(-((rr / 900) ** 2));
+      h += n.ridge(x / 300, z / 300, 4) * 55 - 22 + n.fbm(x / 70, z / 70, 2) * 5;
       const e = Math.max(Math.abs(x), Math.abs(z));
-      h += smoothstep(790, 880, e) * (90 + n.ridge(x / 150, z / 150, 3) * 120);
+      h += smoothstep(1500, 1650, e) * (110 + n.ridge(x / 170, z / 170, 3) * 140);
       return h;
     };
-    const grass = col('#4a6b3a'), grass2 = col('#5e7b3e'), rockC = col('#6f6a68'), snow = col('#eef2f7');
+    const grass = col('#4a6b3a'), grass2 = col('#5e7b3e'), cedarFloor = col('#3d5233'), rockC = col('#6f6a68'), snow = col('#eef2f7');
     return {
-      seed: 303, size: 1800, natural: 'dirt', boundary: 70, blend: 20,
+      seed: 303, size: 3400, cellMul: 1.15, natural: 'dirt', boundary: 70, blend: 20,
       terrain,
       color: (x, z, h, slope, sd) => {
         let c = mix3(grass, grass2, n(x / 30, z / 30) * 0.5 + 0.5);
+        c = mix3(c, cedarFloor, smoothstep(60, 140, h) * 0.6);
         c = mix3(c, rockC, smoothstep(0.45, 0.8, slope));
-        return mix3(c, snow, smoothstep(125, 150, h + n(x / 25, z / 25) * 10) * (1 - smoothstep(0.9, 1.3, slope)));
+        return mix3(c, snow, smoothstep(305, 335, h + n(x / 25, z / 25) * 12) * (1 - smoothstep(0.9, 1.3, slope)));
       },
       shoulder: col('#6b5f50'),
+      // touge roads: narrow, guardrails both sides, orange no-overtaking centre line like Japanese passes
       roads: GEO.mountain.roads.map((r, i) => i === 0 ? { ...r, center: 'dash', color: [0.25, 0.25, 0.27], smooth: 22, maxGrade: 0.1 }
-        : i === 3 ? { ...r, surface: 3, color: [0.4, 0.36, 0.3], edge: false, maxGrade: 0.12 }
-        : i === 4 ? { ...r, color: [0.25, 0.25, 0.27] }
-        : { ...r, center: 'dash', centerColor: [0.95, 0.95, 0.9], guardrails: true, color: [0.24, 0.24, 0.26], smooth: 18, maxGrade: i === 2 ? 0.135 : 0.11 }),
+        : i === 5 ? { ...r, surface: 3, color: [0.4, 0.36, 0.3], edge: false, maxGrade: 0.15 }
+        : i === 4 ? { ...r, color: [0.25, 0.25, 0.27], maxGrade: 0.14 }
+        : { ...r, center: 'dash', centerColor: [0.98, 0.62, 0.12], guardrails: true, color: [0.24, 0.24, 0.26], smooth: 14, maxGrade: 0.14 }),
       pads: [
         { ...GEO.mountain.pads[0], type: 2, markings: 'lot' },
-        { ...GEO.mountain.pads[1], type: 2 },
+        { ...GEO.mountain.pads[1], type: 2, markings: 'lot' },
         { ...GEO.mountain.pads[2], type: 2, markings: 'lot' },
+        { ...GEO.mountain.pads[3], type: 3, color: [0.42, 0.37, 0.3] },
       ],
-      spawns: (W) => { // on the touge, just past the base car park, facing up the pass
+      spawns: (W) => { // at the foot of the uphill, facing up the pass
         const r = W.roads[1]; let bi = 0, bd = 1e18;
-        for (let i = 0; i < r.n; i++) { const d = (r.x[i] - 10) ** 2 + (r.z[i] + 603) ** 2; if (d < bd) { bd = d; bi = i; } }
+        for (let i = 0; i < r.n; i++) { const d = (r.x[i] - 20) ** 2 + (r.z[i] + 1200) ** 2; if (d < bd) { bd = d; bi = i; } }
         return W.roadSpawns(1, bi, 12, 1);
       },
       challenges: [
-        { name: 'Hairpin One', x: 270, z: -460, r: 70, target: 10000, time: 25 },
-        { name: 'Switchback Run', x: -275, z: -300, r: 75, target: 11000, time: 25 },
-        { name: 'Summit Donuts', x: 30, z: 205, r: 48, target: 14000, time: 25 },
-        { name: 'East Descent', x: 340, z: 440, r: 80, target: 11000, time: 25 },
+        { name: 'Five Hairpins', x: 0, z: -750, r: 90, target: 12000, time: 30 },
+        { name: 'Irohazaka', x: 0, z: 410, r: 100, target: 14000, time: 30 },
+        { name: 'Summit Donuts', x: 0, z: 60, r: 45, target: 14000, time: 25 },
+        { name: 'Ridge Esses', x: 700, z: 0, r: 90, target: 11000, time: 25 },
       ],
       env: {
         sky: { top: col('#2e3d5e'), horizon: col('#e39c74'), bottom: col('#6e5f58') },
         sunDir: norm([0.75, 0.16, -0.35]), sunCol: [1.0, 0.68, 0.5], sunGlow: [1.2, 0.6, 0.38], ambSky: [0.44, 0.46, 0.58], ambGround: [0.26, 0.24, 0.22],
-        fogCol: col('#9a8a84'), fogNear: 220, fogFar: 1000, night: false, headlights: true, music: 'dusk',
+        fogCol: col('#9a8a84'), fogNear: 260, fogFar: 1200, night: false, headlights: true, music: 'dusk',
       },
       scenery(c) {
         const r = c.rand;
-        c.scatter(Math.floor(6200 * q.density), (x, z, inPlay) => {
+        // tall dark Japanese cedars on the slopes, lighter pines down in the valley
+        c.scatter(Math.floor(13000 * q.density), (x, z, inPlay) => {
           const y = c.h(x, z);
-          if (y > 132) return;
+          if (y > 312) return;
           const g = c.geo(x, z), s = 0.9 + r() * 0.8;
-          pine(g, x, y, z, s * 1.3, r, y > 105);
-          if (inPlay) c.circle(x, z, 0.5 * s); c.shadow(x, z, 2.8 * s, 0.3);
+          if (y > 70 && r() < 0.75) cedar(g, x, y, z, s * 1.4, r); else pine(g, x, y, z, s * 1.3, r, y > 290);
+          if (inPlay) c.circle(x, z, 0.5 * s); c.shadow(x, z, 2.6 * s, 0.3);
         }, (x, z) => c.sd(x, z) > 9);
-        c.scatter(Math.floor(640 * q.density), (x, z, inPlay) => {
+        c.scatter(Math.floor(1400 * q.density), (x, z, inPlay) => {
           const s = 1 + r() * 2.5; rock(c.geo(x, z), x, c.h(x, z), z, s, r, [0.55, 0.53, 0.52]); if (inPlay) c.circle(x, z, s);
         }, (x, z) => c.sd(x, z) > 8);
-        // summit shrine + lookout
-        { const x = 30, z = 245, y = c.h(x, z), g = c.geo(x, z);
+        // red/white chevron boards on the outside of every tight corner of the touge roads
+        for (const ri of [1, 2, 3]) {
+          const rd = c.roads[ri]; let last = -99;
+          for (let i = 3; i < rd.n - 3; i++) {
+            const cr = rd.tx[i - 3] * rd.tz[i + 3] - rd.tz[i - 3] * rd.tx[i + 3]; // turn rate over 18 m
+            if (Math.abs(cr) < 0.55 || i - last < 7) continue;
+            last = i;
+            const side = cr > 0 ? 1 : -1, off = rd.half + 2.6; // outside of the bend
+            const x = rd.x[i] + rd.tz[i] * off * side, z = rd.z[i] - rd.tx[i] * off * side;
+            if (c.sd(x, z) < rd.half - 0.5) continue;
+            const y = c.h(x, z), g = c.geo(x, z), yaw = Math.atan2(rd.tx[i], rd.tz[i]);
+            g.at(x, y, z, yaw);
+            g.box(0, 0.6, 0, 0.12, 1.2, 0.12, [0.3, 0.3, 0.32]);
+            g.box(0, 1.5, 0, 0.08, 0.7, 1.4, { top: [0.9, 0.9, 0.9], side: [0.95, 0.95, 0.95] });
+            for (const k of [-0.45, 0, 0.45]) g.box(0.05, 1.5, k, 0.02, 0.5, 0.18, [0.85, 0.1, 0.08]);
+            g.reset(); c.circle(x, z, 0.25);
+          }
+        }
+        // summit: shrine torii, stone lanterns, vending machines and a lookout lamp ring
+        { const x = 0, z = 120, y = c.h(x, z), g = c.geo(x, z);
           g.box(x, y + 0.3, z, 10, 0.6, 7, [0.55, 0.55, 0.55]);
-          for (const sx of [-4, 4]) g.box(x + sx, y + 3, z - 3, 0.6, 5.5, 0.6, [0.75, 0.15, 0.1]);
-          g.box(x, y + 5.9, z - 3, 11, 0.6, 1, [0.75, 0.15, 0.1]); g.box(x, y + 5.0, z - 3, 9, 0.4, 0.6, [0.75, 0.15, 0.1]);
-          c.circle(x - 4, z - 3, 0.5); c.circle(x + 4, z - 3, 0.5);
-          for (const [lx, lz] of [[-5, 170], [70, 190], [55, 240]]) lamp(c, lx, lz, 0, true); }
-        // base parking lamps + a small cafe
-        for (const [lx, lz] of [[-140, -735], [-140, -685], [0, -735], [0, -685]]) lamp(c, lx, lz, lx < -70 ? Math.PI / 2 : -Math.PI / 2, true);
-        { const x = -70, z = -658, y = c.h(x, z), g = c.geo(x, z);
-          g.box(x, y + 3, z, 24, 6, 10, { top: [0.3, 0.25, 0.22], side: [0.85, 0.8, 0.7] });
-          g.box(x, y + 2.2, z + 5.05, 16, 2.5, 0.1, [1, 0.8, 0.5, 0.8]); c.box(x, z, 24, 10); }
-        // north valley village beside the rest stop: small timber houses with dark tiled roofs
-        for (const [x, z, yaw] of [[-30, 540, 0.1], [-35, 590, -0.05], [-195, 540, 0.08], [-190, 595, 0.15], [-110, 505, 0]]) {
+          for (const sx of [-4, 4]) g.box(x + sx, y + 3, z, 0.6, 5.5, 0.6, [0.75, 0.15, 0.1]);
+          g.box(x, y + 5.9, z, 11, 0.6, 1, [0.75, 0.15, 0.1]); g.box(x, y + 5.0, z, 9, 0.4, 0.6, [0.75, 0.15, 0.1]);
+          c.circle(x - 4, z, 0.5); c.circle(x + 4, z, 0.5); }
+        for (const [x, z] of [[-55, 20], [-55, 100], [55, 100], [-20, 112], [20, 112]]) stoneLantern(c, x, z);
+        for (const [x, z, yaw] of [[-62, 50, Math.PI / 2], [-62, 54, Math.PI / 2]]) vending(c, x, z, yaw);
+        for (const [lx, lz] of [[-60, 70], [60, 30], [30, 100]]) lamp(c, lx, lz, 0, true);
+        // base car park: lamps, vending machines, a small tea house
+        for (const [lx, lz] of [[-125, -1290], [-125, -1235], [-25, -1290], [-25, -1235]]) lamp(c, lx, lz, lx < -70 ? Math.PI / 2 : -Math.PI / 2, true);
+        for (const [x, z] of [[-128, -1270], [-128, -1266]]) vending(c, x, z, Math.PI / 2);
+        { const x = -75, z = -1310, y = c.h(x, z), g = c.geo(x, z);
+          g.box(x, y + 2.6, z, 22, 5.2, 9, { top: [0.3, 0.25, 0.22], side: [0.85, 0.8, 0.7] });
+          g.at(x, y + 5.2, z, Math.PI / 2).extrude([[-5.5, 0], [5.5, 0], [0, 2.6]], 23, 0.05, [0.22, 0.22, 0.25]).reset();
+          g.box(x, y + 2.0, z + 4.55, 14, 2.2, 0.1, [1, 0.8, 0.5, 0.8]); c.box(x, z, 22, 9); }
+        // north-west village: timber houses with dark tiled roofs
+        for (const [x, z, yaw] of [[-640, 800, 0.1], [-760, 800, -0.05], [-640, 885, 0.08], [-780, 900, 0.15], [-700, 930, 0]]) {
           const y = c.h(x, z) - 0.2, g = c.geo(x, z);
           g.at(x, y, z, yaw).box(0, 2.5, 0, 12, 5, 9, { top: [0.3, 0.28, 0.27], side: [0.78, 0.72, 0.62] }).box(0, 1.6, 4.55, 4, 2, 0.1, [1, 0.8, 0.5, 0.75]).reset();
           g.at(x, y + 5, z, yaw).extrude([[-5.3, 0], [5.3, 0], [0, 3]], 13, 0.05, [0.22, 0.22, 0.25]).reset();
           c.box(x, z, 12, 9, yaw);
         }
-        for (const [lx, lz] of [[-160, 560], [-60, 560]]) lamp(c, lx, lz, 0, true);
+        for (const [lx, lz] of [[-660, 840], [-740, 840]]) lamp(c, lx, lz, 0, true);
+        for (const [x, z] of [[-745, 862], [-741, 862]]) vending(c, x, z, Math.PI);
       },
     };
   },
