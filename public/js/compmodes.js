@@ -197,9 +197,9 @@ class RaceComp extends Comp {
     for (const a of this.ai) {
       const inp = a.drv.control(dt, cars.filter((c) => c !== a.v), go);
       a.v.step(dt, inp);
-      for (const c of cars) if (c !== a.v) a.v.collideCar(c);
     }
-    for (const a of this.ai) this.g.car.collideCar(a.v);
+    // every pair once, equal and opposite (resolving each car separately made whoever went first take most of the hit)
+    for (let i = 0; i < cars.length; i++) for (let j = i + 1; j < cars.length; j++) Vehicle.collidePair(cars[i], cars[j]);
   }
   onSample(s) {
     const t = this.t;

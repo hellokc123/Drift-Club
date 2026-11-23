@@ -250,6 +250,8 @@ export class Vehicle {
 
     // ---------------- regime state machine
     if (this.liftExit > 0) this.liftExit -= dt;
+    if (this.contactT > 0) this.contactT -= dt; // just bumped another car: a shove isn't a drift
+    if (this.shoveT > 0) this.shoveT -= dt;
     const prevMode = this.mode;
     const steerIn = st * this.dir;
     this.hbRecent = hb ? 0.35 : Math.max(0, (this.hbRecent || 0) - dt); // a handbrake tap counts for a moment
@@ -258,7 +260,7 @@ export class Vehicle {
       const wantPower = effPower > 0.4 && speed > 6 && speed < 40 && vf > 0 && thr > 0.85 && Math.abs(inp.steer) > 0.7;
       this.powerT = wantPower ? this.powerT + dt : 0;
       if (vf > 0 && speed > S.hbEntrySpeed * T.hbEntry * T.entry && hb && Math.abs(st) > 0.12) this.enterDrift(Math.sign(st));
-      else if (vf > 0 && speed > 7 && !(this.liftExit > 0) && absRel > S.entrySlip * T.entry && absRel < 1.5) this.enterDrift(Math.sign(rel));
+      else if (vf > 0 && speed > 7 && !(this.liftExit > 0) && !(this.contactT > 0) && absRel > S.entrySlip * T.entry && absRel < 1.5) this.enterDrift(Math.sign(rel));
       else if (this.powerT > S.powerDelay * T.entry) this.enterDrift(Math.sign(inp.steer));
       else if (speed > 1.2 && speed < 9 && vf > 0 && hb && thr > 0.7 && Math.abs(inp.steer) > 0.75) { this.enterDrift(Math.sign(inp.steer)); this.w += Math.sign(inp.steer) * 1.6; } // donut start
       else if (vf < -5 && hb && Math.abs(st) > 0.2) this.mode = 'reverse';
@@ -305,8 +307,11 @@ export class Vehicle {
     const latGrip = lerp(gripLat, slideLat, this.driftAmt) * (0.15 + 0.85 * tr);
     // spinning: tyres slide every way, so they don't bend the car's path - it keeps going straight while it rotates
     const inSpin = this.mode === 'spin';
-    const nvl = inSpin ? vl : vl * Math.exp(-latGrip * dt);
-    const lost = inSpin ? 0 : Math.abs(vl) - Math.abs(nvl);
+    // being shoved sideways by another car: the tyres get dragged (skid) instead of stopping the push dead,
+    // and that shove isn't turned into forward speed
+    const shoved = this.shoveT > 0;
+    const nvl = inSpin ? vl : vl * Math.exp(-(shoved ? latGrip * 0.3 : latGrip) * dt);
+    const lost = inSpin || shoved ? 0 : Math.abs(vl) - Math.abs(nvl);
     // part of the sideways energy the tyres scrub off is turned into forward speed (that's what keeps a
     // drift flowing). Energy-based, so a slide can never create speed out of nothing.
     const mom = sliding ? Math.min(0.97, d.momentum * S.momentum) : 0.12;
@@ -518,18 +523,57 @@ export class Vehicle {
     }
   }
 
-  // collide against another car (each client resolves only its own car). The lighter car takes more
-  // of the bounce: o.mass (or o.def.mass for AI cars) if known, else an equal-weight car.
-  collideCar(o) {
-    const mo = o.mass || (o.def && o.def.mass) || this.mass;
-    const share = clamp(1.1 * mo / (this.mass + mo), 0.25, 0.85); // 0.55 for two equal cars
-    const sh = Math.sin(this.h), ch = Math.cos(this.h), osh = Math.sin(o.h), och = Math.cos(o.h);
-    const r = this.radius + (o.radius || 0.95);
-    for (const k of [1, -1]) for (const m of [1, -1]) {
-      const ax = this.x + sh * this.offset * k, az = this.z + ch * this.offset * k;
-      const bx = o.x + osh * (o.offset || 1.1) * m, bz = o.z + och * (o.offset || 1.1) * m;
+  // ---- car vs car ----------------------------------------------------------------------------------
+  // Works like most arcade racers: cars are pushed apart along the contact normal only, and rubbing
+  // friction acts on the *relative* sliding speed - so two cars side by side at the same speed keep
+  // their speed instead of grinding each other to a stop. Only the deepest contact is used each step.
+  static contact(a, b) {
+    if (Math.abs(a.y - b.y) >= 3) return null;
+    const sh = Math.sin(a.h), ch = Math.cos(a.h), osh = Math.sin(b.h), och = Math.cos(b.h);
+    const r = a.radius + (b.radius || 0.95), aoff = a.offset, boff = b.offset || 1.1;
+    let best = null;
+    for (const k of [1, 0, -1]) for (const m of [1, 0, -1]) {
+      const ax = a.x + sh * aoff * k, az = a.z + ch * aoff * k;
+      const bx = b.x + osh * boff * m, bz = b.z + och * boff * m;
       const dx = ax - bx, dz = az - bz, dd = Math.hypot(dx, dz);
-      if (dd < r && dd > 1e-4 && Math.abs(this.y - o.y) < 3) this.resolve(dx / dd, dz / dd, (r - dd) * share, k, o.vx || 0, o.vz || 0, share);
+      if (dd < r && dd > 1e-4 && (!best || r - dd > best.pen)) best = { nx: dx / dd, nz: dz / dd, pen: r - dd, k, m };
     }
+    return best;
+  }
+  // apply velocity change dv (along n + tangent friction) to this car; j = impulse per unit mass it got
+  _hit(nx, nz, j, ft, k, closing) {
+    this.vx += j * nx; this.vz += j * nz;
+    const tx = -nz, tz = nx; this.vx -= tx * ft; this.vz -= tz * ft;
+    if (closing > 3) { // spin only from real hits: a side-by-side rub must not twist the car
+      const sh = Math.sin(this.h), ch = Math.cos(this.h);
+      const cross = (sh * this.offset * k) * nz - (ch * this.offset * k) * nx;
+      this.w += clamp(cross * j * 0.18, -1.8, 1.8);
+    }
+    if (j > 1.2) this.shoveT = 0.3;              // a real shove drags the tyres sideways (skid)
+    if (closing < 3) this.contactT = 0.2;        // a gentle rub is not a reason to start drifting
+    this.impact = Math.max(this.impact, closing); this.lastImpact = closing;
+    if (this.prevVelYaw !== null) this.prevVelYaw = Math.atan2(this.vx, this.vz);
+  }
+  // both cars simulated here (player vs CPU, CPU vs CPU): resolve the pair once, equal and opposite
+  static collidePair(a, b) {
+    const c = Vehicle.contact(a, b); if (!c) return;
+    const ma = a.mass, mb = b.mass || (b.def && b.def.mass) || ma, wa = mb / (ma + mb), wb = ma / (ma + mb);
+    a.x += c.nx * c.pen * wa; a.z += c.nz * c.pen * wa; b.x -= c.nx * c.pen * wb; b.z -= c.nz * c.pen * wb;
+    const rvx = a.vx - b.vx, rvz = a.vz - b.vz, vn = rvx * c.nx + rvz * c.nz;
+    if (vn >= 0) return;
+    const J = -(1 + 0.3) * vn;                  // total relative velocity change along n
+    const vt = rvx * -c.nz + rvz * c.nx, F = clamp(vt * 0.08, -J * 0.3, J * 0.3);
+    a._hit(c.nx, c.nz, J * wa, F * wa, c.k, -vn);
+    b._hit(-c.nx, -c.nz, J * wb, -F * wb, c.m, -vn);
+  }
+  // online: each client resolves only its own car against a remote one (whose motion it can't change)
+  collideCar(o) {
+    const c = Vehicle.contact(this, o); if (!c) return;
+    const mo = o.mass || (o.def && o.def.mass) || this.mass, w = clamp(mo / (this.mass + mo), 0.2, 0.8);
+    this.x += c.nx * c.pen * w; this.z += c.nz * c.pen * w;
+    const rvx = this.vx - (o.vx || 0), rvz = this.vz - (o.vz || 0), vn = rvx * c.nx + rvz * c.nz;
+    if (vn >= 0) return;
+    const J = -(1 + 0.3) * vn, vt = rvx * -c.nz + rvz * c.nx, F = clamp(vt * 0.08, -J * 0.3, J * 0.3);
+    this._hit(c.nx, c.nz, J * w, F * w, c.k, -vn);
   }
 }
