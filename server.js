@@ -482,7 +482,7 @@ function begin(r) {
       M.p[id].tracker = new SH.RaceTracker(route, M.laps);
       if (M.mode === 'driftrace') M.p[id].judge = new SH.CompDriftJudge(M.map, () => {}, SH.DRIFT_RACE.judge);
     }
-    later(r, 4000 + Math.max(10, M.laps * 6) * 60000, () => finishRace(r)); // hard cap
+    later(r, 4000 + Math.max(10, M.laps * Math.max(6, route.length / 1500)) * 60000, () => finishRace(r)); // hard cap (scales with lap length)
   }
   later(r, 4000, () => { if (M.phase === 'countdown') M.phase = 'running'; });
   M.mStart = { t: 'mStart', mode: M.mode, startAt: M.startAt, endAt: M.endAt || null };

@@ -125,24 +125,42 @@ export const GEO = {
     ],
   },
   desert: {
+    // Dune Valley: a huge open desert (4 km across) with a long winding highway that
+    // weaves out to every corner, an interstate cutting across it, and side roads to the
+    // salt flat, a dry lake, a canyon, a ghost town, an old airstrip and a gas station.
     roads: [
-      // 0: the highway loop round the valley
-      { pts: sc(1.3, [[-450, -400], [0, -470], [450, -420], [520, -100], [470, 250], [300, 480], [-100, 500], [-420, 420], [-520, 100], [-500, -200]]), closed: true, width: 14 },
-      // 1-4: four spokes from the highway into the salt flat (crossroads in the middle of the valley)
-      { pts: [[0, -606], [12, -420], [0, -200]], width: 12 },
-      { pts: [[674, -130], [430, -80], [200, -20]], width: 12 },
-      { pts: [[-20, 200], [-30, 420], [-90, 648]], width: 12 },
-      { pts: [[-200, 30], [-450, 70], [-670, 140]], width: 12 },
-      // 5: canyon road between the west mesas (west spoke -> north spoke)
-      { pts: [[-460, 72], [-500, 250], [-420, 400], [-280, 450], [-140, 410], [-28, 380]], width: 12 },
-      // 6: ghost-town road (west spoke -> south highway)
-      { pts: [[-330, 52], [-345, -100], [-330, -200], [-300, -350], [-320, -582]], width: 11 },
-      // 7: airstrip -> south-east highway
-      { pts: [[430, -430], [510, -500], [585, -546]], width: 12 },
-      // 8: gas station access
-      { pts: [[588, 360], [630, 362], [662, 362]], width: 12 },
+      // 0: Grand Desert Highway — long, winding, never a plain circle
+      { pts: [[0, -1500], [700, -1640], [1300, -1450], [1650, -1000], [1500, -600], [1700, -200], [1650, 400], [1350, 800], [1520, 1250], [1150, 1660], [500, 1600], [0, 1300], [-500, 1660], [-1100, 1600], [-1600, 1250], [-1450, 700], [-1720, 200], [-1600, -400], [-1300, -900], [-1520, -1400], [-900, -1660], [-400, -1450]], closed: true, width: 16 },
+      // 1: the interstate straight across the valley, west to east
+      { pts: [[-1720, 200], [-1100, 270], [-600, 340], [0, 400], [600, 340], [1100, 230], [1700, -200]], width: 16 },
+      // 2: south highway -> salt flat
+      { pts: [[0, -1500], [60, -1000], [-20, -600], [0, -205]], width: 13 },
+      // 3: north highway -> crosses the interstate -> salt flat
+      { pts: [[0, 1300], [40, 900], [10, 600], [0, 400], [0, 205]], width: 13 },
+      // 4: east road: salt flat -> highway
+      { pts: [[205, 0], [600, -60], [1100, -200], [1500, -600]], width: 13 },
+      // 5: west road: salt flat -> highway
+      { pts: [[-205, 0], [-700, -80], [-1100, -300], [-1600, -400]], width: 13 },
+      // 6: canyon road, twisting between the mesas (interstate -> north-west highway)
+      { pts: [[-1100, 270], [-1160, 560], [-980, 760], [-1120, 960], [-960, 1160], [-1130, 1360], [-1100, 1600]], width: 12 },
+      // 7: ghost-town gravel road (west road -> south-west highway)
+      { pts: [[-1100, -300], [-1050, -650], [-900, -1000], [-980, -1300], [-900, -1660]], width: 11 },
+      // 8: highway -> airstrip (south-east)
+      { pts: [[1300, -1450], [1160, -1230], [1050, -1050]], width: 12 },
+      // 9: airstrip -> east road
+      { pts: [[760, -760], [640, -450], [600, -60]], width: 12 },
+      // 10: gas station access (east highway)
+      { pts: [[1650, 400], [1560, 425], [1490, 440]], width: 12 },
+      // 11: dry lake access (north-east highway)
+      { pts: [[1350, 800], [1180, 870], [1060, 930]], width: 12 },
     ],
-    pads: [{ x: 0, z: 0, r: 210 }, { x: 690, z: 365, w: 70, d: 50, yaw: 0.3 }, { x: 300, z: -300, w: 46, d: 420, yaw: 2.356 }, { x: -330, z: -200, w: 90, d: 70 }],
+    pads: [
+      { x: 0, z: 0, r: 210 }, // salt flat
+      { x: 1450, z: 450, w: 70, d: 50, yaw: 0.3 }, // gas station
+      { x: 900, z: -900, w: 46, d: 420, yaw: 2.356 }, // airstrip
+      { x: -900, z: -1000, w: 90, d: 70 }, // ghost-town square
+      { x: 900, z: 1010, r: 170 }, // dry lake
+    ],
   },
   mountain: {
     roads: [

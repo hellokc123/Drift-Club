@@ -1931,24 +1931,42 @@ const GEO = {
     ],
   },
   desert: {
+    // Dune Valley: a huge open desert (4 km across) with a long winding highway that
+    // weaves out to every corner, an interstate cutting across it, and side roads to the
+    // salt flat, a dry lake, a canyon, a ghost town, an old airstrip and a gas station.
     roads: [
-      // 0: the highway loop round the valley
-      { pts: sc(1.3, [[-450, -400], [0, -470], [450, -420], [520, -100], [470, 250], [300, 480], [-100, 500], [-420, 420], [-520, 100], [-500, -200]]), closed: true, width: 14 },
-      // 1-4: four spokes from the highway into the salt flat (crossroads in the middle of the valley)
-      { pts: [[0, -606], [12, -420], [0, -200]], width: 12 },
-      { pts: [[674, -130], [430, -80], [200, -20]], width: 12 },
-      { pts: [[-20, 200], [-30, 420], [-90, 648]], width: 12 },
-      { pts: [[-200, 30], [-450, 70], [-670, 140]], width: 12 },
-      // 5: canyon road between the west mesas (west spoke -> north spoke)
-      { pts: [[-460, 72], [-500, 250], [-420, 400], [-280, 450], [-140, 410], [-28, 380]], width: 12 },
-      // 6: ghost-town road (west spoke -> south highway)
-      { pts: [[-330, 52], [-345, -100], [-330, -200], [-300, -350], [-320, -582]], width: 11 },
-      // 7: airstrip -> south-east highway
-      { pts: [[430, -430], [510, -500], [585, -546]], width: 12 },
-      // 8: gas station access
-      { pts: [[588, 360], [630, 362], [662, 362]], width: 12 },
+      // 0: Grand Desert Highway — long, winding, never a plain circle
+      { pts: [[0, -1500], [700, -1640], [1300, -1450], [1650, -1000], [1500, -600], [1700, -200], [1650, 400], [1350, 800], [1520, 1250], [1150, 1660], [500, 1600], [0, 1300], [-500, 1660], [-1100, 1600], [-1600, 1250], [-1450, 700], [-1720, 200], [-1600, -400], [-1300, -900], [-1520, -1400], [-900, -1660], [-400, -1450]], closed: true, width: 16 },
+      // 1: the interstate straight across the valley, west to east
+      { pts: [[-1720, 200], [-1100, 270], [-600, 340], [0, 400], [600, 340], [1100, 230], [1700, -200]], width: 16 },
+      // 2: south highway -> salt flat
+      { pts: [[0, -1500], [60, -1000], [-20, -600], [0, -205]], width: 13 },
+      // 3: north highway -> crosses the interstate -> salt flat
+      { pts: [[0, 1300], [40, 900], [10, 600], [0, 400], [0, 205]], width: 13 },
+      // 4: east road: salt flat -> highway
+      { pts: [[205, 0], [600, -60], [1100, -200], [1500, -600]], width: 13 },
+      // 5: west road: salt flat -> highway
+      { pts: [[-205, 0], [-700, -80], [-1100, -300], [-1600, -400]], width: 13 },
+      // 6: canyon road, twisting between the mesas (interstate -> north-west highway)
+      { pts: [[-1100, 270], [-1160, 560], [-980, 760], [-1120, 960], [-960, 1160], [-1130, 1360], [-1100, 1600]], width: 12 },
+      // 7: ghost-town gravel road (west road -> south-west highway)
+      { pts: [[-1100, -300], [-1050, -650], [-900, -1000], [-980, -1300], [-900, -1660]], width: 11 },
+      // 8: highway -> airstrip (south-east)
+      { pts: [[1300, -1450], [1160, -1230], [1050, -1050]], width: 12 },
+      // 9: airstrip -> east road
+      { pts: [[760, -760], [640, -450], [600, -60]], width: 12 },
+      // 10: gas station access (east highway)
+      { pts: [[1650, 400], [1560, 425], [1490, 440]], width: 12 },
+      // 11: dry lake access (north-east highway)
+      { pts: [[1350, 800], [1180, 870], [1060, 930]], width: 12 },
     ],
-    pads: [{ x: 0, z: 0, r: 210 }, { x: 690, z: 365, w: 70, d: 50, yaw: 0.3 }, { x: 300, z: -300, w: 46, d: 420, yaw: 2.356 }, { x: -330, z: -200, w: 90, d: 70 }],
+    pads: [
+      { x: 0, z: 0, r: 210 }, // salt flat
+      { x: 1450, z: 450, w: 70, d: 50, yaw: 0.3 }, // gas station
+      { x: 900, z: -900, w: 46, d: 420, yaw: 2.356 }, // airstrip
+      { x: -900, z: -1000, w: 90, d: 70 }, // ghost-town square
+      { x: 900, z: 1010, r: 170 }, // dry lake
+    ],
   },
   mountain: {
     roads: [
@@ -4501,7 +4519,7 @@ const { makeNoise, rng, smoothstep, clamp, lerp } = __mod["js/engine/math.js"];
 const { crSample, segDist, GEO, CITY } = __mod["js/tracks.js"];
 const MAP_LIST = [
   { id: 'track', name: 'Apex Circuit', type: 'Race Track', desc: 'A proper racing circuit with a National cut-through, service roads, an infield skidpad, an autocross pad and car parks.', accent: '#8fb3d1' },
-  { id: 'desert', name: 'Dune Valley', type: 'Desert', desc: 'Golden-hour highways crossing a huge salt flat, a canyon road, an old airstrip and a ghost town. Endless room to slide.', accent: '#d9a46a' },
+  { id: 'desert', name: 'Dune Valley', type: 'Desert', desc: 'Huge open desert, 4 km wide. A 12 km winding highway, an interstate, a canyon road, salt flat, dry lake, airstrip and a ghost town.', accent: '#d9a46a' },
   { id: 'mountain', name: 'Kurogane Pass', type: 'Mountains', desc: 'A dusk touge up to the summit lookout, a winding east descent, a valley ring road and a village rest stop.', accent: '#d48d6e' },
   { id: 'forest', name: 'Pinewood Trails', type: 'Forest', desc: 'Misty forest roads round a lake, gravel logging trails, a big clearing and a quarry.', accent: '#86b77a' },
   { id: 'city', name: 'City Nights', type: 'City', desc: 'Night-time grid of streets cut by a diagonal boulevard, a central plaza and open parking lots.', accent: '#d8b25c' },
@@ -4682,7 +4700,7 @@ class World {
 
   // ------------------------------------------------ heightfield
   buildHeightfield() {
-    const spec = this.spec, cs = this.q.cell, size = this.size;
+    const spec = this.spec, cs = this.q.cell * (spec.cellMul || 1), size = this.size;
     const N = Math.round(size / cs) + 1; this.N = N; this.cs = cs; this.org = -size / 2;
     this.hf = new Float32Array(N * N); this.sd = new Float32Array(N * N); this.st = new Uint8Array(N * N);
     const shoulder = Math.max(3, cs * 1.2), blend = spec.blend || 22;
@@ -5178,12 +5196,13 @@ const SPECS = {
   // ------------------------------------------------------------- DESERT
   desert(q) {
     const n = makeNoise(23);
-    const mesas = [[806, -676, 150], [-832, 728, 170], [832, 780, 140], [-806, -780, 160], [0, 897, 190], [-910, 0, 180], [910, 104, 170], [-330, 290, 62], [-230, 560, 50], [-415, 255, 40], [200, 520, 55], [460, -160, 45]];
+    const mesas = [[-1280, 900, 120], [-780, 1000, 190], [-1320, 1200, 200], [-780, 640, 180], [400, -1050, 150], [-500, -1050, 140], [1050, 500, 170], [450, 1100, 120], [-500, 850, 120], [-1500, -850, 80], [-450, -500, 70], [450, -500, 70], [700, 750, 80], [-1200, -1250, 70], [1250, -1050, 70], [-600, 1350, 90], [1250, 1450, 70], [1700, 800, 80], [-1700, -1100, 90], [1700, -1500, 90]];
     const sand = col('#e3b97a'), sand2 = col('#d4a467'), salt = col('#ece7da'), rockC = col('#b56a43'), rockD = col('#8e4f35');
     const terrain = (x, z) => {
       let h = n.fbm(x / 170, z / 170, 4) * 7 + Math.sin(x / 37 + n(x / 90, z / 90) * 3) * 1.2;
       const e = Math.max(Math.abs(x), Math.abs(z));
-      h += smoothstep(760, 900, e) * (40 + n.ridge(x / 120, z / 120, 3) * 60);
+      h += n.fbm(x / 420, z / 420, 3) * 10; // big rolling dunes
+      h += smoothstep(1790, 1960, e) * (50 + n.ridge(x / 160, z / 160, 3) * 80);
       for (const [mx, mz, mr] of mesas) {
         const d = Math.hypot(x - mx, z - mz) + n(x / 40, z / 40) * 18;
         h += smoothstep(mr, mr * 0.8, d) * 55;
@@ -5191,45 +5210,46 @@ const SPECS = {
       return h;
     };
     return {
-      seed: 202, size: 1900, natural: 'sand', boundary: 70, blend: 24,
+      seed: 202, size: 4000, cellMul: 1.4, natural: 'sand', boundary: 80, blend: 24,
       terrain,
       color: (x, z, h, slope, sd) => {
         if (h > 22 || slope > 0.55) return mix3(rockC, rockD, (Math.floor(h / 4) & 1) * 0.6 + n(x / 20, z / 20) * 0.2);
         return mix3(sand, sand2, n(x / 25, z / 25) * 0.5 + 0.5);
       },
       shoulder: col('#c99b62'),
-      roads: GEO.desert.roads.map((r, i) => i === 0 ? { ...r, center: 'dash', color: [0.26, 0.25, 0.25], smooth: 18 }
-        : i === 6 ? { ...r, surface: 3, color: [0.5, 0.42, 0.32], edge: false } // dusty gravel track
-        : { ...r, center: i <= 4 ? 'dash' : undefined, color: [0.26, 0.25, 0.25] }),
+      roads: GEO.desert.roads.map((r, i) => i <= 1 ? { ...r, center: 'dash', color: [0.26, 0.25, 0.25], smooth: 24 }
+        : i === 7 ? { ...r, surface: 3, color: [0.5, 0.42, 0.32], edge: false } // dusty gravel track
+        : { ...r, center: i <= 6 ? 'dash' : undefined, color: [0.26, 0.25, 0.25] }),
       pads: [
         { ...GEO.desert.pads[0], type: 4, color: salt, h: -1 },
         { ...GEO.desert.pads[1], type: 2 },
         { ...GEO.desert.pads[2], type: 2, color: [0.3, 0.29, 0.28], markings: 'strip', h: -1 }, // same level as the flat it joins
         { ...GEO.desert.pads[3], type: 3, color: [0.55, 0.45, 0.33] },
+        { ...GEO.desert.pads[4], type: 4, color: col('#e6dccb'), h: -1 }, // dry lake bed
       ],
       spawns: (W) => W.roadSpawns(0, 70, 12, 1),
       challenges: [
         { name: 'Salt Flat Frenzy', x: 0, z: 0, r: 100, target: 20000, time: 30 },
-        { name: 'Highway Sweeper', x: 640, z: -330, r: 80, target: 12000, time: 25 },
-        { name: 'Canyon Run', x: -470, z: 330, r: 80, target: 12000, time: 25 },
-        { name: 'Airstrip Slide', x: 300, z: -300, r: 70, target: 15000, time: 30 },
+        { name: 'Dry Lake Donuts', x: 900, z: 1010, r: 90, target: 20000, time: 30 },
+        { name: 'Highway Sweeper', x: 1650, z: -1000, r: 80, target: 12000, time: 25 },
+        { name: 'Canyon Run', x: -1120, z: 960, r: 80, target: 12000, time: 25 },
+        { name: 'Airstrip Slide', x: 900, z: -900, r: 70, target: 15000, time: 30 },
       ],
       env: {
         sky: { top: col('#4a5f9c'), horizon: col('#ffb36b'), bottom: col('#d7a06a') },
         sunDir: norm([-0.65, 0.32, 0.55]), sunCol: [1.15, 0.82, 0.55], sunGlow: [1.3, 0.8, 0.4], ambSky: [0.55, 0.5, 0.58], ambGround: [0.5, 0.38, 0.28],
-        fogCol: col('#f0b886'), fogNear: 300, fogFar: 1150, night: false, music: 'warm',
+        fogCol: col('#f0b886'), fogNear: 350, fogFar: 1300, night: false, music: 'warm',
       },
       scenery(c) {
         const r = c.rand;
-        c.scatter(Math.floor(2400 * q.density), (x, z, inPlay) => {
+        c.scatter(Math.floor(7000 * q.density), (x, z, inPlay) => {
           const y = c.h(x, z), g = c.geo(x, z), k = r();
           if (k < 0.45) { const s = 0.8 + r() * 0.6; cactus(g, x, y, z, s, r); if (inPlay) c.circle(x, z, 0.45 * s); c.shadow(x, z, 1.2 * s, 0.3); }
           else if (k < 0.75) { const s = 0.8 + r() * 2.2; rock(g, x, y, z, s, r, [0.7, 0.45, 0.32]); if (inPlay) c.circle(x, z, s * 1.1); }
           else g.blob(x, y + 0.4, z, 0.9, 0.5, 0.9, [0.55, 0.5, 0.3], 0.4, r);
         }, (x, z) => c.sd(x, z) > 10);
-        // power line poles along the highway
-        const rd = c.roads[0];
-        for (let i = 0; i < rd.n; i += 14) {
+        // power line poles along the highway and the interstate
+        for (const rd of [c.roads[0], c.roads[1]]) for (let i = 0; i < rd.n; i += 14) {
           const off = rd.half + 9, x = rd.x[i] + rd.tz[i] * off, z = rd.z[i] - rd.tx[i] * off;
           if (c.sd(x, z) < 6) continue;
           const y = c.h(x, z), g = c.geo(x, z), yaw = Math.atan2(rd.tx[i], rd.tz[i]);
@@ -5238,7 +5258,7 @@ const SPECS = {
           c.circle(x, z, 0.3);
         }
         // gas station
-        { const x = 690, z = 365, y = c.h(x, z), g = c.geo(x, z);
+        { const x = 1450, z = 450, y = c.h(x, z), g = c.geo(x, z);
           g.at(x, y, z, 0.3);
           g.box(0, 5.5, 0, 26, 0.8, 16, { top: [0.9, 0.9, 0.9], side: [0.85, 0.15, 0.12] });
           for (const [px, pz] of [[-10, -6], [10, -6], [-10, 6], [10, 6]]) g.box(px, 2.7, pz, 0.6, 5.4, 0.6, [0.9, 0.9, 0.9]);
@@ -5250,23 +5270,23 @@ const SPECS = {
           c.box(x, z, 26, 16, 0.3); c.box(x + Math.sin(0.3) * 22, z + Math.cos(0.3) * 22, 20, 10, 0.3);
         }
         // abandoned trailer + signs
-        { const x = 120, z = 280, y = c.h(x, z), g = c.geo(x, z);
+        { const x = 300, z = 620, y = c.h(x, z), g = c.geo(x, z);
           g.at(x, y, z, 0.6).box(0, 1.6, 0, 3, 2.6, 9, { top: [0.75, 0.75, 0.78], side: [0.82, 0.8, 0.75] }).box(0, 0.4, -2, 3.2, 0.3, 0.3, [0.1, 0.1, 0.1]).reset();
           c.box(x, z, 3, 9, 0.6); }
         // ghost town: weathered wooden shacks around the gravel square
-        for (const [x, z, w, d, yaw] of [[-395, -170, 12, 9, 0.1], [-392, -228, 10, 8, -0.05], [-268, -158, 11, 8, 0.05], [-270, -246, 14, 9, -0.1], [-330, -262, 9, 7, 0]]) {
+        for (const [x, z, w, d, yaw] of [[-965, -970, 12, 9, 0.1], [-962, -1028, 10, 8, -0.05], [-838, -958, 11, 8, 0.05], [-840, -1046, 14, 9, -0.1], [-900, -1062, 9, 7, 0]]) {
           const y = c.h(x, z), g = c.geo(x, z), wood = shade([0.55, 0.42, 0.3], 0.8 + r() * 0.3);
           g.at(x, y, z, yaw).box(0, 2, 0, w, 4, d, { top: [0.42, 0.33, 0.26], side: wood }).box(0, 4.6, 0, w + 1, 0.4, d + 1, [0.38, 0.3, 0.24]).box(0, 1.2, d / 2 + 0.05, 1.4, 2.4, 0.1, [0.2, 0.15, 0.1]).reset();
           c.box(x, z, w, d, yaw);
         }
-        { const x = -290, z = -200, y = c.h(x, z), g = c.geo(x, z); // water tower
+        { const x = -860, z = -1000, y = c.h(x, z), g = c.geo(x, z); // water tower
           for (const [sx, sz] of [[-2, -2], [2, -2], [2, 2], [-2, 2]]) { g.cylinder(x + sx, y + 4, z + sz, 0.2, 8, 5, [0.4, 0.3, 0.22]); c.circle(x + sx, z + sz, 0.3); }
           g.cylinder(x, y + 10, z, 3, 4, 10, [0.5, 0.4, 0.3]); g.cone(x, y + 12.8, z, 3.3, 1.6, 10, [0.4, 0.32, 0.26]); }
         // airstrip hangar + windsock beside the runway
-        { const x = 395, z = -235, y = c.h(x, z), g = c.geo(x, z), yaw = 2.356;
+        { const x = 960, z = -840, y = c.h(x, z), g = c.geo(x, z), yaw = 2.356;
           g.at(x, y, z, yaw).box(0, 5, 0, 30, 10, 24, { top: [0.62, 0.6, 0.56], side: [0.72, 0.7, 0.66], front: [0.35, 0.33, 0.3] }).reset();
           c.box(x, z, 30, 24, yaw);
-          g.cylinder(200, c.h(200, -330) + 4, -330, 0.1, 8, 5, [0.6, 0.6, 0.6]); g.cone(200.8, c.h(200, -330) + 7.6, -330, 0.5, 1.8, 6, [0.85, 0.45, 0.2]); c.circle(200, -330, 0.3); }
+          g.cylinder(840, c.h(840, -960) + 4, -960, 0.1, 8, 5, [0.6, 0.6, 0.6]); g.cone(840.8, c.h(840, -960) + 7.6, -960, 0.5, 1.8, 6, [0.85, 0.45, 0.2]); c.circle(840, -960, 0.3); }
       },
     };
   },
