@@ -11,7 +11,7 @@ import { AI_SKILL } from './ai.js';
 import { ACTIONS, DEFAULT_BINDINGS, keyLabel } from './input.js';
 import { VIEWS } from './camera.js';
 import { DRIVE_STYLES } from './physics.js';
-import { isCreatorUnlocked, tryCreatorCode } from './secret.js';
+import { isUnlocked, allUnlocked, tryCode } from './secret.js';
 import { goFullscreen, exitFullscreen } from './touch.js';
 const isRaceMode = (m) => m === 'race' || m === 'driftrace'; // modes run on the race circuits
 
@@ -182,7 +182,7 @@ export class UI {
     const S = this.S, cfg = S.car, def = carById(cfg.id);
     cfg.tune = sanitizeTune(cfg.tune, def);
     const tab = this.garageTab || 'looks';
-    const cats = CATEGORIES.filter((c) => !c.secret || isCreatorUnlocked()); // the Creator tab appears once unlocked
+    const cats = CATEGORIES.filter((c) => !c.secret || isUnlocked(c.secret)); // secret tabs appear once their code is entered
     if (!cats.some((c) => c.id === this.garageCat)) this.garageCat = cats[0].id;
     $('#cat-tabs').innerHTML = cats.map((c) => `<button class="tab ${c.id === this.garageCat ? 'sel' : ''}" data-cat="${c.id}">${c.name}</button>`).join('');
     $('#car-list').innerHTML = CARS.filter((c) => c.cat === this.garageCat).map((c) => { const g = (S.garage || {})[c.id]; const tuned = g && !isStock(g.tune); return `<button class="car-item ${c.id === cfg.id ? 'sel' : ''}" data-car="${c.id}"><span class="swatch" style="background:${(g && g.paint) || c.paint}"></span><b>${c.name}</b><small>${tuned ? '<i class="tuned">TUNED</i> ' : ''}${Math.round(this.measuredTop(c, g && g.tune))} km/h</small></button>`; }).join('');
@@ -247,7 +247,7 @@ export class UI {
   // small, easy-to-miss "Enter code" link under the car list (unlocks the secret Creator car)
   renderCode() {
     const el = $('#garage-code'); if (!el) return;
-    if (isCreatorUnlocked()) { el.innerHTML = ''; return; }
+    if (allUnlocked()) { el.innerHTML = ''; return; }
     el.innerHTML = this.codeOpen
       ? '<form class="code-form"><input id="code-in" maxlength="40" placeholder="Code" autocomplete="off" spellcheck="false"><button class="btn small ghost" type="submit">OK</button></form>'
       : '<button class="code-link" type="button">Enter code</button>';
@@ -256,11 +256,12 @@ export class UI {
     const form = $('.code-form', el);
     if (form) form.onsubmit = async (e) => {
       e.preventDefault();
-      const inp = $('#code-in'), ok = await tryCreatorCode(inp.value);
-      if (!ok) { inp.value = ''; inp.classList.remove('nope'); void inp.offsetWidth; inp.classList.add('nope'); return; }
+      const inp = $('#code-in'), got = await tryCode(inp.value);
+      if (!got) { inp.value = ''; inp.classList.remove('nope'); void inp.offsetWidth; inp.classList.add('nope'); return; }
       this.codeOpen = false; this.app.audio.chime(true);
-      toast('<b>Creator car unlocked</b><br><small>Find it under the new Creator tab</small>', 3200);
-      this.garageCat = 'creator'; this.renderGarage();
+      const tab = CATEGORIES.find((c) => c.secret === got);
+      toast(got === 'creator' ? '<b>Creator cars unlocked</b><br><small>Find them under the new Creator tab</small>' : `<b>${tab ? tab.name : 'Secret'} car unlocked</b><br><small>Find it under the new ${tab ? tab.name : ''} tab</small>`, 3200);
+      this.garageCat = tab ? tab.id : 'creator'; this.renderGarage();
     };
   }
   measuredTop(def, tune) { // top speed as measured in the physics (the same number as the stat bar)

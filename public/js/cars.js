@@ -7,7 +7,8 @@ export const CATEGORIES = [
   { id: 'basic', name: 'Basic' }, { id: 'sports', name: 'Sports' }, { id: 'super', name: 'Supercars' },
   { id: 'drift', name: 'Drift' }, { id: 'muscle', name: 'Muscle' }, { id: 'pickup', name: 'Pickups' }, { id: 'suv', name: 'SUVs' },
   // hidden until unlocked with the secret code (see secret.js); its cars are still valid ids online
-  { id: 'creator', name: 'Creator', secret: true },
+  { id: 'creator', name: 'Creator', secret: 'creator' },
+  { id: 'squad', name: 'Squad', secret: 'squad' },
 ];
 
 // accel m/s², top m/s, grip = lateral grip rate, lat = max cornering accel (m/s²), steer = max wheel angle (rad),
@@ -44,7 +45,12 @@ export const CARS = [
   { id: 'fennec', name: 'Fennec XC', cat: 'suv', style: 'suv', paint: '#6c7a89', accel: 7.0, top: 54, grip: 9, lat: 10, steer: 0.6, wb: 2.6, driftGrip: 1.85, driftPower: 1.05, driftSteer: 1.95, momentum: 0.43, powerOver: 0.2, mass: 1.3, engine: { pitch: 1.1, cyl: 4, grit: 0.35 } },
   { id: 'castellan', name: 'Castellan Grand', cat: 'suv', style: 'suv', paint: '#2b3530', accel: 7.2, top: 57, grip: 8.8, lat: 9.6, steer: 0.54, wb: 3.05, driftGrip: 1.9, driftPower: 1.0, driftSteer: 1.75, momentum: 0.45, powerOver: 0.2, mass: 1.7, engine: { pitch: 0.8, cyl: 8, grit: 0.3 } },
   // --- secret: the creator's car. Hidden in the garage until unlocked; satin black with gold accents.
-  { id: 'creator', name: 'Nocturne Aurum', cat: 'creator', style: 'wedge', paint: '#1d1d1f', wheel: '#b8975a', livery: 2, liveryColor: '#c9a24a', satin: true, accel: 11.5, top: 88, grip: 13.5, lat: 14.3, steer: 0.64, wb: 2.6, driftGrip: 1.2, driftPower: 1.5, driftSteer: 2.5, momentum: 0.6, powerOver: 0.5, mass: 1.05, engine: { pitch: 1.45, cyl: 10, grit: 0.55 } },
+  { id: 'creator', name: 'Nocturne Aurum D', cat: 'creator', style: 'wedge', paint: '#1d1d1f', wheel: '#b8975a', livery: 2, liveryColor: '#c9a24a', satin: true, accel: 11.6, top: 87, grip: 13.2, lat: 14.0, steer: 0.68, wb: 2.55, driftGrip: 1.05, driftPower: 1.65, driftSteer: 2.75, momentum: 0.66, powerOver: 0.6, mass: 1.0, engine: { pitch: 1.45, cyl: 10, grit: 0.55 } },
+  // creator race car: the fastest, grippiest car in the game, with stability control (can't spin out)
+  { id: 'creatorR', name: 'Nocturne Aurum R', cat: 'creator', style: 'wedge', paint: '#151618', wheel: '#c8ccd2', livery: 2, liveryColor: '#d9dbe0', satin: true, accel: 12.2, top: 92, grip: 14.6, lat: 15.3, steer: 0.64, wb: 2.7, driftGrip: 1.95, driftPower: 1.15, driftSteer: 2.0, momentum: 0.5, powerOver: 0.15, mass: 1.05, noSpin: true, engine: { pitch: 1.6, cyl: 12, grit: 0.4 } },
+  // --- secret: the Squad car (its own code). Very fast, huge grip, sharp steering, stability control - but
+  // a step below the creator race car in every number
+  { id: 'vanta', name: 'Vanta GT', cat: 'squad', style: 'wedge', paint: '#1f3f7a', wheel: '#2b2d31', livery: 1, liveryColor: '#e8eaee', accel: 11.4, top: 86, grip: 14.0, lat: 14.8, steer: 0.62, wb: 2.7, driftGrip: 1.95, driftPower: 1.1, driftSteer: 2.0, momentum: 0.5, powerOver: 0.12, mass: 1.1, noSpin: true, engine: { pitch: 1.5, cyl: 8, grit: 0.35 } },
 ];
 export const carById = (id) => CARS.find((c) => c.id === id) || CARS[0];
 
@@ -295,6 +301,15 @@ export const LOOKS = {
     shape: { L: 4.6, W: 2.06, H: 0.5, ride: 0.1, nose: 0.34, cowl: 1.25, deck: 0.05, rearTop: 0.88, cab: [1.35, 1.3, 2.05, 1.8], ch: 0.43, cw: 0.72, crown: 0.04, taperF: 0.22, taperR: 0.08 },
     head: 'bar', grille: 'intake', tail: 'bar', hood: 'vents', arches: 'over', aero: 'swan', exhaust: 'center2', mirror: 'sport',
     extras: ['splitter', 'canards', 'diffuser', 'sideIntake', 'goldAccent'],
+  },
+  creatorR: { // Nocturne Aurum R: same family as the drift car, longer and lower, platinum accents
+    shape: { L: 4.75, W: 2.08, H: 0.48, ride: 0.09, nose: 0.32, cowl: 1.3, deck: 0.05, rearTop: 0.86, cab: [1.4, 1.3, 2.1, 1.8], ch: 0.42, cw: 0.72, crown: 0.04, taperF: 0.24, taperR: 0.08 },
+    head: 'bar', grille: 'intake', tail: 'bar', hood: 'vents', arches: 'over', aero: 'swan', exhaust: 'center2', mirror: 'sport',
+    extras: ['splitter', 'canards', 'diffuser', 'sideIntake', 'goldAccent'], accent: [0.82, 0.84, 0.88],
+  },
+  vanta: { // Vanta GT: clean GT wedge with a swan wing and white accents
+    head: 'bar', grille: 'intake', tail: 'bar', hood: 'vents', arches: 'over', aero: 'swan', exhaust: 'center2', mirror: 'sport',
+    extras: ['splitter', 'diffuser', 'sideIntake', 'goldAccent'], accent: [0.9, 0.91, 0.93],
   },
 };
 
@@ -830,12 +845,12 @@ function buildGeometry(renderer, def, cfg) {
     for (const sx of [-1, 1]) trim.box(sx * W * 0.25, y0 + 0.28, bz, 0.06, 0.5, 0.06, C.plastic);
     trim.box(0, y0 + 0.52, bz, W * 0.56, 0.06, 0.06, C.plastic); trim.box(0, y0 + 0.14, bz, W * 0.7, 0.06, 0.06, C.plastic);
   }
-  if (has('goldAccent')) { // creator car: thin gold pinstripes on the splitter, sills, diffuser and a nose badge
-    fBox(trim, 0, y0 + 0.035, hw(z1) * 2 - 0.05, 0.014, 0.02, C.gold, 0.11);
-    for (const sx of [-1, 1]) trim.box(sx * (W / 2 + 0.012), y0 + 0.13, (fz + rz) / 2, 0.012, 0.018, (fz - rz) - ARCH * 2 - 0.2, C.gold);
-    bBox(trim, 0, y0 + 0.11, W * 0.62, 0.014, 0.02, C.gold, 0.06);
-    onTop(trim, 0, z1 - 0.35, 0.12, 0.02, 0.07, C.gold, 0.005);
-    for (const sx of [-1, 1]) onTop(trim, sx * W * 0.12, (z1 - s.cowl * 0.5), 0.025, 0.012, s.cowl * 0.8, C.gold, 0.004); // bonnet pinstripes
+  if (has('goldAccent')) { const ACC = look.accent || C.gold; // secret cars: thin gold (or platinum) pinstripes on the splitter, sills, diffuser and a nose badge
+    fBox(trim, 0, y0 + 0.035, hw(z1) * 2 - 0.05, 0.014, 0.02, ACC, 0.11);
+    for (const sx of [-1, 1]) trim.box(sx * (W / 2 + 0.012), y0 + 0.13, (fz + rz) / 2, 0.012, 0.018, (fz - rz) - ARCH * 2 - 0.2, ACC);
+    bBox(trim, 0, y0 + 0.11, W * 0.62, 0.014, 0.02, ACC, 0.06);
+    onTop(trim, 0, z1 - 0.35, 0.12, 0.02, 0.07, ACC, 0.005);
+    for (const sx of [-1, 1]) onTop(trim, sx * W * 0.12, (z1 - s.cowl * 0.5), 0.025, 0.012, s.cowl * 0.8, ACC, 0.004); // bonnet pinstripes
   }
   if (has('rails')) for (const sx of [-1, 1]) trim.box(sx * cabW * 0.4, roofAt((tRp[0] + tFp[0]) / 2) + 0.06, (tRp[0] + tFp[0]) / 2, 0.035, 0.035, (tFp[0] - tRp[0]) * 0.92, C.chrome);
 

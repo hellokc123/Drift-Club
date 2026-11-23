@@ -2687,7 +2687,8 @@ const CATEGORIES = [
   { id: 'basic', name: 'Basic' }, { id: 'sports', name: 'Sports' }, { id: 'super', name: 'Supercars' },
   { id: 'drift', name: 'Drift' }, { id: 'muscle', name: 'Muscle' }, { id: 'pickup', name: 'Pickups' }, { id: 'suv', name: 'SUVs' },
   // hidden until unlocked with the secret code (see secret.js); its cars are still valid ids online
-  { id: 'creator', name: 'Creator', secret: true },
+  { id: 'creator', name: 'Creator', secret: 'creator' },
+  { id: 'squad', name: 'Squad', secret: 'squad' },
 ];
 
 // accel m/s², top m/s, grip = lateral grip rate, lat = max cornering accel (m/s²), steer = max wheel angle (rad),
@@ -2724,7 +2725,12 @@ const CARS = [
   { id: 'fennec', name: 'Fennec XC', cat: 'suv', style: 'suv', paint: '#6c7a89', accel: 7.0, top: 54, grip: 9, lat: 10, steer: 0.6, wb: 2.6, driftGrip: 1.85, driftPower: 1.05, driftSteer: 1.95, momentum: 0.43, powerOver: 0.2, mass: 1.3, engine: { pitch: 1.1, cyl: 4, grit: 0.35 } },
   { id: 'castellan', name: 'Castellan Grand', cat: 'suv', style: 'suv', paint: '#2b3530', accel: 7.2, top: 57, grip: 8.8, lat: 9.6, steer: 0.54, wb: 3.05, driftGrip: 1.9, driftPower: 1.0, driftSteer: 1.75, momentum: 0.45, powerOver: 0.2, mass: 1.7, engine: { pitch: 0.8, cyl: 8, grit: 0.3 } },
   // --- secret: the creator's car. Hidden in the garage until unlocked; satin black with gold accents.
-  { id: 'creator', name: 'Nocturne Aurum', cat: 'creator', style: 'wedge', paint: '#1d1d1f', wheel: '#b8975a', livery: 2, liveryColor: '#c9a24a', satin: true, accel: 11.5, top: 88, grip: 13.5, lat: 14.3, steer: 0.64, wb: 2.6, driftGrip: 1.2, driftPower: 1.5, driftSteer: 2.5, momentum: 0.6, powerOver: 0.5, mass: 1.05, engine: { pitch: 1.45, cyl: 10, grit: 0.55 } },
+  { id: 'creator', name: 'Nocturne Aurum D', cat: 'creator', style: 'wedge', paint: '#1d1d1f', wheel: '#b8975a', livery: 2, liveryColor: '#c9a24a', satin: true, accel: 11.6, top: 87, grip: 13.2, lat: 14.0, steer: 0.68, wb: 2.55, driftGrip: 1.05, driftPower: 1.65, driftSteer: 2.75, momentum: 0.66, powerOver: 0.6, mass: 1.0, engine: { pitch: 1.45, cyl: 10, grit: 0.55 } },
+  // creator race car: the fastest, grippiest car in the game, with stability control (can't spin out)
+  { id: 'creatorR', name: 'Nocturne Aurum R', cat: 'creator', style: 'wedge', paint: '#151618', wheel: '#c8ccd2', livery: 2, liveryColor: '#d9dbe0', satin: true, accel: 12.2, top: 92, grip: 14.6, lat: 15.3, steer: 0.64, wb: 2.7, driftGrip: 1.95, driftPower: 1.15, driftSteer: 2.0, momentum: 0.5, powerOver: 0.15, mass: 1.05, noSpin: true, engine: { pitch: 1.6, cyl: 12, grit: 0.4 } },
+  // --- secret: the Squad car (its own code). Very fast, huge grip, sharp steering, stability control - but
+  // a step below the creator race car in every number
+  { id: 'vanta', name: 'Vanta GT', cat: 'squad', style: 'wedge', paint: '#1f3f7a', wheel: '#2b2d31', livery: 1, liveryColor: '#e8eaee', accel: 11.4, top: 86, grip: 14.0, lat: 14.8, steer: 0.62, wb: 2.7, driftGrip: 1.95, driftPower: 1.1, driftSteer: 2.0, momentum: 0.5, powerOver: 0.12, mass: 1.1, noSpin: true, engine: { pitch: 1.5, cyl: 8, grit: 0.35 } },
 ];
 const carById = (id) => CARS.find((c) => c.id === id) || CARS[0];
 
@@ -2975,6 +2981,15 @@ const LOOKS = {
     shape: { L: 4.6, W: 2.06, H: 0.5, ride: 0.1, nose: 0.34, cowl: 1.25, deck: 0.05, rearTop: 0.88, cab: [1.35, 1.3, 2.05, 1.8], ch: 0.43, cw: 0.72, crown: 0.04, taperF: 0.22, taperR: 0.08 },
     head: 'bar', grille: 'intake', tail: 'bar', hood: 'vents', arches: 'over', aero: 'swan', exhaust: 'center2', mirror: 'sport',
     extras: ['splitter', 'canards', 'diffuser', 'sideIntake', 'goldAccent'],
+  },
+  creatorR: { // Nocturne Aurum R: same family as the drift car, longer and lower, platinum accents
+    shape: { L: 4.75, W: 2.08, H: 0.48, ride: 0.09, nose: 0.32, cowl: 1.3, deck: 0.05, rearTop: 0.86, cab: [1.4, 1.3, 2.1, 1.8], ch: 0.42, cw: 0.72, crown: 0.04, taperF: 0.24, taperR: 0.08 },
+    head: 'bar', grille: 'intake', tail: 'bar', hood: 'vents', arches: 'over', aero: 'swan', exhaust: 'center2', mirror: 'sport',
+    extras: ['splitter', 'canards', 'diffuser', 'sideIntake', 'goldAccent'], accent: [0.82, 0.84, 0.88],
+  },
+  vanta: { // Vanta GT: clean GT wedge with a swan wing and white accents
+    head: 'bar', grille: 'intake', tail: 'bar', hood: 'vents', arches: 'over', aero: 'swan', exhaust: 'center2', mirror: 'sport',
+    extras: ['splitter', 'diffuser', 'sideIntake', 'goldAccent'], accent: [0.9, 0.91, 0.93],
   },
 };
 
@@ -3510,12 +3525,12 @@ function buildGeometry(renderer, def, cfg) {
     for (const sx of [-1, 1]) trim.box(sx * W * 0.25, y0 + 0.28, bz, 0.06, 0.5, 0.06, C.plastic);
     trim.box(0, y0 + 0.52, bz, W * 0.56, 0.06, 0.06, C.plastic); trim.box(0, y0 + 0.14, bz, W * 0.7, 0.06, 0.06, C.plastic);
   }
-  if (has('goldAccent')) { // creator car: thin gold pinstripes on the splitter, sills, diffuser and a nose badge
-    fBox(trim, 0, y0 + 0.035, hw(z1) * 2 - 0.05, 0.014, 0.02, C.gold, 0.11);
-    for (const sx of [-1, 1]) trim.box(sx * (W / 2 + 0.012), y0 + 0.13, (fz + rz) / 2, 0.012, 0.018, (fz - rz) - ARCH * 2 - 0.2, C.gold);
-    bBox(trim, 0, y0 + 0.11, W * 0.62, 0.014, 0.02, C.gold, 0.06);
-    onTop(trim, 0, z1 - 0.35, 0.12, 0.02, 0.07, C.gold, 0.005);
-    for (const sx of [-1, 1]) onTop(trim, sx * W * 0.12, (z1 - s.cowl * 0.5), 0.025, 0.012, s.cowl * 0.8, C.gold, 0.004); // bonnet pinstripes
+  if (has('goldAccent')) { const ACC = look.accent || C.gold; // secret cars: thin gold (or platinum) pinstripes on the splitter, sills, diffuser and a nose badge
+    fBox(trim, 0, y0 + 0.035, hw(z1) * 2 - 0.05, 0.014, 0.02, ACC, 0.11);
+    for (const sx of [-1, 1]) trim.box(sx * (W / 2 + 0.012), y0 + 0.13, (fz + rz) / 2, 0.012, 0.018, (fz - rz) - ARCH * 2 - 0.2, ACC);
+    bBox(trim, 0, y0 + 0.11, W * 0.62, 0.014, 0.02, ACC, 0.06);
+    onTop(trim, 0, z1 - 0.35, 0.12, 0.02, 0.07, ACC, 0.005);
+    for (const sx of [-1, 1]) onTop(trim, sx * W * 0.12, (z1 - s.cowl * 0.5), 0.025, 0.012, s.cowl * 0.8, ACC, 0.004); // bonnet pinstripes
   }
   if (has('rails')) for (const sx of [-1, 1]) trim.box(sx * cabW * 0.4, roofAt((tRp[0] + tFp[0]) / 2) + 0.06, (tRp[0] + tFp[0]) / 2, 0.035, 0.035, (tFp[0] - tRp[0]) * 0.92, C.chrome);
 
@@ -4075,11 +4090,12 @@ class Vehicle {
       else if (vf < -6 && Math.abs(revRel) > 0.45) this.mode = 'reverse';
     } else if (this.mode === 'drift') {
       if (absRel > 0.12 && Math.sign(rel) !== this.dir) { this.dir = Math.sign(rel); this.swingLatch = false; }
-      if (this.spinArm > 0.15 && absRel > Math.min(this.maxAngle * 0.78, 0.9) && speed > 4) { this.mode = 'spin'; this.spinDir = this.dir; this.spinT = 0; }
+      if (!this.def.noSpin && this.spinArm > 0.15 && absRel > Math.min(this.maxAngle * 0.78, 0.9) && speed > 4) { this.mode = 'spin'; this.spinDir = this.dir; this.spinT = 0; }
       if (!hb && absRel < 0.1 && Math.abs(this.w - this.velRate) < 0.6) this.straightT += dt; else this.straightT = 0;
       // off the gas with the car nearly straight (within 10 degrees): stop drifting and drive straight,
       // and kill the leftover rotation so it doesn't swing back out
-      if (thr < 0.1 && !hb && absRel < 0.175) { this.mode = 'grip'; this.w = this.velRate + (this.w - this.velRate) * 0.15; this.liftExit = 0.6; }
+      if (this.def.noSpin && !hb && absRel < 0.15 && inp.steer * this.dir < 0.25) { this.mode = 'grip'; this.w = this.velRate + (this.w - this.velRate) * 0.2; this.liftExit = 0.6; }
+      else if (thr < 0.1 && !hb && absRel < 0.175) { this.mode = 'grip'; this.w = this.velRate + (this.w - this.velRate) * 0.15; this.liftExit = 0.6; }
       else if (this.straightT > S.exitHold * T.exitHold || speed < (thr > 0.5 ? 1.8 : 3.5) || vf < -2 && absRel < 1.2) this.mode = 'grip';
       else if (absRel > 1.9) this.mode = 'reverse';
     } else if (this.mode === 'spin') {
@@ -4150,17 +4166,20 @@ class Vehicle {
       // lifting off (no handbrake, not steering into it) lets the car straighten up and grip again
       if (thr < 0.25 && steerIn < 0.3 && !hb) frac = 0;
       let maxA = this.maxAngle;
+      if (this.def.noSpin) maxA = Math.min(maxA, 0.72); // stability control: slides stay under ~40 degrees
       // donuts: at low speed with full lock + throttle the car can swing round past the normal limit
       if (speed < 13 && thr > 0.8 && steerIn > 0.85) maxA = Math.max(maxA, S.stability ? 1.25 : 1.45);
       let desired = this.dir * maxA * frac;
+      if (this.def.noSpin && !hb && steerIn < 0.25) desired = 0; // stability control: not steering into the slide = straighten up
       // full counter-lock held = swing into a drift the other way (Drift style)
       // (Race style: a handbrake flick with opposite lock commits the swing until the car crosses over)
-      if ((S.swing || this.hbRecent > 0 || this.swingLatch) && steerIn < (this.swingLatch ? -0.4 : -0.8) && speed > 6) {
+      if (!this.def.noSpin && (S.swing || this.hbRecent > 0 || this.swingLatch) && steerIn < (this.swingLatch ? -0.4 : -0.8) && speed > 6) {
         this.swingT += dt;
         if (this.swingT > (S.swing ? 0.12 : 0.06)) { desired = -this.dir * this.maxAngle * (0.45 + 0.4 * thr); if (this.hbRecent > 0) this.swingLatch = true; }
       } else { this.swingT = 0; this.swingLatch = false; }
       targetW = this.velRate + (desired - rel) * S.angleGain * T.angleGain * spd * (d.driftSteer / 2.1);
       if (absRel > maxA + 0.3) targetW -= Math.sign(rel) * (absRel - maxA - 0.3) * 8;
+      if (this.def.noSpin && absRel > maxA + 0.1) targetW -= Math.sign(rel) * (absRel - maxA - 0.1) * 14; // catch the slide before it becomes a spin
       targetW = clamp(targetW, this.velRate - 4.5, this.velRate + 4.5);
       resp = 7.5 / Math.sqrt(this.mass); // heavy cars swing their weight round more slowly
     } else if (this.mode === 'spin') {
@@ -6364,20 +6383,37 @@ const sha256Hex = async (text) => {
   return sha256Fallback(bytes);
 };
 
-function creatorUnlocked() {
-  try { return localStorage.getItem(KEY) === '1'; } catch { return false; }
-}
-// resolves true (and remembers it) when the code is right
-const tryCreatorCode = async (code) => {
-  const norm = String(code || '').trim().toLowerCase();
-  if (!norm) return false;
-  const ok = (await sha256Hex(norm)) === CREATOR_HASH;
-  if (ok) { try { localStorage.setItem(KEY, '1'); } catch { /* private mode: unlocked for this session only */ } unlockedThisSession = true; }
-  return ok;
+// every secret: name -> SHA-256 of its (trimmed, lower-cased) code. The garage tab with the same
+// `secret` name (see CATEGORIES in cars.js) appears once that code has been entered.
+const SECRETS = {
+  creator: CREATOR_HASH,                                                     // the creator's two cars
+  squad: 'f187a4ffa0f83153c17e645104b8524918ad93857b01e049f03fe96d01ab35ac',  // the Squad car
 };
-const isCreatorUnlocked = () => unlockedThisSession || creatorUnlocked();
+const keyOf = (name) => (name === 'creator' ? KEY : 'driftclub.unlocked.' + name);
+const session = new Set();
+function isUnlocked(name) {
+  if (name === true) name = 'creator';
+  if (session.has(name)) return true;
+  try { return localStorage.getItem(keyOf(name)) === '1'; } catch { return false; }
+}
+const allUnlocked = () => Object.keys(SECRETS).every(isUnlocked);
+// resolves to the name of the secret the code unlocks (and remembers it), or null
+async function tryCode(code) {
+  const norm = String(code || '').trim().toLowerCase();
+  if (!norm) return null;
+  const h = await sha256Hex(norm);
+  const name = Object.keys(SECRETS).find((k) => SECRETS[k] === h);
+  if (!name) return null;
+  session.add(name);
+  try { localStorage.setItem(keyOf(name), '1'); } catch { /* private mode: this session only */ }
+  return name;
+}
+// older names, kept for anything still importing them
+function creatorUnlocked() { return isUnlocked('creator'); }
+const isCreatorUnlocked = () => isUnlocked('creator');
+const tryCreatorCode = async (code) => (await tryCode(code)) === 'creator';
 
-return { sha256Fallback, sha256Hex, creatorUnlocked, tryCreatorCode, isCreatorUnlocked };
+return { sha256Fallback, sha256Hex, isUnlocked, allUnlocked, tryCode, creatorUnlocked, isCreatorUnlocked, tryCreatorCode };
 })();
 
 // ===== js/touch.js =====
@@ -6656,7 +6692,7 @@ const { AI_SKILL } = __mod["js/ai.js"];
 const { ACTIONS, DEFAULT_BINDINGS, keyLabel } = __mod["js/input.js"];
 const { VIEWS } = __mod["js/camera.js"];
 const { DRIVE_STYLES } = __mod["js/physics.js"];
-const { isCreatorUnlocked, tryCreatorCode } = __mod["js/secret.js"];
+const { isUnlocked, allUnlocked, tryCode } = __mod["js/secret.js"];
 const { goFullscreen, exitFullscreen } = __mod["js/touch.js"];
 const isRaceMode = (m) => m === 'race' || m === 'driftrace'; // modes run on the race circuits
 
@@ -6827,7 +6863,7 @@ class UI {
     const S = this.S, cfg = S.car, def = carById(cfg.id);
     cfg.tune = sanitizeTune(cfg.tune, def);
     const tab = this.garageTab || 'looks';
-    const cats = CATEGORIES.filter((c) => !c.secret || isCreatorUnlocked()); // the Creator tab appears once unlocked
+    const cats = CATEGORIES.filter((c) => !c.secret || isUnlocked(c.secret)); // secret tabs appear once their code is entered
     if (!cats.some((c) => c.id === this.garageCat)) this.garageCat = cats[0].id;
     $('#cat-tabs').innerHTML = cats.map((c) => `<button class="tab ${c.id === this.garageCat ? 'sel' : ''}" data-cat="${c.id}">${c.name}</button>`).join('');
     $('#car-list').innerHTML = CARS.filter((c) => c.cat === this.garageCat).map((c) => { const g = (S.garage || {})[c.id]; const tuned = g && !isStock(g.tune); return `<button class="car-item ${c.id === cfg.id ? 'sel' : ''}" data-car="${c.id}"><span class="swatch" style="background:${(g && g.paint) || c.paint}"></span><b>${c.name}</b><small>${tuned ? '<i class="tuned">TUNED</i> ' : ''}${Math.round(this.measuredTop(c, g && g.tune))} km/h</small></button>`; }).join('');
@@ -6892,7 +6928,7 @@ class UI {
   // small, easy-to-miss "Enter code" link under the car list (unlocks the secret Creator car)
   renderCode() {
     const el = $('#garage-code'); if (!el) return;
-    if (isCreatorUnlocked()) { el.innerHTML = ''; return; }
+    if (allUnlocked()) { el.innerHTML = ''; return; }
     el.innerHTML = this.codeOpen
       ? '<form class="code-form"><input id="code-in" maxlength="40" placeholder="Code" autocomplete="off" spellcheck="false"><button class="btn small ghost" type="submit">OK</button></form>'
       : '<button class="code-link" type="button">Enter code</button>';
@@ -6901,11 +6937,12 @@ class UI {
     const form = $('.code-form', el);
     if (form) form.onsubmit = async (e) => {
       e.preventDefault();
-      const inp = $('#code-in'), ok = await tryCreatorCode(inp.value);
-      if (!ok) { inp.value = ''; inp.classList.remove('nope'); void inp.offsetWidth; inp.classList.add('nope'); return; }
+      const inp = $('#code-in'), got = await tryCode(inp.value);
+      if (!got) { inp.value = ''; inp.classList.remove('nope'); void inp.offsetWidth; inp.classList.add('nope'); return; }
       this.codeOpen = false; this.app.audio.chime(true);
-      toast('<b>Creator car unlocked</b><br><small>Find it under the new Creator tab</small>', 3200);
-      this.garageCat = 'creator'; this.renderGarage();
+      const tab = CATEGORIES.find((c) => c.secret === got);
+      toast(got === 'creator' ? '<b>Creator cars unlocked</b><br><small>Find them under the new Creator tab</small>' : `<b>${tab ? tab.name : 'Secret'} car unlocked</b><br><small>Find it under the new ${tab ? tab.name : ''} tab</small>`, 3200);
+      this.garageCat = tab ? tab.id : 'creator'; this.renderGarage();
     };
   }
   measuredTop(def, tune) { // top speed as measured in the physics (the same number as the stat bar)
@@ -7680,7 +7717,7 @@ class RaceComp extends Comp {
     g.car.place(mySlot.x, mySlot.z, mySlot.h); g.cam.snap();
     this.mySlot = mySlot;
     // CPU racers get a random mix of road cars from the whole catalogue (never trucks, never the secret car)
-    const pool = CARS.filter((c) => !['pickup', 'suv', 'creator'].includes(c.cat)).map((c) => c.id);
+    const pool = CARS.filter((c) => !['pickup', 'suv', 'creator', 'squad'].includes(c.cat)).map((c) => c.id);
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
     const names = ['CPU Akira', 'CPU Bea', 'CPU Carlos', 'CPU Dana', 'CPU Emil', 'CPU Freya', 'CPU Goro'];
     const paints = ['#34506e', '#d4a32a', '#5b6647', '#7c1d22', '#c9ccd1', '#c2531d', '#26292c']; // normal factory paints

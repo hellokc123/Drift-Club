@@ -175,7 +175,7 @@ class RaceComp extends Comp {
     g.car.place(mySlot.x, mySlot.z, mySlot.h); g.cam.snap();
     this.mySlot = mySlot;
     // CPU racers get a random mix of road cars from the whole catalogue (never trucks, never the secret car)
-    const pool = CARS.filter((c) => !['pickup', 'suv', 'creator'].includes(c.cat)).map((c) => c.id);
+    const pool = CARS.filter((c) => !['pickup', 'suv', 'creator', 'squad'].includes(c.cat)).map((c) => c.id);
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
     const names = ['CPU Akira', 'CPU Bea', 'CPU Carlos', 'CPU Dana', 'CPU Emil', 'CPU Freya', 'CPU Goro'];
     const paints = ['#34506e', '#d4a32a', '#5b6647', '#7c1d22', '#c9ccd1', '#c2531d', '#26292c']; // normal factory paints

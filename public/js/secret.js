@@ -55,15 +55,32 @@ export const sha256Hex = async (text) => {
   return sha256Fallback(bytes);
 };
 
-export function creatorUnlocked() {
-  try { return localStorage.getItem(KEY) === '1'; } catch { return false; }
-}
-// resolves true (and remembers it) when the code is right
-export const tryCreatorCode = async (code) => {
-  const norm = String(code || '').trim().toLowerCase();
-  if (!norm) return false;
-  const ok = (await sha256Hex(norm)) === CREATOR_HASH;
-  if (ok) { try { localStorage.setItem(KEY, '1'); } catch { /* private mode: unlocked for this session only */ } unlockedThisSession = true; }
-  return ok;
+// every secret: name -> SHA-256 of its (trimmed, lower-cased) code. The garage tab with the same
+// `secret` name (see CATEGORIES in cars.js) appears once that code has been entered.
+const SECRETS = {
+  creator: CREATOR_HASH,                                                     // the creator's two cars
+  squad: 'f187a4ffa0f83153c17e645104b8524918ad93857b01e049f03fe96d01ab35ac',  // the Squad car
 };
-export const isCreatorUnlocked = () => unlockedThisSession || creatorUnlocked();
+const keyOf = (name) => (name === 'creator' ? KEY : 'driftclub.unlocked.' + name);
+const session = new Set();
+export function isUnlocked(name) {
+  if (name === true) name = 'creator';
+  if (session.has(name)) return true;
+  try { return localStorage.getItem(keyOf(name)) === '1'; } catch { return false; }
+}
+export const allUnlocked = () => Object.keys(SECRETS).every(isUnlocked);
+// resolves to the name of the secret the code unlocks (and remembers it), or null
+export async function tryCode(code) {
+  const norm = String(code || '').trim().toLowerCase();
+  if (!norm) return null;
+  const h = await sha256Hex(norm);
+  const name = Object.keys(SECRETS).find((k) => SECRETS[k] === h);
+  if (!name) return null;
+  session.add(name);
+  try { localStorage.setItem(keyOf(name), '1'); } catch { /* private mode: this session only */ }
+  return name;
+}
+// older names, kept for anything still importing them
+export function creatorUnlocked() { return isUnlocked('creator'); }
+export const isCreatorUnlocked = () => isUnlocked('creator');
+export const tryCreatorCode = async (code) => (await tryCode(code)) === 'creator';

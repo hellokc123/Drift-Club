@@ -267,11 +267,12 @@ export class Vehicle {
       else if (vf < -6 && Math.abs(revRel) > 0.45) this.mode = 'reverse';
     } else if (this.mode === 'drift') {
       if (absRel > 0.12 && Math.sign(rel) !== this.dir) { this.dir = Math.sign(rel); this.swingLatch = false; }
-      if (this.spinArm > 0.15 && absRel > Math.min(this.maxAngle * 0.78, 0.9) && speed > 4) { this.mode = 'spin'; this.spinDir = this.dir; this.spinT = 0; }
+      if (!this.def.noSpin && this.spinArm > 0.15 && absRel > Math.min(this.maxAngle * 0.78, 0.9) && speed > 4) { this.mode = 'spin'; this.spinDir = this.dir; this.spinT = 0; }
       if (!hb && absRel < 0.1 && Math.abs(this.w - this.velRate) < 0.6) this.straightT += dt; else this.straightT = 0;
       // off the gas with the car nearly straight (within 10 degrees): stop drifting and drive straight,
       // and kill the leftover rotation so it doesn't swing back out
-      if (thr < 0.1 && !hb && absRel < 0.175) { this.mode = 'grip'; this.w = this.velRate + (this.w - this.velRate) * 0.15; this.liftExit = 0.6; }
+      if (this.def.noSpin && !hb && absRel < 0.15 && inp.steer * this.dir < 0.25) { this.mode = 'grip'; this.w = this.velRate + (this.w - this.velRate) * 0.2; this.liftExit = 0.6; }
+      else if (thr < 0.1 && !hb && absRel < 0.175) { this.mode = 'grip'; this.w = this.velRate + (this.w - this.velRate) * 0.15; this.liftExit = 0.6; }
       else if (this.straightT > S.exitHold * T.exitHold || speed < (thr > 0.5 ? 1.8 : 3.5) || vf < -2 && absRel < 1.2) this.mode = 'grip';
       else if (absRel > 1.9) this.mode = 'reverse';
     } else if (this.mode === 'spin') {
@@ -342,17 +343,20 @@ export class Vehicle {
       // lifting off (no handbrake, not steering into it) lets the car straighten up and grip again
       if (thr < 0.25 && steerIn < 0.3 && !hb) frac = 0;
       let maxA = this.maxAngle;
+      if (this.def.noSpin) maxA = Math.min(maxA, 0.72); // stability control: slides stay under ~40 degrees
       // donuts: at low speed with full lock + throttle the car can swing round past the normal limit
       if (speed < 13 && thr > 0.8 && steerIn > 0.85) maxA = Math.max(maxA, S.stability ? 1.25 : 1.45);
       let desired = this.dir * maxA * frac;
+      if (this.def.noSpin && !hb && steerIn < 0.25) desired = 0; // stability control: not steering into the slide = straighten up
       // full counter-lock held = swing into a drift the other way (Drift style)
       // (Race style: a handbrake flick with opposite lock commits the swing until the car crosses over)
-      if ((S.swing || this.hbRecent > 0 || this.swingLatch) && steerIn < (this.swingLatch ? -0.4 : -0.8) && speed > 6) {
+      if (!this.def.noSpin && (S.swing || this.hbRecent > 0 || this.swingLatch) && steerIn < (this.swingLatch ? -0.4 : -0.8) && speed > 6) {
         this.swingT += dt;
         if (this.swingT > (S.swing ? 0.12 : 0.06)) { desired = -this.dir * this.maxAngle * (0.45 + 0.4 * thr); if (this.hbRecent > 0) this.swingLatch = true; }
       } else { this.swingT = 0; this.swingLatch = false; }
       targetW = this.velRate + (desired - rel) * S.angleGain * T.angleGain * spd * (d.driftSteer / 2.1);
       if (absRel > maxA + 0.3) targetW -= Math.sign(rel) * (absRel - maxA - 0.3) * 8;
+      if (this.def.noSpin && absRel > maxA + 0.1) targetW -= Math.sign(rel) * (absRel - maxA - 0.1) * 14; // catch the slide before it becomes a spin
       targetW = clamp(targetW, this.velRate - 4.5, this.velRate + 4.5);
       resp = 7.5 / Math.sqrt(this.mass); // heavy cars swing their weight round more slowly
     } else if (this.mode === 'spin') {
