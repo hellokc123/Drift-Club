@@ -9,3 +9,11 @@ services:
     startCommand: node server.js
     healthCheckPath: /health
     autoDeploy: true
+    # Accounts: Render's free disk is wiped on every restart, so accounts live in a free Upstash
+    # Redis database. Create one at upstash.com, then paste its REST URL and token here (Render
+    # dashboard > Environment). Without them, accounts are kept only until the server restarts.
+    envVars:
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false

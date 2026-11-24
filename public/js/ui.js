@@ -47,6 +47,8 @@ export class UI {
     if (name === 'settings') this.renderSettings();
     if (name === 'mp') this.enterMP();
     if (name === 'lobby') this.renderLobby();
+    if (name === 'main') this.renderAccount();
+    if (name === 'login') this.renderLogin();
     if (name === 'comp') this.renderComp();
     if (name === 'records') this.renderRecords();
   }
@@ -109,7 +111,7 @@ export class UI {
     } else if (isRaceMode(mode)) {
       h += `<div class="setup-row"><label>Laps</label><input type="range" id="c-laps" min="1" max="10" step="1" value="${C.laps}"><em id="c-laps-v">${C.laps}</em></div>
         <div class="setup-row"><label>CPU opponents (solo)</label><input type="range" id="c-ai" min="0" max="7" step="1" value="${C.ai}"><em id="c-ai-v">${C.ai}</em></div>
-        <div class="setup-row"><label>CPU difficulty</label>${chips(Object.entries(AI_SKILL).map(([k, v]) => [k, v.name]), C.difficulty, 'cdiff')}</div>
+        <div class="setup-row"><label>CPU difficulty</label>${chips(Object.entries(AI_SKILL).filter(([, v]) => !v.hidden).map(([k, v]) => [k, v.name]), C.difficulty, 'cdiff')}</div>
         ${C.difficulty === 'hard' || C.difficulty === 'legend' ? '<p class="muted boss-note">👹 <b>Midnight Oni</b> starts on pole. Beat him in a Speed Race to win his car.</p>' : ''}
         ${mode === 'driftrace' ? `<p class="setup-note"><b>Score = (drift points × position factor + position bonus) × gap factor.</b> Position factor P1 ×1.0, P2 ×0.9, P3 ×0.8, P4 ×0.68 …; the gap factor drops 1/60 for every second you finish behind the winner (min ${DRIFT_RACE.minGap}, also for a DNF). Drift points count from GO until you cross the finish line (and stop ${DRIFT_RACE.lateWindow} s after the winner finishes); your combo banks at every lap line (max ×${DRIFT_RACE.judge.maxMult}), faster drifts pay more and slow drifting earns almost nothing. Bonus per lap: ${DRIFT_RACE.bonusPerLap.slice(0, 4).map((b, i) => `P${i + 1} +${fmt(b)}`).join(', ')}… — no bonus if you don't finish. Crashes and leaving the track cost your live combo.</p>` : ''}
         <p class="setup-note">Pass every checkpoint in order. Resets never count as checkpoints. Solo races start you at the back of the grid. CPU drivers are clearly labelled and only appear in solo races.</p>`;
@@ -260,7 +262,7 @@ export class UI {
       e.preventDefault();
       const inp = $('#code-in'), got = await tryCode(inp.value);
       if (!got) { inp.value = ''; inp.classList.remove('nope'); void inp.offsetWidth; inp.classList.add('nope'); return; }
-      this.codeOpen = false; this.app.audio.chime(true);
+      this.codeOpen = false; this.app.audio.chime(true); this.app.account.queueSave();
       const carU = CARS.find((c) => c.secret === got), tab = CATEGORIES.find((c) => c.secret === got || (carU && c.id === carU.cat));
       toast(got === 'creator' ? '<b>Creator cars unlocked</b><br><small>Find them under the new Creator tab</small>' : `<b>${carU ? carU.name : (tab ? tab.name : 'Secret') + ' car'} unlocked</b><br><small>Find it under the ${tab ? tab.name : 'Secret'} tab</small>`, 3200);
       this.garageCat = tab ? tab.id : 'creator'; this.renderGarage();
@@ -348,6 +350,7 @@ export class UI {
   async enterMP() {
     const S = this.S, N = this.app.net;
     $('#mp-name').value = S.playerName;
+    $('#mp-name').disabled = this.app.account.loggedIn; $('#mp-name').title = this.app.account.loggedIn ? 'Your account name' : '';
     $('#mp-server').value = S.serverUrl || '';
     $('#mp-name').onchange = (e) => { S.playerName = e.target.value.trim().slice(0, 16) || S.playerName; this.app.saveSettings(); N.send({ t: 'name', name: S.playerName }); };
     $('#mp-server').onchange = (e) => { S.serverUrl = e.target.value.trim(); this.app.saveSettings(); N.close(); setTimeout(() => this.enterMP(), 200); };
@@ -397,6 +400,45 @@ export class UI {
       const ok = await this.confirmRules(info); if (!ok) return;
     }
     N.send({ t: 'join', code, car: S.car });
+  }
+  // ---- accounts
+  renderAccount() {
+    const A = this.app.account, el = $('#acct-bar'); if (!el) return;
+    el.innerHTML = A.loggedIn ? `<span>👤 <b>${esc(A.name)}</b></span><button class="btn small" id="acct-out" type="button">Log out</button>`
+      : '<span class="muted">Playing as guest</span><button class="btn small primary" id="acct-in" type="button">Log in / Sign up</button>';
+    const o = $('#acct-out'), i = $('#acct-in');
+    if (o) o.onclick = () => { this.click(); A.logout(); toast('Logged out. Your progress stays saved in your account.', 3000); this.renderAccount(); };
+    if (i) i.onclick = () => { this.click(); this.show('login'); };
+  }
+  renderLogin() {
+    const A = this.app.account;
+    let tab = 'login';
+    const setTab = (t) => {
+      tab = t;
+      $$('[data-ltab]').forEach((b) => b.classList.toggle('sel', b.dataset.ltab === t));
+      $('#login-pass2-row').classList.toggle('hidden', t !== 'signup');
+      $('#login-pass').autocomplete = t === 'signup' ? 'new-password' : 'current-password';
+      $('#login-go').textContent = t === 'signup' ? 'Create account' : 'Log in';
+      $('#login-msg').textContent = t === 'signup' ? 'Pick a username (3–16 letters/numbers) and a password (6+ characters). This device\'s progress goes into the new account.' : '';
+      $('#login-msg').className = 'muted small';
+    };
+    $$('[data-ltab]').forEach((b) => (b.onclick = () => { this.click(); setTab(b.dataset.ltab); }));
+    setTab('login');
+    const msg = (t, bad) => { $('#login-msg').textContent = t; $('#login-msg').className = 'small ' + (bad ? 'bad' : 'muted'); };
+    $('#login-form').onsubmit = async (e) => {
+      e.preventDefault(); this.click();
+      const name = $('#login-name').value.trim(), pass = $('#login-pass').value;
+      if (tab === 'signup' && pass !== $('#login-pass2').value) return msg('The two passwords don\'t match', true);
+      const go = $('#login-go'); go.disabled = true; msg(tab === 'signup' ? 'Creating your account… (the server can take up to a minute to wake up)' : 'Logging in… (the server can take up to a minute to wake up)');
+      try {
+        const r = tab === 'signup' ? await A.signup(name, pass) : await A.login(name, pass);
+        $('#login-pass').value = ''; $('#login-pass2').value = '';
+        toast(r.created ? `<b>Welcome, ${esc(r.name)}!</b><br><small>Account created — your progress now saves to it.</small>` : `<b>Welcome back, ${esc(r.name)}!</b>`, 3500, 'good');
+        this.show('main');
+      } catch (err) { msg(err.message, true); }
+      finally { go.disabled = false; }
+    };
+    $('#login-guest').onclick = () => { this.click(); A.playAsGuest(); this.show('main'); };
   }
   // one tap: connect and drop straight into the always-on public free-roam room
   async joinPublic() {

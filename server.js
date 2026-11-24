@@ -60,6 +60,118 @@ function saveRecords() {
 const top = (arr, entry, key, n = 10, asc = false) => { arr.push(entry); arr.sort((a, b) => (asc ? a[key] - b[key] : b[key] - a[key])); arr.length = Math.min(arr.length, n); return arr; };
 
 // -------------------------------------------------------------
+// Accounts: username + password (scrypt-hashed, never stored in plain text), a login token,
+// and the player's saved progress. Stored in an Upstash Redis database when
+// UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN are set (survives restarts — needed on
+// Render's free plan, whose disk is wiped on every restart), otherwise in DATA_DIR/accounts.json.
+// -------------------------------------------------------------
+const UP_URL = (process.env.UPSTASH_REDIS_REST_URL || '').replace(/\/+$/, ''), UP_TOK = process.env.UPSTASH_REDIS_REST_TOKEN || '';
+const ACC_FILE = path.join(DATA_DIR, 'accounts.json');
+let accFile = {};
+try { accFile = JSON.parse(fs.readFileSync(ACC_FILE, 'utf8')); } catch { /* first run */ }
+let accSaveT = null;
+const accSaveSoon = () => {
+  if (accSaveT) return;
+  accSaveT = setTimeout(() => { accSaveT = null; try { fs.mkdirSync(DATA_DIR, { recursive: true }); fs.writeFileSync(ACC_FILE + '.tmp', JSON.stringify(accFile)); fs.renameSync(ACC_FILE + '.tmp', ACC_FILE); } catch (e) { console.error('accounts save failed', e.message); } }, 1000);
+};
+const upstash = async (cmd) => {
+  const r = await fetch(UP_URL, { method: 'POST', headers: { Authorization: `Bearer ${UP_TOK}`, 'Content-Type': 'application/json' }, body: JSON.stringify(cmd) });
+  const j = await r.json(); if (j.error) throw new Error(j.error); return j.result;
+};
+const store = {
+  persistent: !!(UP_URL && UP_TOK),
+  async get(k) { if (this.persistent) { const v = await upstash(['GET', k]); return v ? JSON.parse(v) : null; } return accFile[k] ?? null; },
+  async set(k, v) { if (this.persistent) return upstash(['SET', k, JSON.stringify(v)]); accFile[k] = v; accSaveSoon(); },
+  async del(k) { if (this.persistent) return upstash(['DEL', k]); delete accFile[k]; accSaveSoon(); },
+};
+console.log(store.persistent ? 'Accounts: Upstash database (permanent)' : `Accounts: ${ACC_FILE} (lost if the server's disk is wiped)`);
+const NAME_RE = /^[A-Za-z0-9_\- ]{3,16}$/;
+const acctKey = (name) => 'acct:' + name.trim().toLowerCase();
+const sessKey = (token) => 'sess:' + crypto.createHash('sha256').update(String(token)).digest('hex');
+const scrypt = (pass, salt) => new Promise((res, rej) => crypto.scrypt(String(pass).normalize('NFKC'), salt, 32, { N: 16384, r: 8, p: 1 }, (e, k) => (e ? rej(e) : res(k))));
+const sessCache = new Map(); // hashed token -> account name
+async function newSession(name) {
+  const token = crypto.randomBytes(32).toString('hex'), k = sessKey(token);
+  await store.set(k, { name, at: Date.now() }); sessCache.set(k, name);
+  return token;
+}
+async function accountForToken(token) {
+  if (typeof token !== 'string' || token.length !== 64) return null;
+  const k = sessKey(token);
+  if (sessCache.has(k)) return sessCache.get(k);
+  const s = await store.get(k); if (!s) return null;
+  sessCache.set(k, s.name); return s.name;
+}
+// brute-force protection: per IP and per account
+const authHits = new Map();
+function limited(key, max, windowMs) {
+  const now = Date.now(), h = (authHits.get(key) || []).filter((t) => now - t < windowMs);
+  authHits.set(key, h); return h.length >= max;
+}
+const hit = (key) => { const h = authHits.get(key) || []; h.push(Date.now()); authHits.set(key, h); };
+setInterval(() => { const now = Date.now(); for (const [k, h] of authHits) if (!h.some((t) => now - t < 3600000)) authHits.delete(k); }, 600000).unref();
+const cleanSave = (save) => { const j = JSON.stringify(save || {}); return j.length <= 400000 ? JSON.parse(j) : null; };
+
+// a guest using a registered account's name gets " (guest)" added
+function accountTaken(c) {
+  const nm = c.name;
+  if (!NAME_RE.test(nm || '')) return;
+  store.get(acctKey(nm)).then((a) => {
+    if (a && !c.account && c.name === nm) { c.name = nm.slice(0, 8) + ' (guest)'; const r = c.room && rooms.get(c.room); if (r) broadcastRoom(r); }
+  }).catch(() => {});
+}
+async function api(route, body, ip) {
+  if (route === 'signup' || route === 'login') {
+    if (limited('ip:' + ip, 30, 600000)) return [429, { error: 'Too many tries. Wait a few minutes.' }];
+    hit('ip:' + ip);
+    const name = String(body.name || '').trim(), pass = String(body.pass || '');
+    if (!NAME_RE.test(name)) return [400, { error: 'Username: 3–16 letters, numbers, spaces, _ or -' }];
+    if (pass.length < 6 || pass.length > 72) return [400, { error: 'Password: 6–72 characters' }];
+    const k = acctKey(name);
+    if (route === 'signup') {
+      if (await store.get(k)) return [409, { error: 'That username is taken' }];
+      const salt = crypto.randomBytes(16).toString('hex'), hash = (await scrypt(pass, salt)).toString('hex');
+      const acct = { name, salt, hash, created: Date.now(), save: cleanSave(body.save) || {} };
+      await store.set(k, acct);
+      return [200, { name, token: await newSession(name), save: acct.save, created: true }];
+    }
+    if (limited('acct:' + k, 8, 600000)) return [429, { error: 'Too many wrong passwords. Wait 10 minutes.' }];
+    const acct = await store.get(k);
+    const bad = () => { hit('acct:' + k); return [401, { error: 'Wrong username or password' }]; };
+    if (!acct) { await scrypt(pass, 'x'.repeat(32)); return bad(); } // same timing either way
+    const got = await scrypt(pass, acct.salt), want = Buffer.from(acct.hash, 'hex');
+    if (got.length !== want.length || !crypto.timingSafeEqual(got, want)) return bad();
+    return [200, { name: acct.name, token: await newSession(acct.name), save: acct.save || {} }];
+  }
+  const name = await accountForToken(body.token);
+  if (!name) return [401, { error: 'Logged out — please log in again' }];
+  const k = acctKey(name), acct = await store.get(k);
+  if (!acct) return [401, { error: 'Account not found — please log in again' }];
+  if (route === 'me') return [200, { name: acct.name, save: acct.save || {} }];
+  if (route === 'save') {
+    const save = cleanSave(body.save); if (!save) return [413, { error: 'Save too big' }];
+    acct.save = save; acct.savedAt = Date.now(); await store.set(k, acct);
+    return [200, { ok: true }];
+  }
+  if (route === 'logout') { const sk = sessKey(body.token); sessCache.delete(sk); await store.del(sk); return [200, { ok: true }]; }
+  return [404, { error: 'Unknown' }];
+}
+function handleApi(req, res, route) {
+  const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' };
+  if (req.method === 'OPTIONS') { res.writeHead(204, cors); return res.end(); }
+  if (req.method !== 'POST') { res.writeHead(405, cors); return res.end(); }
+  let body = '', size = 0;
+  req.on('data', (d) => { size += d.length; if (size > 500000) { req.destroy(); return; } body += d; });
+  req.on('end', async () => {
+    let code = 200, out;
+    try { [code, out] = await api(route, JSON.parse(body || '{}'), req.socket.remoteAddress || '?'); }
+    catch (e) { console.error('api', route, e.message); code = 500; out = { error: 'Server problem, try again' }; }
+    res.writeHead(code, { ...cors, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify(out));
+  });
+}
+
+// -------------------------------------------------------------
 // Static file server
 // -------------------------------------------------------------
 const MIME = {
@@ -76,6 +188,8 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache' });
     return res.end(JSON.stringify(publicRecords()));
   }
+  const am = /^\/api\/(signup|login|me|save|logout)$/.exec(url);
+  if (am) return handleApi(req, res, am[1]);
   if (url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ ok: true, rooms: rooms.size, players: clients.size }));
@@ -794,12 +908,25 @@ function handle(c, m) {
       c.name = cleanText(m.name, 16, `Driver${c.id}`);
       if (m.car) c.car = sanitizeCar(m.car);
       if (m.level !== undefined) c.level = clampInt(m.level, 1, 999, 1);
+      // logged in: the account name is your name. Guests can't pose as an account's name.
+      if (m.acct) accountForToken(m.acct).then((nm) => {
+        if (!nm) return;
+        c.account = nm; c.name = nm;
+        const r2 = c.room && rooms.get(c.room); if (r2) broadcastRoom(r2);
+      }).catch(() => {});
+      else accountTaken(c);
       if (!c.token) { c.token = crypto.randomBytes(12).toString('hex'); sessions.set(c.token, c); }
       // hadToken: the browser asked to resume but that session no longer exists (expired or server restarted)
       send(c, { t: 'welcome', id: c.id, token: c.token, resumed: false, serverTime: Date.now(), boot: BOOT_ID, hadToken: typeof m.token === 'string' && m.token !== c.token });
       break;
+    case 'auth': // logged in or out on the client
+      if (m.acct) accountForToken(m.acct).then((nm) => { if (nm) { c.account = nm; c.name = nm; if (r) broadcastRoom(r); } }).catch(() => {});
+      else { c.account = null; c.name = cleanText(m.name, 16, c.name); accountTaken(c); if (r) broadcastRoom(r); }
+      break;
     case 'name':
+      if (c.account) break; // account names are fixed
       c.name = cleanText(m.name, 16, c.name);
+      accountTaken(c);
       if (r) broadcastRoom(r);
       break;
     case 'list':

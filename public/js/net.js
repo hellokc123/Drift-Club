@@ -101,7 +101,7 @@ export class Net {
       try { ws = new WebSocket(this.url(custom)); } catch (e) { reject(e); return; }
       const fail = (msg) => { if (!settled) { settled = true; clearTimeout(timer); reject(new Error(msg)); } };
       const timer = setTimeout(() => { if (!settled) { ws.onclose = null; try { ws.close(); } catch { /* */ } fail('timeout'); } }, 8000);
-      ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', name, car, token: this.token, inGame: this.inGame(), level: this.level ? this.level() : 1 }));
+      ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', name, car, token: this.token, inGame: this.inGame(), level: this.level ? this.level() : 1, acct: this.acct ? this.acct() : null }));
       ws.onmessage = (e) => {
         let m; try { m = JSON.parse(e.data); } catch { return; }
         if (m.t === 'welcome') {

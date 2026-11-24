@@ -659,6 +659,22 @@ body.touch-on .controls-help { font-size: 13px; }
 .nametag.cpu.boss { border-color: #ff2a1a; color: #ff4a3a; background: rgba(20, 0, 0, 0.85); box-shadow: 0 0 12px rgba(255, 30, 20, 0.6); letter-spacing: 0.08em; }
 .toast.oni { border-left-color: #ff2a1a; background: rgba(18, 4, 4, 0.96); }
 .toast.oni b.oni { color: #ff4a3a; }
+/* login + account */
+.login .brand { text-align: center; margin-bottom: 10px; }
+.login-tabs { justify-content: center; margin-bottom: 8px; }
+.login .bad, #login-msg.bad { color: var(--bad, #ff6b5a); }
+.login #login-guest { margin-top: 8px; }
+.acct-bar { display: flex; align-items: center; gap: 10px; margin: -6px 0 12px; font-size: 14px; }
+.me-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 18px; margin: 4px 0 10px; }
+.me-row .main-lvl, .me-row .acct-bar { margin: 0; }
+/* shorter PC screens: tighter main menu so everything fits */
+@media (max-height: 860px) and (min-width: 700px) {
+  #scr-main .logo { font-size: clamp(48px, 6.5vw, 84px); }
+  #scr-main .brand p { margin: 8px 0 12px; }
+  #scr-main .nav-btn { padding: 8px 16px; }
+  #scr-main .nav-btn b { font-size: 17px; }
+  #scr-main .nav-btn small { font-size: 12px; }
+}
 
 </style>
 </head>
@@ -670,7 +686,7 @@ body.touch-on .controls-help { font-size: 13px; }
 <section class="screen" id="scr-main">
   <div class="main-left">
     <div class="brand"><div class="logo">DRIFT<span>CLUB</span></div><p>Slide sideways. Chill out. Or crush your friends.</p></div>
-    <div class="lvl-badge main-lvl"></div>
+    <div class="me-row"><div class="lvl-badge main-lvl"></div><div class="acct-bar" id="acct-bar"></div></div>
     <nav class="main-nav">
       <button class="nav-btn primary" data-go="play"><b>Play</b><small>Solo drive on any map</small></button>
       <button class="nav-btn" data-go="garage"><b>Garage</b><small>Pick &amp; customise your car</small></button>
@@ -686,6 +702,22 @@ body.touch-on .controls-help { font-size: 13px; }
 </section>
 
 <!-- ======================= PLAY SETUP ======================= -->
+<section class="screen" id="scr-login">
+  <div class="panel narrow login">
+    <div class="brand"><div class="logo">DRIFT<span>CLUB</span></div></div>
+    <div class="chips login-tabs"><button class="chip sel" data-ltab="login" type="button">Log in</button><button class="chip" data-ltab="signup" type="button">Sign up</button></div>
+    <form id="login-form" class="form" autocomplete="on">
+      <label class="field">Username<input id="login-name" maxlength="16" autocomplete="username" required></label>
+      <label class="field">Password<input id="login-pass" type="password" maxlength="72" autocomplete="current-password" required></label>
+      <label class="field hidden" id="login-pass2-row">Password again<input id="login-pass2" type="password" maxlength="72" autocomplete="new-password"></label>
+      <p class="muted small" id="login-msg"></p>
+      <button class="btn primary big full" id="login-go" type="submit">Log in</button>
+    </form>
+    <button class="btn full" id="login-guest" type="button">Play as guest</button>
+    <p class="muted small">An account saves your level, cars, setups, bests and secret cars, so you get them on any device. Don't reuse a password from another site.</p>
+  </div>
+</section>
+
 <section class="screen" id="scr-play">
   <div class="panel wide">
     <header class="phead"><button class="back" data-go="main">‹ Back</button><h2>Play</h2></header>
@@ -1701,7 +1733,7 @@ class Net {
       try { ws = new WebSocket(this.url(custom)); } catch (e) { reject(e); return; }
       const fail = (msg) => { if (!settled) { settled = true; clearTimeout(timer); reject(new Error(msg)); } };
       const timer = setTimeout(() => { if (!settled) { ws.onclose = null; try { ws.close(); } catch { /* */ } fail('timeout'); } }, 8000);
-      ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', name, car, token: this.token, inGame: this.inGame(), level: this.level ? this.level() : 1 }));
+      ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', name, car, token: this.token, inGame: this.inGame(), level: this.level ? this.level() : 1, acct: this.acct ? this.acct() : null }));
       ws.onmessage = (e) => {
         let m; try { m = JSON.parse(e.data); } catch { return; }
         if (m.t === 'welcome') {
@@ -6370,6 +6402,7 @@ const AI_SKILL = {
   medium: { name: 'Medium', pace: 0.96, grip: 0.98, brake: 10, noise: 0.015, boost: true, assist: 1.02 },
   hard: { name: 'Hard', pace: 1.0, grip: 1.02, brake: 12, noise: 0.0, boost: true, assist: 1.08 },
   legend: { name: 'Legend', pace: 1.0, grip: 1.04, brake: 13, noise: 0.0, boost: true, assist: 1.15 },
+  boss: { name: 'Boss', hidden: true, pace: 1.0, grip: 1.1, brake: 15, noise: 0.0, boost: true, assist: 1.3 }, // Midnight Oni only
 };
 // the car a CPU driver actually drives at this skill
 function aiDef(def, skill) {
@@ -6938,6 +6971,8 @@ class UI {
     if (name === 'settings') this.renderSettings();
     if (name === 'mp') this.enterMP();
     if (name === 'lobby') this.renderLobby();
+    if (name === 'main') this.renderAccount();
+    if (name === 'login') this.renderLogin();
     if (name === 'comp') this.renderComp();
     if (name === 'records') this.renderRecords();
   }
@@ -7000,7 +7035,7 @@ class UI {
     } else if (isRaceMode(mode)) {
       h += `<div class="setup-row"><label>Laps</label><input type="range" id="c-laps" min="1" max="10" step="1" value="${C.laps}"><em id="c-laps-v">${C.laps}</em></div>
         <div class="setup-row"><label>CPU opponents (solo)</label><input type="range" id="c-ai" min="0" max="7" step="1" value="${C.ai}"><em id="c-ai-v">${C.ai}</em></div>
-        <div class="setup-row"><label>CPU difficulty</label>${chips(Object.entries(AI_SKILL).map(([k, v]) => [k, v.name]), C.difficulty, 'cdiff')}</div>
+        <div class="setup-row"><label>CPU difficulty</label>${chips(Object.entries(AI_SKILL).filter(([, v]) => !v.hidden).map(([k, v]) => [k, v.name]), C.difficulty, 'cdiff')}</div>
         ${C.difficulty === 'hard' || C.difficulty === 'legend' ? '<p class="muted boss-note">👹 <b>Midnight Oni</b> starts on pole. Beat him in a Speed Race to win his car.</p>' : ''}
         ${mode === 'driftrace' ? `<p class="setup-note"><b>Score = (drift points × position factor + position bonus) × gap factor.</b> Position factor P1 ×1.0, P2 ×0.9, P3 ×0.8, P4 ×0.68 …; the gap factor drops 1/60 for every second you finish behind the winner (min ${DRIFT_RACE.minGap}, also for a DNF). Drift points count from GO until you cross the finish line (and stop ${DRIFT_RACE.lateWindow} s after the winner finishes); your combo banks at every lap line (max ×${DRIFT_RACE.judge.maxMult}), faster drifts pay more and slow drifting earns almost nothing. Bonus per lap: ${DRIFT_RACE.bonusPerLap.slice(0, 4).map((b, i) => `P${i + 1} +${fmt(b)}`).join(', ')}… — no bonus if you don't finish. Crashes and leaving the track cost your live combo.</p>` : ''}
         <p class="setup-note">Pass every checkpoint in order. Resets never count as checkpoints. Solo races start you at the back of the grid. CPU drivers are clearly labelled and only appear in solo races.</p>`;
@@ -7151,7 +7186,7 @@ class UI {
       e.preventDefault();
       const inp = $('#code-in'), got = await tryCode(inp.value);
       if (!got) { inp.value = ''; inp.classList.remove('nope'); void inp.offsetWidth; inp.classList.add('nope'); return; }
-      this.codeOpen = false; this.app.audio.chime(true);
+      this.codeOpen = false; this.app.audio.chime(true); this.app.account.queueSave();
       const carU = CARS.find((c) => c.secret === got), tab = CATEGORIES.find((c) => c.secret === got || (carU && c.id === carU.cat));
       toast(got === 'creator' ? '<b>Creator cars unlocked</b><br><small>Find them under the new Creator tab</small>' : `<b>${carU ? carU.name : (tab ? tab.name : 'Secret') + ' car'} unlocked</b><br><small>Find it under the ${tab ? tab.name : 'Secret'} tab</small>`, 3200);
       this.garageCat = tab ? tab.id : 'creator'; this.renderGarage();
@@ -7239,6 +7274,7 @@ class UI {
   async enterMP() {
     const S = this.S, N = this.app.net;
     $('#mp-name').value = S.playerName;
+    $('#mp-name').disabled = this.app.account.loggedIn; $('#mp-name').title = this.app.account.loggedIn ? 'Your account name' : '';
     $('#mp-server').value = S.serverUrl || '';
     $('#mp-name').onchange = (e) => { S.playerName = e.target.value.trim().slice(0, 16) || S.playerName; this.app.saveSettings(); N.send({ t: 'name', name: S.playerName }); };
     $('#mp-server').onchange = (e) => { S.serverUrl = e.target.value.trim(); this.app.saveSettings(); N.close(); setTimeout(() => this.enterMP(), 200); };
@@ -7288,6 +7324,45 @@ class UI {
       const ok = await this.confirmRules(info); if (!ok) return;
     }
     N.send({ t: 'join', code, car: S.car });
+  }
+  // ---- accounts
+  renderAccount() {
+    const A = this.app.account, el = $('#acct-bar'); if (!el) return;
+    el.innerHTML = A.loggedIn ? `<span>👤 <b>${esc(A.name)}</b></span><button class="btn small" id="acct-out" type="button">Log out</button>`
+      : '<span class="muted">Playing as guest</span><button class="btn small primary" id="acct-in" type="button">Log in / Sign up</button>';
+    const o = $('#acct-out'), i = $('#acct-in');
+    if (o) o.onclick = () => { this.click(); A.logout(); toast('Logged out. Your progress stays saved in your account.', 3000); this.renderAccount(); };
+    if (i) i.onclick = () => { this.click(); this.show('login'); };
+  }
+  renderLogin() {
+    const A = this.app.account;
+    let tab = 'login';
+    const setTab = (t) => {
+      tab = t;
+      $$('[data-ltab]').forEach((b) => b.classList.toggle('sel', b.dataset.ltab === t));
+      $('#login-pass2-row').classList.toggle('hidden', t !== 'signup');
+      $('#login-pass').autocomplete = t === 'signup' ? 'new-password' : 'current-password';
+      $('#login-go').textContent = t === 'signup' ? 'Create account' : 'Log in';
+      $('#login-msg').textContent = t === 'signup' ? 'Pick a username (3–16 letters/numbers) and a password (6+ characters). This device\'s progress goes into the new account.' : '';
+      $('#login-msg').className = 'muted small';
+    };
+    $$('[data-ltab]').forEach((b) => (b.onclick = () => { this.click(); setTab(b.dataset.ltab); }));
+    setTab('login');
+    const msg = (t, bad) => { $('#login-msg').textContent = t; $('#login-msg').className = 'small ' + (bad ? 'bad' : 'muted'); };
+    $('#login-form').onsubmit = async (e) => {
+      e.preventDefault(); this.click();
+      const name = $('#login-name').value.trim(), pass = $('#login-pass').value;
+      if (tab === 'signup' && pass !== $('#login-pass2').value) return msg('The two passwords don\'t match', true);
+      const go = $('#login-go'); go.disabled = true; msg(tab === 'signup' ? 'Creating your account… (the server can take up to a minute to wake up)' : 'Logging in… (the server can take up to a minute to wake up)');
+      try {
+        const r = tab === 'signup' ? await A.signup(name, pass) : await A.login(name, pass);
+        $('#login-pass').value = ''; $('#login-pass2').value = '';
+        toast(r.created ? `<b>Welcome, ${esc(r.name)}!</b><br><small>Account created — your progress now saves to it.</small>` : `<b>Welcome back, ${esc(r.name)}!</b>`, 3500, 'good');
+        this.show('main');
+      } catch (err) { msg(err.message, true); }
+      finally { go.disabled = false; }
+    };
+    $('#login-guest').onclick = () => { this.click(); A.playAsGuest(); this.show('main'); };
   }
   // one tap: connect and drop straight into the always-on public free-roam room
   async joinPublic() {
@@ -7970,24 +8045,35 @@ class RaceComp extends Comp {
       const cfg = isBoss ? { id, paint: '#0c0c0e', wheel: '#b01010', rim: 3, spoiler: 0, kit: 2, stripes: 0, lowered: 1, underglow: '#ff1a12', livery: 2, liveryColor: '#c8140f' }
         : { id, paint: rv.paint, wheel: '#cccccc', rim: i % 6, spoiler: i % 4, kit: i % 2, stripes: 0, lowered: 0, underglow: '' };
       const model = buildCarModel(g.app.renderer, cfg);
-      const def = aiDef(carById(id), isBoss ? 'hard' : diff); // the boss: Hard-level car setup, Legend driving
+      const def = aiDef(carById(id), isBoss ? 'boss' : diff); // the boss has his own, much stronger setup
       const v = new Vehicle(def, g.world, model.meshes.dims, { style: 'race' });
       v.place(slots[i].x, slots[i].z, slots[i].h);
       const name = isBoss ? 'Midnight Oni' : rv.name;
       const tag = document.createElement('div'); tag.className = 'nametag cpu' + (isBoss ? ' boss' : ''); tag.textContent = isBoss ? '👹 MIDNIGHT ONI' : name; $('#tags').appendChild(tag);
-      this.ai.push({ name, boss: isBoss, v, model, def, drv: new AIDriver(v, this.route.path, isBoss ? 'legend' : diff, 11 + i * 7), tr: new RaceTracker(this.route, this.laps), tag, k: 0 });
+      // when you get ahead of him, Oni finds more power (catch-up)
+      const fast = isBoss ? { ...def, accel: def.accel * 1.2, top: def.top * 1.1, lat: def.lat * 1.06 } : null;
+      this.ai.push({ name, boss: isBoss, v, model, def, fast, drv: new AIDriver(v, this.route.path, isBoss ? 'boss' : diff, 11 + i * 7), tr: new RaceTracker(this.route, this.laps), tag, k: 0 });
     }
     this.boss = this.ai.find((a) => a.boss) || null;
     if (this.boss) setTimeout(() => this.taunt('start'), 900);
+    if (!this.mp) { // Enter: skip waiting for the CPUs once you've finished
+      this.onKey = (e) => { if (e.key === 'Enter' && this.phase === 'done' && !this.resultShown) this.maybeSoloResults(true); };
+      window.addEventListener('keydown', this.onKey);
+    }
     this.standings = [];
     if (this.mp) { this.bindStart(); this.on('mState', (m) => { if (m.mode === this.kind) { this.standings = m.rows; this.serverMe = m.rows.find((r) => r.id === this.net.id); } }); }
     this.readyUp();
   }
   stepExtras(dt) {
-    const go = this.phase === 'running';
+    // CPUs keep racing after the player finishes, until each one crosses the line or the race timer runs out
+    const racing = this.phase === 'running' || (this.phase === 'done' && !this.timeUp);
     const cars = [this.g.car, ...this.ai.map((a) => a.v)];
     for (const a of this.ai) {
-      const inp = a.drv.control(dt, cars.filter((c) => c !== a.v), go);
+      if (a.boss) { // catch-up: more than 15 m behind the player = extra power
+        const gap = (this.tracker.progress(this.g.car.x, this.g.car.z) - a.tr.progress(a.v.x, a.v.z)) * ((this.route.length || 1000) / this.route.gates.length); // progress counts gates
+        a.v.def = gap > 15 && !this.tracker.finished ? a.fast : a.def;
+      }
+      const inp = a.drv.control(dt, cars.filter((c) => c !== a.v), racing && !a.tr.finished);
       a.v.step(dt, inp);
     }
     // every pair once, equal and opposite (resolving each car separately made whoever went first take most of the hit)
@@ -8026,11 +8112,14 @@ class RaceComp extends Comp {
       if (this.bossAhead === undefined) this.bossAhead = ahead;
       else if (ahead !== this.bossAhead) { this.bossAhead = ahead; this.taunt(ahead ? 'passed' : 'passes'); }
     }
-    // solo: finish once all CPUs are done or 30 s after the player
-    if (!this.mp && this.phase === 'done' && !this.resultShown) {
-      this.doneT = (this.doneT || 0) + (sim ? dt : 0);
-      if (this.ai.every((a) => a.tr.finished) || this.doneT > 30) this.maybeSoloResults(true);
+    // solo race timer (same limit as online): when it runs out, anyone still racing is DNF
+    if (!this.mp && this.goAt !== null && !this.timeUp && (this.phase === 'running' || this.phase === 'done') && this.t > this.timeLimit()) {
+      this.timeUp = true;
+      if (this.phase === 'running') { this.phase = 'done'; this.g.bigText('TIME UP', 1500); }
+      if (!this.resultShown) this.maybeSoloResults(true);
     }
+    // solo: results once every CPU has crossed the line too (Enter shows them straight away)
+    if (!this.mp && this.phase === 'done' && !this.resultShown && this.ai.every((a) => a.tr.finished)) this.maybeSoloResults(true);
     // missed-checkpoint / wrong-way hint: next gate is behind us and we're moving away from it
     if (this.phase === 'running') {
       const gt = this.route.gates[this.tracker.next], c = this.g.car;
@@ -8038,6 +8127,7 @@ class RaceComp extends Comp {
       this.warn = this.tracker.started && d > 60 && toward < 0 && c.speed > 5 ? (d > 150 ? 'Missed a checkpoint — turn back!' : 'Wrong way!') : '';
     }
   }
+  timeLimit() { return 60 * Math.max(10, this.laps * Math.max(6, (this.route.length || 0) / 1500)); }
   maybeSoloResults(force) {
     if (this.resultShown || (!force && !this.ai.every((a) => a.tr.finished))) return;
     const me = { name: this.g.app.settings.playerName, me: true, tr: this.tracker };
@@ -8104,10 +8194,11 @@ class RaceComp extends Comp {
       <div class="lap">LAP <b>${t.finished ? this.laps : lap}</b>/${this.laps}</div></div>
       <div class="cstats"><span>Time <b>${fmtTime(Math.max(0, time))}</b></span><span>Lap <b>${fmtTime(lapNow)}</b></span><span>Best <b>${fmtTime(t.best)}</b></span></div>
       <div class="cpbar" title="Checkpoints this lap"><i style="width:${(cp / t.gateCount) * 100}%"></i><span>Checkpoint ${cp}/${t.gateCount}</span></div>
-      ${this.warn ? `<div class="cwarn">${this.warn}</div>` : ''}`,
+      ${this.warn ? `<div class="cwarn">${this.warn}</div>` : ''}
+      ${!this.mp && this.phase === 'done' && !this.resultShown ? `<div class="muted">Finished! The others are still racing · time left ${fmtTime(Math.max(0, this.timeLimit() - this.t)).slice(0, -3)} · <b>Enter</b> = results now</div>` : ''}`,
       rows.slice(0, 8).map((r, i) => `<div class="lb-row ${r.me ? 'me' : ''}"><span>${i + 1}</span><b>${esc(r.name)}</b><em>${r.finished ? fmtTime(r.time) : `Lap ${Math.min(this.laps, r.lap + 1)}`}</em></div>`).join(''), 'Race standings');
   }
-  destroy() { super.destroy(); for (const a of this.ai) a.tag.remove(); }
+  destroy() { super.destroy(); for (const a of this.ai) a.tag.remove(); if (this.onKey) window.removeEventListener('keydown', this.onKey); }
 }
 
 // ======================================================================= DRIFT RACE
@@ -9129,6 +9220,102 @@ function xpForRecord(type, d) {
 return { xpNeed, MAX_LEVEL, levelInfo, LEVEL_REWARDS, xpForRecord };
 })();
 
+// ===== js/account.js =====
+__mod["js/account.js"] = (function () {
+// Accounts: log in / sign up against the game server's /api, keep the login token on this device,
+// and sync the player's progress (level/XP, cars and setups, bests, secret-car unlocks) to the account.
+const { isUnlocked, unlock } = __mod["js/secret.js"];
+const KEY = 'driftclub.account', GUEST = 'driftclub.guest';
+const SYNC_KEYS = ['playerName', 'driveStyle', 'driftAngle', 'car', 'bests', 'garage', 'presets', 'xp', 'publicMap']; // device stuff (graphics, controls) stays per device
+const SECRET_NAMES = ['creator', 'squad', 'mango', 'kitsune', 'raijin', 'oni'];
+
+class Account {
+  constructor(app) {
+    this.app = app;
+    try { this.data = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { this.data = null; }
+    this.saveT = null;
+  }
+  get loggedIn() { return !!(this.data && this.data.token); }
+  get name() { return this.data ? this.data.name : null; }
+  get token() { return this.data ? this.data.token : null; }
+  get guestChosen() { try { return localStorage.getItem(GUEST) === '1'; } catch { return false; } }
+  playAsGuest() { try { localStorage.setItem(GUEST, '1'); } catch { /* */ } }
+  base() { // http(s) base of the game server (same place multiplayer connects to)
+    const ws = this.app.net.url(this.app.settings.serverUrl);
+    return ws.replace(/^ws/, 'http').replace(/\/ws$/, '');
+  }
+  async call(route, body, timeoutMs = 75000) {
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), timeoutMs);
+    try {
+      const r = await fetch(`${this.base()}/api/${route}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctl.signal });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || `Server error ${r.status}`);
+      return j;
+    } catch (e) {
+      if (e.name === 'AbortError' || e instanceof TypeError) throw new Error('Can\'t reach the server. It may be waking up — try again in a minute.');
+      throw e;
+    } finally { clearTimeout(t); }
+  }
+  snapshot() {
+    const S = this.app.settings, out = { settings: {}, unlocks: SECRET_NAMES.filter((n) => isUnlocked(n)), v: 1 };
+    for (const k of SYNC_KEYS) if (S[k] !== undefined) out.settings[k] = S[k];
+    return out;
+  }
+  apply(save) {
+    const S = this.app.settings;
+    if (save && save.settings) for (const k of SYNC_KEYS) if (save.settings[k] !== undefined) S[k] = save.settings[k];
+    if (save && Array.isArray(save.unlocks)) for (const n of save.unlocks) if (SECRET_NAMES.includes(n)) unlock(n);
+    S.playerName = this.name;
+    this.app.saveSettings(true);
+    this.app.renderLevel();
+  }
+  remember(name, token) {
+    this.data = { name, token };
+    try { localStorage.setItem(KEY, JSON.stringify(this.data)); localStorage.removeItem(GUEST); } catch { /* */ }
+  }
+  async signup(name, pass) {
+    const r = await this.call('signup', { name, pass, save: this.snapshot() }); // a new account starts with this device's progress
+    this.remember(r.name, r.token); this.apply(r.save); this.reconnect();
+    return r;
+  }
+  async login(name, pass) {
+    const r = await this.call('login', { name, pass });
+    this.remember(r.name, r.token);
+    // brand-new account with nothing saved yet: keep this device's progress
+    if (!r.save || !r.save.settings) { this.apply(null); this.pushNow(); } else this.apply(r.save);
+    this.reconnect();
+    return r;
+  }
+  async refresh() { // on start-up: pull the latest save for the remembered login
+    if (!this.loggedIn) return;
+    try { const r = await this.call('me', { token: this.token }, 20000); this.data.name = r.name; this.apply(r.save); }
+    catch (e) { if (/log in again/.test(e.message)) this.forget(); }
+  }
+  logout() {
+    if (this.loggedIn) this.call('logout', { token: this.token }, 8000).catch(() => {});
+    this.forget(); this.reconnect();
+  }
+  forget() { this.data = null; try { localStorage.removeItem(KEY); } catch { /* */ } }
+  reconnect() { // tell an open multiplayer connection who we are now
+    const N = this.app.net;
+    N.send({ t: 'auth', acct: this.token || null, name: this.app.settings.playerName });
+  }
+  // progress changed: upload a few seconds later (batched)
+  queueSave() {
+    if (!this.loggedIn) return;
+    clearTimeout(this.saveT);
+    this.saveT = setTimeout(() => this.pushNow(), 4000);
+  }
+  pushNow() {
+    if (!this.loggedIn) return;
+    clearTimeout(this.saveT);
+    this.call('save', { token: this.token, save: this.snapshot() }, 30000).catch((e) => { if (/log in again/.test(e.message)) this.forget(); });
+  }
+}
+
+return { Account };
+})();
+
 // ===== js/main.js =====
 __mod["js/main.js"] = (function () {
 // App bootstrap: renderer, menus, main loop, multiplayer event routing.
@@ -9144,6 +9331,7 @@ const { MAP_LIST } = __mod["js/maps.js"];
 const { MODES } = __mod["js/scoring.js"];
 const { TouchControls, goFullscreen } = __mod["js/touch.js"];
 const { levelInfo, LEVEL_REWARDS, xpForRecord } = __mod["js/level.js"];
+const { Account } = __mod["js/account.js"];
 const { unlock } = __mod["js/secret.js"];
 const { CARS } = __mod["js/cars.js"];
 class App {
@@ -9160,6 +9348,7 @@ class App {
     this.audio.setVolumes({ master: this.settings.master, sfx: this.settings.sfx, music: this.settings.music });
     this.input = new Input(this.settings);
     this.net = new Net(); this.net.level = () => this.level;
+    this.account = new Account(this); this.net.acct = () => this.account.token;
     this.ui = new UI(this);
     this.touch = new TouchControls(this);
     this.showroom = new Showroom(this);
@@ -9168,7 +9357,9 @@ class App {
     const unlock = () => { this.audio.init(); this.audio.playMusic(this.game ? this.audio.style : 'menu'); };
     window.addEventListener('pointerdown', unlock, { once: false });
     window.addEventListener('keydown', unlock, { once: false });
-    this.ui.show('main');
+    // accounts: logged in -> pull the latest save; never chose -> show the login screen first
+    if (this.account.loggedIn) { this.ui.show('main'); this.account.refresh().then(() => this.ui.renderAccount()); }
+    else this.ui.show(this.account.guestChosen ? 'main' : 'login');
     // after a refresh / crash, quietly resume an unfinished multiplayer session (same room & game)
     if (this.net.token) this.net.connect(this.settings.playerName, this.settings.car, this.settings.serverUrl, { patience: 8000 }).catch(() => {});
     $('#fps').classList.toggle('hidden', !this.settings.showFps);
@@ -9177,7 +9368,7 @@ class App {
     requestAnimationFrame((t) => this.loop(t));
     window.__app = this; // handy for debugging & automated tests
   }
-  saveSettings() { saveSettings(this.settings); }
+  saveSettings(noSync) { saveSettings(this.settings); if (!noSync && this.account) this.account.queueSave(); }
   get level() { return levelInfo(this.settings.xp || 0).level; }
   // XP: drifting, distance, finished competitions. Level ups unlock secret cars at some levels.
   addXP(n, why) {

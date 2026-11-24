@@ -646,3 +646,19 @@ body.touch-on .controls-help { font-size: 13px; }
 .nametag.cpu.boss { border-color: #ff2a1a; color: #ff4a3a; background: rgba(20, 0, 0, 0.85); box-shadow: 0 0 12px rgba(255, 30, 20, 0.6); letter-spacing: 0.08em; }
 .toast.oni { border-left-color: #ff2a1a; background: rgba(18, 4, 4, 0.96); }
 .toast.oni b.oni { color: #ff4a3a; }
+/* login + account */
+.login .brand { text-align: center; margin-bottom: 10px; }
+.login-tabs { justify-content: center; margin-bottom: 8px; }
+.login .bad, #login-msg.bad { color: var(--bad, #ff6b5a); }
+.login #login-guest { margin-top: 8px; }
+.acct-bar { display: flex; align-items: center; gap: 10px; margin: -6px 0 12px; font-size: 14px; }
+.me-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 18px; margin: 4px 0 10px; }
+.me-row .main-lvl, .me-row .acct-bar { margin: 0; }
+/* shorter PC screens: tighter main menu so everything fits */
+@media (max-height: 860px) and (min-width: 700px) {
+  #scr-main .logo { font-size: clamp(48px, 6.5vw, 84px); }
+  #scr-main .brand p { margin: 8px 0 12px; }
+  #scr-main .nav-btn { padding: 8px 16px; }
+  #scr-main .nav-btn b { font-size: 17px; }
+  #scr-main .nav-btn small { font-size: 12px; }
+}

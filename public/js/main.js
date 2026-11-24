@@ -11,6 +11,7 @@ import { MAP_LIST } from './maps.js';
 import { MODES } from './scoring.js';
 import { TouchControls, goFullscreen } from './touch.js';
 import { levelInfo, LEVEL_REWARDS, xpForRecord } from './level.js';
+import { Account } from './account.js';
 import { unlock } from './secret.js';
 import { CARS } from './cars.js';
 
@@ -28,6 +29,7 @@ class App {
     this.audio.setVolumes({ master: this.settings.master, sfx: this.settings.sfx, music: this.settings.music });
     this.input = new Input(this.settings);
     this.net = new Net(); this.net.level = () => this.level;
+    this.account = new Account(this); this.net.acct = () => this.account.token;
     this.ui = new UI(this);
     this.touch = new TouchControls(this);
     this.showroom = new Showroom(this);
@@ -36,7 +38,9 @@ class App {
     const unlock = () => { this.audio.init(); this.audio.playMusic(this.game ? this.audio.style : 'menu'); };
     window.addEventListener('pointerdown', unlock, { once: false });
     window.addEventListener('keydown', unlock, { once: false });
-    this.ui.show('main');
+    // accounts: logged in -> pull the latest save; never chose -> show the login screen first
+    if (this.account.loggedIn) { this.ui.show('main'); this.account.refresh().then(() => this.ui.renderAccount()); }
+    else this.ui.show(this.account.guestChosen ? 'main' : 'login');
     // after a refresh / crash, quietly resume an unfinished multiplayer session (same room & game)
     if (this.net.token) this.net.connect(this.settings.playerName, this.settings.car, this.settings.serverUrl, { patience: 8000 }).catch(() => {});
     $('#fps').classList.toggle('hidden', !this.settings.showFps);
@@ -45,7 +49,7 @@ class App {
     requestAnimationFrame((t) => this.loop(t));
     window.__app = this; // handy for debugging & automated tests
   }
-  saveSettings() { saveSettings(this.settings); }
+  saveSettings(noSync) { saveSettings(this.settings); if (!noSync && this.account) this.account.queueSave(); }
   get level() { return levelInfo(this.settings.xp || 0).level; }
   // XP: drifting, distance, finished competitions. Level ups unlock secret cars at some levels.
   addXP(n, why) {

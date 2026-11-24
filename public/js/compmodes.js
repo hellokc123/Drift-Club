@@ -206,24 +206,35 @@ class RaceComp extends Comp {
       const cfg = isBoss ? { id, paint: '#0c0c0e', wheel: '#b01010', rim: 3, spoiler: 0, kit: 2, stripes: 0, lowered: 1, underglow: '#ff1a12', livery: 2, liveryColor: '#c8140f' }
         : { id, paint: rv.paint, wheel: '#cccccc', rim: i % 6, spoiler: i % 4, kit: i % 2, stripes: 0, lowered: 0, underglow: '' };
       const model = buildCarModel(g.app.renderer, cfg);
-      const def = aiDef(carById(id), isBoss ? 'hard' : diff); // the boss: Hard-level car setup, Legend driving
+      const def = aiDef(carById(id), isBoss ? 'boss' : diff); // the boss has his own, much stronger setup
       const v = new Vehicle(def, g.world, model.meshes.dims, { style: 'race' });
       v.place(slots[i].x, slots[i].z, slots[i].h);
       const name = isBoss ? 'Midnight Oni' : rv.name;
       const tag = document.createElement('div'); tag.className = 'nametag cpu' + (isBoss ? ' boss' : ''); tag.textContent = isBoss ? '👹 MIDNIGHT ONI' : name; $('#tags').appendChild(tag);
-      this.ai.push({ name, boss: isBoss, v, model, def, drv: new AIDriver(v, this.route.path, isBoss ? 'legend' : diff, 11 + i * 7), tr: new RaceTracker(this.route, this.laps), tag, k: 0 });
+      // when you get ahead of him, Oni finds more power (catch-up)
+      const fast = isBoss ? { ...def, accel: def.accel * 1.2, top: def.top * 1.1, lat: def.lat * 1.06 } : null;
+      this.ai.push({ name, boss: isBoss, v, model, def, fast, drv: new AIDriver(v, this.route.path, isBoss ? 'boss' : diff, 11 + i * 7), tr: new RaceTracker(this.route, this.laps), tag, k: 0 });
     }
     this.boss = this.ai.find((a) => a.boss) || null;
     if (this.boss) setTimeout(() => this.taunt('start'), 900);
+    if (!this.mp) { // Enter: skip waiting for the CPUs once you've finished
+      this.onKey = (e) => { if (e.key === 'Enter' && this.phase === 'done' && !this.resultShown) this.maybeSoloResults(true); };
+      window.addEventListener('keydown', this.onKey);
+    }
     this.standings = [];
     if (this.mp) { this.bindStart(); this.on('mState', (m) => { if (m.mode === this.kind) { this.standings = m.rows; this.serverMe = m.rows.find((r) => r.id === this.net.id); } }); }
     this.readyUp();
   }
   stepExtras(dt) {
-    const go = this.phase === 'running';
+    // CPUs keep racing after the player finishes, until each one crosses the line or the race timer runs out
+    const racing = this.phase === 'running' || (this.phase === 'done' && !this.timeUp);
     const cars = [this.g.car, ...this.ai.map((a) => a.v)];
     for (const a of this.ai) {
-      const inp = a.drv.control(dt, cars.filter((c) => c !== a.v), go);
+      if (a.boss) { // catch-up: more than 15 m behind the player = extra power
+        const gap = (this.tracker.progress(this.g.car.x, this.g.car.z) - a.tr.progress(a.v.x, a.v.z)) * ((this.route.length || 1000) / this.route.gates.length); // progress counts gates
+        a.v.def = gap > 15 && !this.tracker.finished ? a.fast : a.def;
+      }
+      const inp = a.drv.control(dt, cars.filter((c) => c !== a.v), racing && !a.tr.finished);
       a.v.step(dt, inp);
     }
     // every pair once, equal and opposite (resolving each car separately made whoever went first take most of the hit)
@@ -262,11 +273,14 @@ class RaceComp extends Comp {
       if (this.bossAhead === undefined) this.bossAhead = ahead;
       else if (ahead !== this.bossAhead) { this.bossAhead = ahead; this.taunt(ahead ? 'passed' : 'passes'); }
     }
-    // solo: finish once all CPUs are done or 30 s after the player
-    if (!this.mp && this.phase === 'done' && !this.resultShown) {
-      this.doneT = (this.doneT || 0) + (sim ? dt : 0);
-      if (this.ai.every((a) => a.tr.finished) || this.doneT > 30) this.maybeSoloResults(true);
+    // solo race timer (same limit as online): when it runs out, anyone still racing is DNF
+    if (!this.mp && this.goAt !== null && !this.timeUp && (this.phase === 'running' || this.phase === 'done') && this.t > this.timeLimit()) {
+      this.timeUp = true;
+      if (this.phase === 'running') { this.phase = 'done'; this.g.bigText('TIME UP', 1500); }
+      if (!this.resultShown) this.maybeSoloResults(true);
     }
+    // solo: results once every CPU has crossed the line too (Enter shows them straight away)
+    if (!this.mp && this.phase === 'done' && !this.resultShown && this.ai.every((a) => a.tr.finished)) this.maybeSoloResults(true);
     // missed-checkpoint / wrong-way hint: next gate is behind us and we're moving away from it
     if (this.phase === 'running') {
       const gt = this.route.gates[this.tracker.next], c = this.g.car;
@@ -274,6 +288,7 @@ class RaceComp extends Comp {
       this.warn = this.tracker.started && d > 60 && toward < 0 && c.speed > 5 ? (d > 150 ? 'Missed a checkpoint — turn back!' : 'Wrong way!') : '';
     }
   }
+  timeLimit() { return 60 * Math.max(10, this.laps * Math.max(6, (this.route.length || 0) / 1500)); }
   maybeSoloResults(force) {
     if (this.resultShown || (!force && !this.ai.every((a) => a.tr.finished))) return;
     const me = { name: this.g.app.settings.playerName, me: true, tr: this.tracker };
@@ -340,10 +355,11 @@ class RaceComp extends Comp {
       <div class="lap">LAP <b>${t.finished ? this.laps : lap}</b>/${this.laps}</div></div>
       <div class="cstats"><span>Time <b>${fmtTime(Math.max(0, time))}</b></span><span>Lap <b>${fmtTime(lapNow)}</b></span><span>Best <b>${fmtTime(t.best)}</b></span></div>
       <div class="cpbar" title="Checkpoints this lap"><i style="width:${(cp / t.gateCount) * 100}%"></i><span>Checkpoint ${cp}/${t.gateCount}</span></div>
-      ${this.warn ? `<div class="cwarn">${this.warn}</div>` : ''}`,
+      ${this.warn ? `<div class="cwarn">${this.warn}</div>` : ''}
+      ${!this.mp && this.phase === 'done' && !this.resultShown ? `<div class="muted">Finished! The others are still racing · time left ${fmtTime(Math.max(0, this.timeLimit() - this.t)).slice(0, -3)} · <b>Enter</b> = results now</div>` : ''}`,
       rows.slice(0, 8).map((r, i) => `<div class="lb-row ${r.me ? 'me' : ''}"><span>${i + 1}</span><b>${esc(r.name)}</b><em>${r.finished ? fmtTime(r.time) : `Lap ${Math.min(this.laps, r.lap + 1)}`}</em></div>`).join(''), 'Race standings');
   }
-  destroy() { super.destroy(); for (const a of this.ai) a.tag.remove(); }
+  destroy() { super.destroy(); for (const a of this.ai) a.tag.remove(); if (this.onKey) window.removeEventListener('keydown', this.onKey); }
 }
 
 // ======================================================================= DRIFT RACE

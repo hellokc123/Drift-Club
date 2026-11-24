@@ -22,7 +22,7 @@
 <section class="screen" id="scr-main">
   <div class="main-left">
     <div class="brand"><div class="logo">DRIFT<span>CLUB</span></div><p>Slide sideways. Chill out. Or crush your friends.</p></div>
-    <div class="lvl-badge main-lvl"></div>
+    <div class="me-row"><div class="lvl-badge main-lvl"></div><div class="acct-bar" id="acct-bar"></div></div>
     <nav class="main-nav">
       <button class="nav-btn primary" data-go="play"><b>Play</b><small>Solo drive on any map</small></button>
       <button class="nav-btn" data-go="garage"><b>Garage</b><small>Pick &amp; customise your car</small></button>
@@ -38,6 +38,22 @@
 </section>
 
 <!-- ======================= PLAY SETUP ======================= -->
+<section class="screen" id="scr-login">
+  <div class="panel narrow login">
+    <div class="brand"><div class="logo">DRIFT<span>CLUB</span></div></div>
+    <div class="chips login-tabs"><button class="chip sel" data-ltab="login" type="button">Log in</button><button class="chip" data-ltab="signup" type="button">Sign up</button></div>
+    <form id="login-form" class="form" autocomplete="on">
+      <label class="field">Username<input id="login-name" maxlength="16" autocomplete="username" required></label>
+      <label class="field">Password<input id="login-pass" type="password" maxlength="72" autocomplete="current-password" required></label>
+      <label class="field hidden" id="login-pass2-row">Password again<input id="login-pass2" type="password" maxlength="72" autocomplete="new-password"></label>
+      <p class="muted small" id="login-msg"></p>
+      <button class="btn primary big full" id="login-go" type="submit">Log in</button>
+    </form>
+    <button class="btn full" id="login-guest" type="button">Play as guest</button>
+    <p class="muted small">An account saves your level, cars, setups, bests and secret cars, so you get them on any device. Don't reuse a password from another site.</p>
+  </div>
+</section>
+
 <section class="screen" id="scr-play">
   <div class="panel wide">
     <header class="phead"><button class="back" data-go="main">‹ Back</button><h2>Play</h2></header>
