@@ -7,6 +7,7 @@ import { CARS, carById, buildCarModel, carDrawItems } from './cars.js';
 import { raceRoute, gridSlots, RaceTracker, battleCourse, RACE } from './tracks.js';
 import { CompDriftJudge, round2, BattleRun, battleTotals, challengeScore, CHALLENGE_VARIANTS, DRIFT_RACE, AI_DRIFT, AI_JUDGE, aiDriftSample, driftRaceRank, driftRaceBonus, posFactor } from './judge.js';
 import { AIDriver, AI_SKILL, aiDef } from './ai.js';
+import { OniRecorder, loadBrain, saveBrain } from './oni.js';
 import { $, fmt, esc, toast } from './ui.js';
 
 export const fmtTime = (t) => (t == null || !Number.isFinite(t) ? '—' : `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`);
@@ -171,6 +172,7 @@ const ONI_LINES = {
   passed: ['Hmph. Enjoy it while it lasts.', 'Lucky. It won\'t happen twice.', 'Oh? So you can drive.'],
   passes: ['Too slow.', 'See you at the finish. Eventually.', 'Was that your best?', 'Bye bye.'],
   win: ['As expected. Come back when you are ready.', 'The night is still mine.'],
+  remember: ['I remember this track. And I remember you.', 'I studied your lines. Let\'s see what you have left.', 'Every race you teach me something. Thank you.'],
   lose: ['...Impossible. Take the car. You earned it.', 'Well driven. The Oni bows to you.'],
 };
 const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -216,7 +218,18 @@ class RaceComp extends Comp {
       this.ai.push({ name, boss: isBoss, v, model, def, fast, drv: new AIDriver(v, this.route.path, isBoss ? 'boss' : diff, 11 + i * 7), tr: new RaceTracker(this.route, this.laps), tag, k: 0 });
     }
     this.boss = this.ai.find((a) => a.boss) || null;
-    if (this.boss) setTimeout(() => this.taunt('start'), 900);
+    if (this.boss && !this.mp) { // load what Oni has learned about this track
+      const B = this.boss; B.baseDef = B.def; B.baseFast = B.fast;
+      this.oniRec = new OniRecorder(this.route.path, this.route.width);
+      loadBrain(g.app.account, g.opts.mapId, this.oniRec.n).then((brain) => {
+        if (this.destroyed) return;
+        this.oniBrain = brain; B.drv.brain = brain;
+        const pw = 1 + brain.power, up = (d) => ({ ...d, accel: d.accel * pw, top: d.top * (1 + brain.power * 0.5), lat: d.lat * (1 + brain.power * 0.4) });
+        B.def = up(B.baseDef); B.fast = up(B.baseFast); B.v.def = B.def;
+        if (brain.races) toast(`<b class="oni">👹 Midnight Oni</b> has raced here ${brain.races}× (won ${brain.wins}, lost ${brain.losses})<br><small>He remembers this track: +${Math.round(brain.power * 100)}% power, ${brain.speed.filter((x) => x !== 1).length} corners studied</small>`, 4500, 'oni');
+      });
+    }
+    if (this.boss) setTimeout(() => this.taunt(this.oniBrain && this.oniBrain.races ? 'remember' : 'start'), 1600);
     if (!this.mp) { // Enter: skip waiting for the CPUs once you've finished
       this.onKey = (e) => { if (e.key === 'Enter' && this.phase === 'done' && !this.resultShown) this.maybeSoloResults(true); };
       window.addEventListener('keydown', this.onKey);
@@ -245,6 +258,10 @@ class RaceComp extends Comp {
     if (this.phase !== 'running' && this.phase !== 'done') return;
     const ev = this.tracker.update({ t, x: s.x, z: s.z, vx: s.vx, vz: s.vz, teleport: !!(s.f & 256) });
     if (ev) this.onEvent(ev);
+    if (this.oniRec && this.phase === 'running') { // Oni watches you (and himself) on every stretch
+      this.oniRec.player(s.x, s.z, Math.hypot(s.vx, s.vz), !!(s.f & 256));
+      const B = this.boss; if (!B.tr.finished) this.oniRec.boss(B.drv.idx, B.v.x, B.v.z, B.v.speed, B.drv.teleported, B.v.rel);
+    }
     for (const a of this.ai) {
       const e = a.tr.update({ t, x: a.v.x, z: a.v.z, vx: a.v.vx, vz: a.v.vz, teleport: a.drv.teleported }); a.drv.teleported = false;
       if (e && e.type === 'finish') a.finishT = e.t;
@@ -299,6 +316,12 @@ class RaceComp extends Comp {
     const bossRow = this.boss ? rows.find((r) => r.name === 'Midnight Oni') : null;
     const beatBoss = !!(bossRow && mine.finished && rows.indexOf(mine) < rows.indexOf(bossRow));
     if (this.boss) this.taunt(beatBoss ? 'lose' : 'win');
+    if (this.oniRec && this.oniBrain && !this.oniLearned && this.tracker.started) { // Oni learns from this race
+      this.oniLearned = true;
+      const L = this.oniRec.learn(this.oniBrain, !beatBoss, true);
+      saveBrain(this.g.app.account, this.g.opts.mapId, L.brain);
+      this.later(4200, () => toast(`<b class="oni">👹 Oni learned from this race</b><br><small>${L.faster ? `Faster through ${L.faster} stretch${L.faster === 1 ? '' : 'es'} where you beat him` : 'You taught him nothing new'}${L.careful ? ` · more careful in ${L.careful} where he slipped up` : ''}${beatBoss ? ' · +2% power' : ''}</small>`, 6000, 'oni'));
+    }
     if (mine.finished) this.g.app.saveRecord('race', { map: this.g.opts.mapId, laps: this.laps, time: mine.time, best: mine.best, pos: rows.indexOf(mine) + 1, field: rows.length, beatBoss });
     this.showResults(this.resultsHtml(rows, true), { solo: true });
   }
@@ -359,7 +382,7 @@ class RaceComp extends Comp {
       ${!this.mp && this.phase === 'done' && !this.resultShown ? `<div class="muted">Finished! The others are still racing · time left ${fmtTime(Math.max(0, this.timeLimit() - this.t)).slice(0, -3)} · <b>Enter</b> = results now</div>` : ''}`,
       rows.slice(0, 8).map((r, i) => `<div class="lb-row ${r.me ? 'me' : ''}"><span>${i + 1}</span><b>${esc(r.name)}</b><em>${r.finished ? fmtTime(r.time) : `Lap ${Math.min(this.laps, r.lap + 1)}`}</em></div>`).join(''), 'Race standings');
   }
-  destroy() { super.destroy(); for (const a of this.ai) a.tag.remove(); if (this.onKey) window.removeEventListener('keydown', this.onKey); }
+  destroy() { super.destroy(); this.destroyed = true; for (const a of this.ai) a.tag.remove(); if (this.onKey) window.removeEventListener('keydown', this.onKey); }
 }
 
 // ======================================================================= DRIFT RACE

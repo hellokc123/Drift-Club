@@ -6417,6 +6417,7 @@ class AIDriver {
     this.idx = this.nearest(0, path.n); this.lane = 0; this.laneT = 0; this.stuckT = 0; this.seed = seed;
     this.rand = () => { this.seed = (this.seed * 16807) % 2147483647; return this.seed / 2147483647; };
     this.wobble = 0; this.teleported = false;
+    this.brain = null; // Midnight Oni's learned speeds and lines per 30 m stretch (oni.js)
     // start in the lane we were placed in (grid column) and merge onto the line gradually,
     // instead of every car aiming for the centre line at once and wedging together on narrow roads
     const i = this.idx;
@@ -6448,7 +6449,9 @@ class AIDriver {
     let vt = top;
     for (let s = 0; s < 70; s += 3) {
       const R = this.radiusAt(this.idx + s);
-      const vc = Math.sqrt(aLat * R) * (0.92 + 0.08 * sk.pace);
+      let learnF = this.brain ? this.brain.speed[Math.floor(this.at(this.idx + s) / 10)] || 1 : 1;
+      if (learnF > 1) learnF = Math.min(learnF, R < 25 ? 1.06 : R < 60 ? 1.15 : 1.3); // learned speed: careful in hairpins
+      const vc = Math.sqrt(aLat * R) * (0.92 + 0.08 * sk.pace) * learnF;
       const dist = s * 3;
       vt = Math.min(vt, Math.sqrt(vc * vc + 2 * sk.brake * dist));
     }
@@ -6468,7 +6471,8 @@ class AIDriver {
     const rNow = Math.min(this.radiusAt(this.idx), this.radiusAt(this.idx + 3));
     const la = Math.max(2, Math.round(Math.min(6 + speed * 0.42, 4 + rNow * 0.7) / 3));
     const ti = this.at(this.idx + la);
-    const tx = p.x[ti] - p.tz[ti] * this.lane, tz = p.z[ti] + p.tx[ti] * this.lane;
+    const off = this.lane + (this.brain ? this.brain.line[Math.floor(ti / 10)] || 0 : 0); // learned racing line
+    const tx = p.x[ti] - p.tz[ti] * off, tz = p.z[ti] + p.tx[ti] * off;
     if (sk.noise) this.wobble += (this.rand() - 0.5) * sk.noise * 4 * dt - this.wobble * dt;
     const e = wrapAngle(Math.atan2(tx - v.x, tz - v.z) - v.h) + this.wobble;
     const inp = { throttle: 0, brake: 0, steer: clamp((e * 2.4 - v.slip * 0.6) * (d.steer / v.lock), -1, 1), handbrake: false, boost: false, analog: true };
@@ -7836,6 +7840,97 @@ class Effects {
 return { Effects };
 })();
 
+// ===== js/oni.js =====
+__mod["js/oni.js"] = (function () {
+// Midnight Oni's brain: he learns every race track, one 30 m stretch at a time.
+// After each race he's in he compares himself with the player:
+//  - stretches where the player was faster -> he carries more speed there next time
+//  - stretches where the player was faster -> he also shifts toward the player's line
+//  - stretches where he left the road or had to reset -> he backs off there
+//  - lost the race -> a bit more power overall
+// The brain lives on the game server (shared by everyone who races him) with a copy on this device.
+const BIN = 10; // path samples per stretch (3 m each = 30 m)
+const LOCAL = (map) => 'driftclub.oni.' + map;
+const MAX_POWER = 0.2;
+
+function emptyBrain(nBins) { return { v: 1, bins: nBins, speed: new Array(nBins).fill(1), line: new Array(nBins).fill(0), power: 0, races: 0, wins: 0, losses: 0 }; }
+function validBrain(b, nBins) { return b && b.v === 1 && b.bins === nBins && Array.isArray(b.speed) && b.speed.length === nBins && Array.isArray(b.line) && b.line.length === nBins; }
+
+async function loadBrain(account, map, nBins) {
+  let local = null;
+  try { local = JSON.parse(localStorage.getItem(LOCAL(map)) || 'null'); } catch { /* */ }
+  try {
+    const r = await account.call('oni/get', { map, bins: nBins }, 5000);
+    if (validBrain(r.brain, nBins)) return r.brain;
+  } catch { /* offline: use this device's copy */ }
+  return validBrain(local, nBins) ? local : emptyBrain(nBins);
+}
+function saveBrain(account, map, brain) {
+  try { localStorage.setItem(LOCAL(map), JSON.stringify(brain)); } catch { /* */ }
+  account.call('oni/learn', { map, brain }, 15000).catch(() => {});
+}
+
+// what happened on each stretch during one race
+class OniRecorder {
+  constructor(path, width) {
+    this.p = path; this.half = width / 2; this.n = Math.ceil(path.n / BIN);
+    const z = () => new Float64Array(this.n);
+    this.me = { sp: z(), lat: z(), c: z() }; this.oni = { sp: z(), c: z(), trouble: z() };
+    this.meIdx = 0;
+  }
+  nearest(from, x, z) {
+    const p = this.p; let best = 1e18, bi = from;
+    for (let k = -25; k <= 25; k++) {
+      const i = ((from + k) % p.n + p.n) % p.n, d = (p.x[i] - x) ** 2 + (p.z[i] - z) ** 2;
+      if (d < best) { best = d; bi = i; }
+    }
+    return bi;
+  }
+  lat(i, x, z) { const p = this.p; return (x - p.x[i]) * -p.tz[i] + (z - p.z[i]) * p.tx[i]; }
+  player(x, z, speed, teleport) {
+    this.meIdx = teleport || !this.seen ? this.globalNearest(x, z) : this.nearest(this.meIdx, x, z); this.seen = true;
+    const i = this.meIdx, l = this.lat(i, x, z), b = Math.floor(i / BIN);
+    if (teleport || speed < 3 || Math.abs(l) > this.half + 2) return;
+    this.me.sp[b] += speed; this.me.lat[b] += l; this.me.c[b]++;
+  }
+  globalNearest(x, z) { const p = this.p; let best = 1e18, bi = 0; for (let i = 0; i < p.n; i++) { const d = (p.x[i] - x) ** 2 + (p.z[i] - z) ** 2; if (d < best) { best = d; bi = i; } } return bi; }
+  boss(idx, x, z, speed, teleported, slide = 0) {
+    const b = Math.floor(idx / BIN), l = this.lat(idx, x, z);
+    if (teleported || Math.abs(l) > this.half + 1.5 || Math.abs(slide) > 0.45) { // off the road, reset, or sliding wide
+      this.oni.trouble[b]++; if (teleported) for (let k = 1; k <= 2; k++) this.oni.trouble[(b - k + this.n) % this.n]++; }
+    if (speed > 1) { this.oni.sp[b] += speed; this.oni.c[b]++; }
+  }
+  // turn this race into an updated brain
+  learn(brain, oniWon, played) {
+    const B = JSON.parse(JSON.stringify(brain)), lim = this.half - 1.5;
+    let faster = 0, careful = 0;
+    for (let b = 0; b < this.n; b++) {
+      if (this.oni.trouble[b] > 0) { // slipped up here: back off, and a bit on the stretch before it (the braking zone)
+        B.speed[b] = Math.max(0.85, Math.min(1, B.speed[b]) * 0.95); B.line[b] *= 0.5;
+        const pb = (b - 1 + this.n) % this.n; B.speed[pb] = Math.max(0.85, B.speed[pb] * 0.97);
+        careful++; continue;
+      }
+      if (!this.me.c[b] || !this.oni.c[b]) continue;
+      const ps = this.me.sp[b] / this.me.c[b], os = this.oni.sp[b] / this.oni.c[b];
+      if (ps > os * 1.03) {
+        B.speed[b] = Math.min(1.3, B.speed[b] * Math.min(1.04, ps / os));
+        const pl = this.me.lat[b] / this.me.c[b];
+        B.line[b] = Math.max(-lim, Math.min(lim, B.line[b] + (pl - B.line[b]) * 0.3));
+        faster++;
+      }
+    }
+    if (played) {
+      B.races++;
+      if (oniWon) { B.wins++; B.power = Math.max(0, B.power - 0.004); }
+      else { B.losses++; B.power = Math.min(MAX_POWER, B.power + 0.02); }
+    }
+    return { brain: B, faster, careful };
+  }
+}
+
+return { BIN, emptyBrain, validBrain, loadBrain, saveBrain, OniRecorder };
+})();
+
 // ===== js/compmodes.js =====
 __mod["js/compmodes.js"] = (function () {
 // Competitive mode controllers: Drift Challenge, Speed Race, Drift Race, Drift Battle.
@@ -7847,6 +7942,7 @@ const { CARS, carById, buildCarModel, carDrawItems } = __mod["js/cars.js"];
 const { raceRoute, gridSlots, RaceTracker, battleCourse, RACE } = __mod["js/tracks.js"];
 const { CompDriftJudge, round2, BattleRun, battleTotals, challengeScore, CHALLENGE_VARIANTS, DRIFT_RACE, AI_DRIFT, AI_JUDGE, aiDriftSample, driftRaceRank, driftRaceBonus, posFactor } = __mod["js/judge.js"];
 const { AIDriver, AI_SKILL, aiDef } = __mod["js/ai.js"];
+const { OniRecorder, loadBrain, saveBrain } = __mod["js/oni.js"];
 const { $, fmt, esc, toast } = __mod["js/ui.js"];
 const fmtTime = (t) => (t == null || !Number.isFinite(t) ? '—' : `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`);
 const COUNTDOWN = 3;
@@ -8010,6 +8106,7 @@ const ONI_LINES = {
   passed: ['Hmph. Enjoy it while it lasts.', 'Lucky. It won\'t happen twice.', 'Oh? So you can drive.'],
   passes: ['Too slow.', 'See you at the finish. Eventually.', 'Was that your best?', 'Bye bye.'],
   win: ['As expected. Come back when you are ready.', 'The night is still mine.'],
+  remember: ['I remember this track. And I remember you.', 'I studied your lines. Let\'s see what you have left.', 'Every race you teach me something. Thank you.'],
   lose: ['...Impossible. Take the car. You earned it.', 'Well driven. The Oni bows to you.'],
 };
 const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -8055,7 +8152,18 @@ class RaceComp extends Comp {
       this.ai.push({ name, boss: isBoss, v, model, def, fast, drv: new AIDriver(v, this.route.path, isBoss ? 'boss' : diff, 11 + i * 7), tr: new RaceTracker(this.route, this.laps), tag, k: 0 });
     }
     this.boss = this.ai.find((a) => a.boss) || null;
-    if (this.boss) setTimeout(() => this.taunt('start'), 900);
+    if (this.boss && !this.mp) { // load what Oni has learned about this track
+      const B = this.boss; B.baseDef = B.def; B.baseFast = B.fast;
+      this.oniRec = new OniRecorder(this.route.path, this.route.width);
+      loadBrain(g.app.account, g.opts.mapId, this.oniRec.n).then((brain) => {
+        if (this.destroyed) return;
+        this.oniBrain = brain; B.drv.brain = brain;
+        const pw = 1 + brain.power, up = (d) => ({ ...d, accel: d.accel * pw, top: d.top * (1 + brain.power * 0.5), lat: d.lat * (1 + brain.power * 0.4) });
+        B.def = up(B.baseDef); B.fast = up(B.baseFast); B.v.def = B.def;
+        if (brain.races) toast(`<b class="oni">👹 Midnight Oni</b> has raced here ${brain.races}× (won ${brain.wins}, lost ${brain.losses})<br><small>He remembers this track: +${Math.round(brain.power * 100)}% power, ${brain.speed.filter((x) => x !== 1).length} corners studied</small>`, 4500, 'oni');
+      });
+    }
+    if (this.boss) setTimeout(() => this.taunt(this.oniBrain && this.oniBrain.races ? 'remember' : 'start'), 1600);
     if (!this.mp) { // Enter: skip waiting for the CPUs once you've finished
       this.onKey = (e) => { if (e.key === 'Enter' && this.phase === 'done' && !this.resultShown) this.maybeSoloResults(true); };
       window.addEventListener('keydown', this.onKey);
@@ -8084,6 +8192,10 @@ class RaceComp extends Comp {
     if (this.phase !== 'running' && this.phase !== 'done') return;
     const ev = this.tracker.update({ t, x: s.x, z: s.z, vx: s.vx, vz: s.vz, teleport: !!(s.f & 256) });
     if (ev) this.onEvent(ev);
+    if (this.oniRec && this.phase === 'running') { // Oni watches you (and himself) on every stretch
+      this.oniRec.player(s.x, s.z, Math.hypot(s.vx, s.vz), !!(s.f & 256));
+      const B = this.boss; if (!B.tr.finished) this.oniRec.boss(B.drv.idx, B.v.x, B.v.z, B.v.speed, B.drv.teleported, B.v.rel);
+    }
     for (const a of this.ai) {
       const e = a.tr.update({ t, x: a.v.x, z: a.v.z, vx: a.v.vx, vz: a.v.vz, teleport: a.drv.teleported }); a.drv.teleported = false;
       if (e && e.type === 'finish') a.finishT = e.t;
@@ -8138,6 +8250,12 @@ class RaceComp extends Comp {
     const bossRow = this.boss ? rows.find((r) => r.name === 'Midnight Oni') : null;
     const beatBoss = !!(bossRow && mine.finished && rows.indexOf(mine) < rows.indexOf(bossRow));
     if (this.boss) this.taunt(beatBoss ? 'lose' : 'win');
+    if (this.oniRec && this.oniBrain && !this.oniLearned && this.tracker.started) { // Oni learns from this race
+      this.oniLearned = true;
+      const L = this.oniRec.learn(this.oniBrain, !beatBoss, true);
+      saveBrain(this.g.app.account, this.g.opts.mapId, L.brain);
+      this.later(4200, () => toast(`<b class="oni">👹 Oni learned from this race</b><br><small>${L.faster ? `Faster through ${L.faster} stretch${L.faster === 1 ? '' : 'es'} where you beat him` : 'You taught him nothing new'}${L.careful ? ` · more careful in ${L.careful} where he slipped up` : ''}${beatBoss ? ' · +2% power' : ''}</small>`, 6000, 'oni'));
+    }
     if (mine.finished) this.g.app.saveRecord('race', { map: this.g.opts.mapId, laps: this.laps, time: mine.time, best: mine.best, pos: rows.indexOf(mine) + 1, field: rows.length, beatBoss });
     this.showResults(this.resultsHtml(rows, true), { solo: true });
   }
@@ -8198,7 +8316,7 @@ class RaceComp extends Comp {
       ${!this.mp && this.phase === 'done' && !this.resultShown ? `<div class="muted">Finished! The others are still racing · time left ${fmtTime(Math.max(0, this.timeLimit() - this.t)).slice(0, -3)} · <b>Enter</b> = results now</div>` : ''}`,
       rows.slice(0, 8).map((r, i) => `<div class="lb-row ${r.me ? 'me' : ''}"><span>${i + 1}</span><b>${esc(r.name)}</b><em>${r.finished ? fmtTime(r.time) : `Lap ${Math.min(this.laps, r.lap + 1)}`}</em></div>`).join(''), 'Race standings');
   }
-  destroy() { super.destroy(); for (const a of this.ai) a.tag.remove(); if (this.onKey) window.removeEventListener('keydown', this.onKey); }
+  destroy() { super.destroy(); this.destroyed = true; for (const a of this.ai) a.tag.remove(); if (this.onKey) window.removeEventListener('keydown', this.onKey); }
 }
 
 // ======================================================================= DRIFT RACE

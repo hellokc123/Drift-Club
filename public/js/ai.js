@@ -25,6 +25,7 @@ export class AIDriver {
     this.idx = this.nearest(0, path.n); this.lane = 0; this.laneT = 0; this.stuckT = 0; this.seed = seed;
     this.rand = () => { this.seed = (this.seed * 16807) % 2147483647; return this.seed / 2147483647; };
     this.wobble = 0; this.teleported = false;
+    this.brain = null; // Midnight Oni's learned speeds and lines per 30 m stretch (oni.js)
     // start in the lane we were placed in (grid column) and merge onto the line gradually,
     // instead of every car aiming for the centre line at once and wedging together on narrow roads
     const i = this.idx;
@@ -56,7 +57,9 @@ export class AIDriver {
     let vt = top;
     for (let s = 0; s < 70; s += 3) {
       const R = this.radiusAt(this.idx + s);
-      const vc = Math.sqrt(aLat * R) * (0.92 + 0.08 * sk.pace);
+      let learnF = this.brain ? this.brain.speed[Math.floor(this.at(this.idx + s) / 10)] || 1 : 1;
+      if (learnF > 1) learnF = Math.min(learnF, R < 25 ? 1.06 : R < 60 ? 1.15 : 1.3); // learned speed: careful in hairpins
+      const vc = Math.sqrt(aLat * R) * (0.92 + 0.08 * sk.pace) * learnF;
       const dist = s * 3;
       vt = Math.min(vt, Math.sqrt(vc * vc + 2 * sk.brake * dist));
     }
@@ -76,7 +79,8 @@ export class AIDriver {
     const rNow = Math.min(this.radiusAt(this.idx), this.radiusAt(this.idx + 3));
     const la = Math.max(2, Math.round(Math.min(6 + speed * 0.42, 4 + rNow * 0.7) / 3));
     const ti = this.at(this.idx + la);
-    const tx = p.x[ti] - p.tz[ti] * this.lane, tz = p.z[ti] + p.tx[ti] * this.lane;
+    const off = this.lane + (this.brain ? this.brain.line[Math.floor(ti / 10)] || 0 : 0); // learned racing line
+    const tx = p.x[ti] - p.tz[ti] * off, tz = p.z[ti] + p.tx[ti] * off;
     if (sk.noise) this.wobble += (this.rand() - 0.5) * sk.noise * 4 * dt - this.wobble * dt;
     const e = wrapAngle(Math.atan2(tx - v.x, tz - v.z) - v.h) + this.wobble;
     const inp = { throttle: 0, brake: 0, steer: clamp((e * 2.4 - v.slip * 0.6) * (d.steer / v.lock), -1, 1), handbrake: false, boost: false, analog: true };

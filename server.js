@@ -120,7 +120,33 @@ function accountTaken(c) {
     if (a && !c.account && c.name === nm) { c.name = nm.slice(0, 8) + ' (guest)'; const r = c.room && rooms.get(c.room); if (r) broadcastRoom(r); }
   }).catch(() => {});
 }
+// Midnight Oni's shared brain, per map: clients send what he learned; the server only lets each
+// race nudge it a little (so one bad or fake upload can't break him)
+const ONI_MAPS = ['track', 'desert', 'mountain', 'forest', 'city', 'drift'];
+async function oniApi(route, body, ip) {
+  const map = String(body.map || ''); if (!ONI_MAPS.includes(map)) return [400, { error: 'Unknown map' }];
+  const k = 'oni:' + map, cur = await store.get(k);
+  if (route === 'oni/get') return [200, { brain: cur && cur.bins === clampInt(body.bins, 1, 5000, 0) ? cur : null }];
+  if (limited('oni:' + ip, 20, 600000)) return [429, { error: 'Slow down' }];
+  hit('oni:' + ip);
+  const b = body.brain, n = b && clampInt(b.bins, 1, 5000, 0);
+  if (!n || !Array.isArray(b.speed) || !Array.isArray(b.line) || b.speed.length !== n || b.line.length !== n) return [400, { error: 'Bad brain' }];
+  const old = cur && cur.bins === n ? cur : { v: 1, bins: n, speed: new Array(n).fill(1), line: new Array(n).fill(0), power: 0, races: 0, wins: 0, losses: 0 };
+  const num = (x, d) => (Number.isFinite(+x) ? +x : d), cl = (x, a, z) => Math.max(a, Math.min(z, x));
+  const next = {
+    v: 1, bins: n,
+    speed: old.speed.map((o, i) => cl(cl(num(b.speed[i], o), o * 0.95, o * 1.05), 0.85, 1.3)),
+    line: old.line.map((o, i) => cl(cl(num(b.line[i], o), o - 1.5, o + 1.5), -6, 6)),
+    power: cl(cl(num(b.power, old.power), old.power - 0.01, old.power + 0.02), 0, 0.2),
+    races: old.races + 1,
+  };
+  const won = num(b.wins, old.wins) > old.wins;
+  next.wins = old.wins + (won ? 1 : 0); next.losses = old.losses + (won ? 0 : 1);
+  await store.set(k, next);
+  return [200, { brain: next }];
+}
 async function api(route, body, ip) {
+  if (route.startsWith('oni/')) return oniApi(route, body, ip);
   if (route === 'signup' || route === 'login') {
     if (limited('ip:' + ip, 30, 600000)) return [429, { error: 'Too many tries. Wait a few minutes.' }];
     hit('ip:' + ip);
@@ -188,7 +214,7 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache' });
     return res.end(JSON.stringify(publicRecords()));
   }
-  const am = /^\/api\/(signup|login|me|save|logout)$/.exec(url);
+  const am = /^\/api\/(signup|login|me|save|logout|oni\/get|oni\/learn)$/.exec(url);
   if (am) return handleApi(req, res, am[1]);
   if (url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
