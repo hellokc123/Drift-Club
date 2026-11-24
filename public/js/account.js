@@ -4,7 +4,7 @@ import { isUnlocked, unlock } from './secret.js';
 
 const KEY = 'driftclub.account', GUEST = 'driftclub.guest';
 const SYNC_KEYS = ['playerName', 'driveStyle', 'driftAngle', 'car', 'bests', 'garage', 'presets', 'xp', 'publicMap']; // device stuff (graphics, controls) stays per device
-const SECRET_NAMES = ['creator', 'squad', 'mango', 'kitsune', 'raijin', 'oni'];
+const SECRET_NAMES = ['creator', 'squad', 'mango', 'kitsune', 'raijin', 'oni', 'valkyrie', 'sandstorm', 'grizzly', 'phantom', 'ironjaw'];
 
 export class Account {
   constructor(app) {

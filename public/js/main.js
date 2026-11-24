@@ -86,7 +86,7 @@ class App {
     } else if (type === 'race') {
       const r = ((R.race = R.race || {})[d.map] = R.race[d.map] || { total: {} });
       if (d.time && (!r.total[d.laps] || d.time < r.total[d.laps])) r.total[d.laps] = d.time;
-      if (d.beatBoss && unlock('oni')) setTimeout(() => toast('<b>You beat Midnight Oni!</b><br><small>Secret car unlocked: Oni Kuro (Garage › Secret)</small>', 6000, 'good'), 800);
+      if (d.beatBoss && d.bossId && unlock(d.bossId)) { const car = CARS.find((c) => c.secret === d.bossId); setTimeout(() => toast(`<b>You beat the boss!</b><br><small>Secret car unlocked: ${esc(car ? car.name : d.bossId)} (Garage › Secret)</small>`, 6000, 'good'), 800); }
       if (d.best && (!r.lap || d.best < r.lap)) r.lap = d.best;
       r.races = (r.races || 0) + 1; if (d.pos === 1 && d.field > 1) r.wins = (r.wins || 0) + 1;
     } else if (type === 'driftrace') {

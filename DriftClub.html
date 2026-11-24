@@ -2832,11 +2832,18 @@ const CARS = [
   { id: 'mango', name: 'Mango Midnight', cat: 'secret', secret: 'mango', style: 'coupe', paint: '#1b1a3a', wheel: '#ffb21e', livery: 2, liveryColor: '#ff9f1a', accel: 10.2, top: 78, grip: 12.6, lat: 13.4, steer: 0.66, wb: 2.55, driftGrip: 1.3, driftPower: 1.5, driftSteer: 2.55, momentum: 0.6, powerOver: 0.45, mass: 1.0, engine: { pitch: 1.3, cyl: 6, grit: 0.5 } },
   { id: 'raijin', name: 'Raijin GT-R', cat: 'secret', secret: 'raijin', style: 'wedge', paint: '#f2d21b', wheel: '#232323', livery: 1, liveryColor: '#151515', accel: 11.0, top: 84, grip: 13.5, lat: 14.3, steer: 0.6, wb: 2.65, driftGrip: 1.7, driftPower: 1.2, driftSteer: 2.2, momentum: 0.52, powerOver: 0.2, mass: 1.15, engine: { pitch: 1.45, cyl: 6, grit: 0.6 } },
   { id: 'oni', name: 'Oni Kuro', cat: 'secret', secret: 'oni', style: 'coupe', paint: '#0c0c0e', wheel: '#b01010', livery: 2, liveryColor: '#c8140f', satin: true, accel: 11.2, top: 85, grip: 13.4, lat: 14.2, steer: 0.66, wb: 2.6, driftGrip: 1.2, driftPower: 1.5, driftSteer: 2.6, momentum: 0.62, powerOver: 0.5, mass: 1.05, engine: { pitch: 1.25, cyl: 6, grit: 0.7 } },
+  // boss cars: beat each map's boss in a 1v1 to unlock theirs
+  { id: 'valkyrie', name: 'Valkyrie RS', cat: 'secret', secret: 'valkyrie', style: 'wedge', paint: '#c9ced6', wheel: '#1d3c78', livery: 1, liveryColor: '#1d3c78', accel: 11.4, top: 88, grip: 13.8, lat: 14.6, steer: 0.58, wb: 2.6, driftGrip: 1.8, driftPower: 1.2, driftSteer: 2.1, momentum: 0.5, powerOver: 0.2, mass: 1.05, engine: { pitch: 1.55, cyl: 10, grit: 0.4 } },
+  { id: 'mirage', name: 'Mirage V8', cat: 'secret', secret: 'sandstorm', style: 'muscle', paint: '#c8a46a', wheel: '#151515', livery: 1, liveryColor: '#151515', accel: 11.6, top: 90, grip: 11.5, lat: 13, steer: 0.55, wb: 2.8, driftGrip: 1.4, driftPower: 1.55, driftSteer: 2.1, momentum: 0.55, powerOver: 0.5, mass: 1.2, engine: { pitch: 0.85, cyl: 8, grit: 0.85 } },
+  { id: 'timber', name: 'Timber Rally', cat: 'secret', secret: 'grizzly', style: 'hatch', paint: '#2f5d3a', wheel: '#e8e8e8', livery: 1, liveryColor: '#f2f2f2', accel: 10.2, top: 76, grip: 13, lat: 14, steer: 0.7, wb: 2.5, driftGrip: 1.5, driftPower: 1.35, driftSteer: 2.4, momentum: 0.56, powerOver: 0.35, mass: 0.95, engine: { pitch: 1.5, cyl: 4, grit: 0.7 } },
+  { id: 'phantom', name: 'Phantom GT', cat: 'secret', secret: 'phantom', style: 'coupe', paint: '#2a1740', wheel: '#1ee3ff', livery: 2, liveryColor: '#1ee3ff', accel: 11, top: 86, grip: 13.2, lat: 14, steer: 0.6, wb: 2.7, driftGrip: 1.5, driftPower: 1.35, driftSteer: 2.3, momentum: 0.56, powerOver: 0.35, mass: 1.05, engine: { pitch: 1.35, cyl: 6, grit: 0.45 } },
+  { id: 'ironjaw', name: 'Ironjaw 440', cat: 'secret', secret: 'ironjaw', style: 'muscle', paint: '#151515', wheel: '#ffd23a', livery: 1, liveryColor: '#ffd23a', accel: 10.8, top: 82, grip: 11.8, lat: 13.4, steer: 0.62, wb: 2.7, driftGrip: 1.2, driftPower: 1.6, driftSteer: 2.6, momentum: 0.62, powerOver: 0.6, mass: 1.15, engine: { pitch: 0.8, cyl: 8, grit: 0.9 } },
   { id: 'vanta', name: 'Vanta GT', cat: 'squad', style: 'wedge', paint: '#1f3f7a', wheel: '#2b2d31', livery: 1, liveryColor: '#e8eaee', accel: 11.4, top: 86, grip: 14.0, lat: 14.8, steer: 0.62, wb: 2.7, driftGrip: 1.95, driftPower: 1.1, driftSteer: 2.0, momentum: 0.5, powerOver: 0.12, mass: 1.1, noSpin: true, engine: { pitch: 1.5, cyl: 8, grit: 0.35 } },
 ];
 const carById = (id) => CARS.find((c) => c.id === id) || CARS[0];
 // how each secret car is unlocked (shown on the locked car in the garage)
-const SECRET_HINTS = { kitsuneS: 'Reach level 10', raijin: 'Reach level 25', oni: 'Beat Midnight Oni in a Speed Race', mango: 'Secret code' };
+const SECRET_HINTS = { kitsuneS: 'Reach level 10', raijin: 'Reach level 25', oni: 'Beat Midnight Oni (Kurogane Pass boss)', mango: 'Secret code',
+  valkyrie: 'Beat Valkyrie (Apex Circuit boss)', mirage: 'Beat Sandstorm (Dune Valley boss)', timber: 'Beat Grizzly (Pinewood Trails boss)', phantom: 'Beat the Phantom (City Nights boss)', ironjaw: 'Beat Ironjaw (Ironbay boss)' };
 
 // 0-10 stats for the garage
 function carStats(c) {
@@ -3117,6 +3124,11 @@ const LOOKS = {
   },
 };
 
+// boss cars borrow a body from a sibling car, with their own accents
+for (const [id, from, accent] of [['valkyrie', 'strale', [0.29, 0.55, 1]], ['mirage', 'behemoth', [0.08, 0.08, 0.08]], ['timber', 'kaze', [0.95, 0.95, 0.95]], ['phantom', 'halcyon', [0.12, 0.89, 1]], ['ironjaw', 'jackal', [1, 0.82, 0.23]]]) {
+  const base = LOOKS[from] || {};
+  LOOKS[id] = { ...base, extras: [...new Set([...(base.extras || []), 'splitter', 'goldAccent'])], accent };
+}
 function shapeOf(def) { return { ...STYLES[def.style], ...((LOOKS[def.id] || {}).shape || {}) }; }
 
 function carDims(def) {
@@ -5920,6 +5932,91 @@ function norm(v) { const l = Math.hypot(...v); return v.map((x) => x / l); }
 return { MAP_LIST, SURFACES, MAP_LOOP, World };
 })();
 
+// ===== js/bosses.js =====
+__mod["js/bosses.js"] = (function () {
+// One boss per map. Pick "Boss" as the CPU difficulty for a 1v1 Speed Race against that map's boss.
+// Every boss learns from each race (oni.js brain) and beating one unlocks their car (Garage › Secret).
+// Midnight Oni (Kurogane Pass) also turns up on pole in Hard and Legend races on any map.
+const BOSSES = {
+  track: {
+    id: 'valkyrie', name: 'Valkyrie', title: 'Ingrid "Valkyrie" Holm', icon: '🛡️', color: '#7fb4ff', car: 'valkyrie',
+    cfg: { paint: '#c9ced6', wheel: '#1d3c78', rim: 1, kit: 2, lowered: 1, underglow: '#4a8cff', livery: 1, liveryColor: '#1d3c78' },
+    lines: {
+      start: ['Clean lines. Late brakes. Try to keep up.', 'This circuit has no secrets from me.', 'I have never missed an apex.'],
+      remember: ['I have studied every metre of your last race.', 'Same track. Better me.'],
+      passed: ['A lucky gap. Enjoy it.', 'You braked later than I thought. Interesting.'],
+      passes: ['Precision beats bravery.', 'Watch my line. Learn something.'],
+      win: ['Perfect lap. As always.', 'Come back when your lines are cleaner.'],
+      lose: ['...Impressive. The Valkyrie RS is yours.', 'You out-drove me. Take the car.'],
+    },
+  },
+  desert: {
+    id: 'sandstorm', name: 'Sandstorm', title: 'Rex "Sandstorm" Calder', icon: '🌪️', color: '#e0a54a', car: 'mirage',
+    cfg: { paint: '#c8a46a', wheel: '#151515', rim: 2, kit: 1, lowered: 0, underglow: '', livery: 1, liveryColor: '#151515' },
+    lines: {
+      start: ['Out here, top speed is all that matters.', 'Eat my dust, kid.', 'Twelve kilometres of highway. All mine.'],
+      remember: ['I know where you lift. I don\'t.', 'The desert remembers you.'],
+      passed: ['Huh. Didn\'t see you in the dust.', 'Okay, okay. You can drive.'],
+      passes: ['V8 says goodbye.', 'See you at the finish. Maybe.'],
+      win: ['The desert always wins.', 'Better luck next storm.'],
+      lose: ['Well, I\'ll be. The Mirage is yours.', 'You beat the storm. Keys are in it.'],
+    },
+  },
+  mountain: {
+    id: 'oni', name: 'Midnight Oni', title: 'Midnight Oni', icon: '👹', color: '#ff4a3a', car: 'oni',
+    cfg: { paint: '#0c0c0e', wheel: '#b01010', rim: 3, kit: 2, lowered: 1, underglow: '#ff1a12', livery: 2, liveryColor: '#c8140f' },
+    lines: {
+      start: ['Midnight belongs to me.', 'Try to keep up. Nobody ever does.', 'You hear that engine? That is your nightmare.', 'Another challenger. How cute.'],
+      remember: ['I remember this track. And I remember you.', 'I studied your lines. Let\'s see what you have left.', 'Every race you teach me something. Thank you.'],
+      passed: ['Hmph. Enjoy it while it lasts.', 'Lucky. It won\'t happen twice.', 'Oh? So you can drive.'],
+      passes: ['Too slow.', 'See you at the finish. Eventually.', 'Was that your best?', 'Bye bye.'],
+      win: ['As expected. Come back when you are ready.', 'The night is still mine.'],
+      lose: ['...Impossible. Take the car. You earned it.', 'Well driven. The Oni bows to you.'],
+    },
+  },
+  forest: {
+    id: 'grizzly', name: 'Grizzly', title: 'Bjorn "Grizzly" Vale', icon: '🐻', color: '#8fcf6a', car: 'timber',
+    cfg: { paint: '#2f5d3a', wheel: '#e8e8e8', rim: 4, kit: 1, lowered: 0, underglow: '', livery: 1, liveryColor: '#f2f2f2' },
+    lines: {
+      start: ['These trails are my backyard.', 'Mind the trees. I won\'t.', 'Gravel, mud, rain. I love all of it.'],
+      remember: ['I tracked your every move last time.', 'A bear never forgets a trail.'],
+      passed: ['Grr. Fine. You found the shortcut.', 'Not bad for a city kid.'],
+      passes: ['Out of my woods!', 'Too careful on the gravel.'],
+      win: ['The forest is mine.', 'Go home, cub.'],
+      lose: ['Ha! Respect. Take the Timber Rally.', 'You out-drove a bear. The car is yours.'],
+    },
+  },
+  city: {
+    id: 'phantom', name: 'Phantom', title: 'The Phantom', icon: '👻', color: '#b58cff', car: 'phantom',
+    cfg: { paint: '#2a1740', wheel: '#1ee3ff', rim: 5, kit: 2, lowered: 1, underglow: '#1ee3ff', livery: 2, liveryColor: '#1ee3ff' },
+    lines: {
+      start: ['You won\'t even see me.', 'These streets are mine after dark.', 'Blink and I\'m gone.'],
+      remember: ['I was watching you last time. I always am.', 'Every corner of this city knows my name.'],
+      passed: ['...How did you get there?', 'A ghost can wait.'],
+      passes: ['Boo.', 'Gone.', 'You\'re chasing a shadow.'],
+      win: ['Nobody catches the Phantom.', 'Lights out.'],
+      lose: ['You caught a ghost. The Phantom GT is yours.', 'Nobody has ever seen my face. Take the car.'],
+    },
+  },
+  drift: {
+    id: 'ironjaw', name: 'Ironjaw', title: 'Marcus "Ironjaw" Kane', icon: '⚓', color: '#ffd23a', car: 'ironjaw',
+    cfg: { paint: '#151515', wheel: '#ffd23a', rim: 0, kit: 2, lowered: 1, underglow: '#ffb000', livery: 1, liveryColor: '#ffd23a' },
+    lines: {
+      start: ['Welcome to my harbour.', 'I don\'t brake. I slide.', 'Ironbay has one king.'],
+      remember: ['I saw your lines last time. Weak.', 'The docks remember everything.'],
+      passed: ['Hah! Bold. I like it.', 'Okay, the kid has teeth.'],
+      passes: ['Iron beats tin.', 'Out of my way, rookie.'],
+      win: ['Ironbay stays mine.', 'Too soft for the docks.'],
+      lose: ['You broke the Ironjaw. The 440 is yours.', 'Respect, rookie. Take my car.'],
+    },
+  },
+};
+const bossFor = (map) => BOSSES[map] || BOSSES.mountain;
+const BOSS_UNLOCKS = Object.values(BOSSES).map((b) => b.id); // secret.js unlock names
+
+return { BOSSES, bossFor, BOSS_UNLOCKS };
+})();
+
 // ===== js/scoring.js =====
 __mod["js/scoring.js"] = (function () {
 // Drift scoring.
@@ -6932,6 +7029,7 @@ const { CARS, CATEGORIES, SECRET_HINTS, carById, carStats, RIMS, SPOILERS, STRIP
 const { PARTS, SLIDERS, RULES, sanitizeTune, applyTune, isStock, allowedTires, maxLevel, builtinPresets, PRESET_NAMES, PRESET_INFO, tuneSummary } = __mod["js/tuning.js"];
 const { measureStats, STAT_SCALE, statFrac } = __mod["js/carstats.js"];
 const { MAP_LIST } = __mod["js/maps.js"];
+const { bossFor } = __mod["js/bosses.js"];
 const { MODES, FREE_MODES, COMP_MODES } = __mod["js/scoring.js"];
 const { RACE, RACE_MAPS, BATTLE, BATTLE_MAPS } = __mod["js/tracks.js"];
 const { CHALLENGE_VARIANTS, DRIFT_RACE } = __mod["js/judge.js"];
@@ -7038,9 +7136,10 @@ class UI {
         <div class="setup-row"><label>Time limit</label><input type="range" id="c-time" min="30" max="600" step="30" value="${C.time}"><em id="c-time-v">${Math.floor(C.time / 60)}:${String(C.time % 60).padStart(2, '0')}</em></div>`;
     } else if (isRaceMode(mode)) {
       h += `<div class="setup-row"><label>Laps</label><input type="range" id="c-laps" min="1" max="10" step="1" value="${C.laps}"><em id="c-laps-v">${C.laps}</em></div>
-        <div class="setup-row"><label>CPU opponents (solo)</label><input type="range" id="c-ai" min="0" max="7" step="1" value="${C.ai}"><em id="c-ai-v">${C.ai}</em></div>
-        <div class="setup-row"><label>CPU difficulty</label>${chips(Object.entries(AI_SKILL).filter(([, v]) => !v.hidden).map(([k, v]) => [k, v.name]), C.difficulty, 'cdiff')}</div>
-        ${C.difficulty === 'hard' || C.difficulty === 'legend' ? '<p class="muted boss-note">👹 <b>Midnight Oni</b> starts on pole. Beat him in a Speed Race to win his car.</p>' : ''}
+        ${C.difficulty === 'bossfight' ? '' : `<div class="setup-row"><label>CPU opponents (solo)</label><input type="range" id="c-ai" min="0" max="7" step="1" value="${C.ai}"><em id="c-ai-v">${C.ai}</em></div>`}
+        <div class="setup-row"><label>CPU difficulty</label>${chips([...Object.entries(AI_SKILL).filter(([, v]) => !v.hidden).map(([k, v]) => [k, v.name]), ...(mode === 'race' ? [['bossfight', 'Boss 👑']] : [])], C.difficulty, 'cdiff')}</div>
+        ${C.difficulty === 'bossfight' ? (() => { const B = bossFor(C.map); return `<p class="boss-note" style="border-color:${B.color}">${B.icon} <b style="color:${B.color}">1v1 vs ${esc(B.title)}</b>, the boss of ${esc((MAP_LIST.find((m) => m.id === C.map) || {}).name || C.map)}. Bosses learn from every race. Beat them to win their car${isUnlocked(B.id) ? ' (already yours ✓)' : ''}.</p>`; })()
+          : C.difficulty === 'hard' || C.difficulty === 'legend' ? '<p class="muted boss-note">👹 <b>Midnight Oni</b> starts on pole. Beat him to win his car — or pick <b>Boss</b> for a 1v1 with each map\'s boss.</p>' : ''}
         ${mode === 'driftrace' ? `<p class="setup-note"><b>Score = (drift points × position factor + position bonus) × gap factor.</b> Position factor P1 ×1.0, P2 ×0.9, P3 ×0.8, P4 ×0.68 …; the gap factor drops 1/60 for every second you finish behind the winner (min ${DRIFT_RACE.minGap}, also for a DNF). Drift points count from GO until you cross the finish line (and stop ${DRIFT_RACE.lateWindow} s after the winner finishes); your combo banks at every lap line (max ×${DRIFT_RACE.judge.maxMult}), faster drifts pay more and slow drifting earns almost nothing. Bonus per lap: ${DRIFT_RACE.bonusPerLap.slice(0, 4).map((b, i) => `P${i + 1} +${fmt(b)}`).join(', ')}… — no bonus if you don't finish. Crashes and leaving the track cost your live combo.</p>` : ''}
         <p class="setup-note">Pass every checkpoint in order. Resets never count as checkpoints. Solo races start you at the back of the grid. CPU drivers are clearly labelled and only appear in solo races.</p>`;
     } else {
@@ -7850,24 +7949,24 @@ __mod["js/oni.js"] = (function () {
 //  - lost the race -> a bit more power overall
 // The brain lives on the game server (shared by everyone who races him) with a copy on this device.
 const BIN = 10; // path samples per stretch (3 m each = 30 m)
-const LOCAL = (map) => 'driftclub.oni.' + map;
+const LOCAL = (map, boss) => (boss === 'oni' ? 'driftclub.oni.' + map : `driftclub.boss.${boss}.${map}`);
 const MAX_POWER = 0.2;
 
 function emptyBrain(nBins) { return { v: 1, bins: nBins, speed: new Array(nBins).fill(1), line: new Array(nBins).fill(0), power: 0, races: 0, wins: 0, losses: 0 }; }
 function validBrain(b, nBins) { return b && b.v === 1 && b.bins === nBins && Array.isArray(b.speed) && b.speed.length === nBins && Array.isArray(b.line) && b.line.length === nBins; }
 
-async function loadBrain(account, map, nBins) {
+async function loadBrain(account, map, nBins, boss = 'oni') {
   let local = null;
-  try { local = JSON.parse(localStorage.getItem(LOCAL(map)) || 'null'); } catch { /* */ }
+  try { local = JSON.parse(localStorage.getItem(LOCAL(map, boss)) || 'null'); } catch { /* */ }
   try {
-    const r = await account.call('oni/get', { map, bins: nBins }, 5000);
+    const r = await account.call('oni/get', { map, boss, bins: nBins }, 5000);
     if (validBrain(r.brain, nBins)) return r.brain;
   } catch { /* offline: use this device's copy */ }
   return validBrain(local, nBins) ? local : emptyBrain(nBins);
 }
-function saveBrain(account, map, brain) {
-  try { localStorage.setItem(LOCAL(map), JSON.stringify(brain)); } catch { /* */ }
-  account.call('oni/learn', { map, brain }, 15000).catch(() => {});
+function saveBrain(account, map, brain, boss = 'oni') {
+  try { localStorage.setItem(LOCAL(map, boss), JSON.stringify(brain)); } catch { /* */ }
+  account.call('oni/learn', { map, boss, brain }, 15000).catch(() => {});
 }
 
 // what happened on each stretch during one race
@@ -7943,6 +8042,7 @@ const { raceRoute, gridSlots, RaceTracker, battleCourse, RACE } = __mod["js/trac
 const { CompDriftJudge, round2, BattleRun, battleTotals, challengeScore, CHALLENGE_VARIANTS, DRIFT_RACE, AI_DRIFT, AI_JUDGE, aiDriftSample, driftRaceRank, driftRaceBonus, posFactor } = __mod["js/judge.js"];
 const { AIDriver, AI_SKILL, aiDef } = __mod["js/ai.js"];
 const { OniRecorder, loadBrain, saveBrain } = __mod["js/oni.js"];
+const { BOSSES, bossFor } = __mod["js/bosses.js"];
 const { $, fmt, esc, toast } = __mod["js/ui.js"];
 const fmtTime = (t) => (t == null || !Number.isFinite(t) ? '—' : `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`);
 const COUNTDOWN = 3;
@@ -8095,20 +8195,12 @@ class ChallengeComp extends Comp {
 }
 
 // ======================================================================= CPU RIVALS
-// named CPU drivers (each with their own factory paint) and the boss, Midnight Oni
+// named CPU drivers (each with their own factory paint); bosses are in bosses.js
 const RIVALS = [
   { name: 'Kenji "Hairpin" Mori', paint: '#c9ccd1' }, { name: 'Lola Vance', paint: '#d4a32a' }, { name: 'Big Tex', paint: '#7c1d22' },
   { name: 'Yuki Snow', paint: '#e8eef5' }, { name: 'Marco Turbo', paint: '#c2531d' }, { name: 'Priya Blaze', paint: '#5b2a86' },
   { name: 'Dutch', paint: '#2f6b3a' }, { name: 'Rook', paint: '#34506e' }, { name: 'Sasha Volt', paint: '#1f9bb5' }, { name: 'Old Man Gus', paint: '#5b6647' },
 ];
-const ONI_LINES = {
-  start: ['Midnight belongs to me.', 'Try to keep up. Nobody ever does.', 'You hear that engine? That is your nightmare.', 'Another challenger. How cute.'],
-  passed: ['Hmph. Enjoy it while it lasts.', 'Lucky. It won\'t happen twice.', 'Oh? So you can drive.'],
-  passes: ['Too slow.', 'See you at the finish. Eventually.', 'Was that your best?', 'Bye bye.'],
-  win: ['As expected. Come back when you are ready.', 'The night is still mine.'],
-  remember: ['I remember this track. And I remember you.', 'I studied your lines. Let\'s see what you have left.', 'Every race you teach me something. Thank you.'],
-  lose: ['...Impossible. Take the car. You earned it.', 'Well driven. The Oni bows to you.'],
-};
 const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
 // ======================================================================= SPEED RACE
@@ -8120,7 +8212,8 @@ class RaceComp extends Comp {
     this.laps = this.cfg.laps || 3;
     this.tracker = new RaceTracker(this.route, this.laps);
     this.ai = [];
-    const nAI = this.mp ? 0 : Math.max(0, Math.min(7, this.cfg.ai ?? 5));
+    const fight = !this.mp && this.cfg.difficulty === 'bossfight'; // 1v1 against this map's boss
+    const nAI = this.mp ? 0 : fight ? 1 : Math.max(0, Math.min(7, this.cfg.ai ?? 5));
     const slots = gridSlots(this.route, Math.max(nAI + 1, 12));
     // solo: the player starts at the back of the grid; online: the server assigns grid slots
     const mySlot = this.mp ? slots[(g.opts.grid || 0) % slots.length] : slots[nAI];
@@ -8134,20 +8227,23 @@ class RaceComp extends Comp {
     pool = pool.map((c) => c.id);
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
     const roster = shuffle([...RIVALS]);
-    // Hard and Legend: Midnight Oni, the boss, takes pole position
-    const boss = nAI > 0 && (diff === 'hard' || diff === 'legend');
+    // Boss: 1v1 with this map's boss. Hard and Legend: Midnight Oni takes pole position.
+    this.bossInfo = fight ? bossFor(g.opts.mapId) : nAI > 0 && (diff === 'hard' || diff === 'legend') ? BOSSES.mountain : null;
+    this.fight = fight;
+    const BI = this.bossInfo;
     for (let i = 0; i < nAI; i++) {
-      const isBoss = boss && i === 0, rv = isBoss ? null : roster[i % roster.length];
-      const id = isBoss ? 'oni' : pool[i % pool.length];
-      const cfg = isBoss ? { id, paint: '#0c0c0e', wheel: '#b01010', rim: 3, spoiler: 0, kit: 2, stripes: 0, lowered: 1, underglow: '#ff1a12', livery: 2, liveryColor: '#c8140f' }
+      const isBoss = !!BI && i === 0, rv = isBoss ? null : roster[i % roster.length];
+      const id = isBoss ? BI.car : pool[i % pool.length];
+      const cfg = isBoss ? { id, spoiler: 0, stripes: 0, ...BI.cfg }
         : { id, paint: rv.paint, wheel: '#cccccc', rim: i % 6, spoiler: i % 4, kit: i % 2, stripes: 0, lowered: 0, underglow: '' };
       const model = buildCarModel(g.app.renderer, cfg);
-      const def = aiDef(carById(id), isBoss ? 'boss' : diff); // the boss has his own, much stronger setup
+      const def = aiDef(carById(id), isBoss ? 'boss' : diff); // bosses have their own, much stronger setup
       const v = new Vehicle(def, g.world, model.meshes.dims, { style: 'race' });
       v.place(slots[i].x, slots[i].z, slots[i].h);
-      const name = isBoss ? 'Midnight Oni' : rv.name;
-      const tag = document.createElement('div'); tag.className = 'nametag cpu' + (isBoss ? ' boss' : ''); tag.textContent = isBoss ? '👹 MIDNIGHT ONI' : name; $('#tags').appendChild(tag);
-      // when you get ahead of him, Oni finds more power (catch-up)
+      const name = isBoss ? BI.name : rv.name;
+      const tag = document.createElement('div'); tag.className = 'nametag cpu' + (isBoss ? ' boss' : ''); tag.textContent = isBoss ? `${BI.icon} ${BI.title.toUpperCase()}` : name; $('#tags').appendChild(tag);
+      if (isBoss) { tag.style.color = BI.color; tag.style.borderColor = BI.color; tag.style.boxShadow = `0 0 12px ${BI.color}99`; }
+      // when you get ahead of the boss, he finds more power (catch-up)
       const fast = isBoss ? { ...def, accel: def.accel * 1.2, top: def.top * 1.1, lat: def.lat * 1.06 } : null;
       this.ai.push({ name, boss: isBoss, v, model, def, fast, drv: new AIDriver(v, this.route.path, isBoss ? 'boss' : diff, 11 + i * 7), tr: new RaceTracker(this.route, this.laps), tag, k: 0 });
     }
@@ -8155,12 +8251,12 @@ class RaceComp extends Comp {
     if (this.boss && !this.mp) { // load what Oni has learned about this track
       const B = this.boss; B.baseDef = B.def; B.baseFast = B.fast;
       this.oniRec = new OniRecorder(this.route.path, this.route.width);
-      loadBrain(g.app.account, g.opts.mapId, this.oniRec.n).then((brain) => {
+      loadBrain(g.app.account, g.opts.mapId, this.oniRec.n, BI.id).then((brain) => {
         if (this.destroyed) return;
         this.oniBrain = brain; B.drv.brain = brain;
         const pw = 1 + brain.power, up = (d) => ({ ...d, accel: d.accel * pw, top: d.top * (1 + brain.power * 0.5), lat: d.lat * (1 + brain.power * 0.4) });
         B.def = up(B.baseDef); B.fast = up(B.baseFast); B.v.def = B.def;
-        if (brain.races) toast(`<b class="oni">👹 Midnight Oni</b> has raced here ${brain.races}× (won ${brain.wins}, lost ${brain.losses})<br><small>He remembers this track: +${Math.round(brain.power * 100)}% power, ${brain.speed.filter((x) => x !== 1).length} corners studied</small>`, 4500, 'oni');
+        if (brain.races) toast(`<b style="color:${BI.color}">${BI.icon} ${esc(BI.name)}</b> has raced here ${brain.races}× (won ${brain.wins}, lost ${brain.losses})<br><small>Remembers this track: +${Math.round(brain.power * 100)}% power, ${brain.speed.filter((x) => x !== 1).length} stretches studied</small>`, 4500, 'oni');
       });
     }
     if (this.boss) setTimeout(() => this.taunt(this.oniBrain && this.oniBrain.races ? 'remember' : 'start'), 1600);
@@ -8212,10 +8308,11 @@ class RaceComp extends Comp {
   }
   // the boss bot talks: at the start, when you pass him, when he passes you, and at the end
   taunt(kind) {
-    const L = ONI_LINES[kind]; if (!L || !this.boss) return;
+    const L = this.bossInfo && this.bossInfo.lines[kind]; if (!L || !this.boss) return;
     const now = performance.now(); if (kind !== 'start' && kind !== 'win' && kind !== 'lose' && now - (this.tauntAt || 0) < 9000) return;
     this.tauntAt = now;
-    toast(`<b class="oni">👹 Midnight Oni:</b> “${L[Math.floor(Math.random() * L.length)]}”`, 3200, 'oni');
+    const BI = this.bossInfo;
+    toast(`<b style="color:${BI.color}">${BI.icon} ${esc(BI.name)}:</b> “${esc(L[Math.floor(Math.random() * L.length)])}”`, 3200, 'oni');
   }
   update(dt, sim) {
     super.update(dt, sim);
@@ -8247,16 +8344,16 @@ class RaceComp extends Comp {
     const rows = all.map((r) => ({ name: r.name, me: r.me, cpu: r.cpu, finished: r.tr.finished, time: r.tr.finishTime, best: r.tr.best, laps: r.tr.lap, prog: r.tr.progress(0, 0) }))
       .sort((a, b) => (b.finished - a.finished) || (a.finished ? a.time - b.time : b.prog - a.prog));
     const mine = rows.find((r) => r.me);
-    const bossRow = this.boss ? rows.find((r) => r.name === 'Midnight Oni') : null;
+    const bossRow = this.boss ? rows.find((r) => r.cpu && r.name === this.bossInfo.name) : null;
     const beatBoss = !!(bossRow && mine.finished && rows.indexOf(mine) < rows.indexOf(bossRow));
     if (this.boss) this.taunt(beatBoss ? 'lose' : 'win');
     if (this.oniRec && this.oniBrain && !this.oniLearned && this.tracker.started) { // Oni learns from this race
       this.oniLearned = true;
       const L = this.oniRec.learn(this.oniBrain, !beatBoss, true);
-      saveBrain(this.g.app.account, this.g.opts.mapId, L.brain);
-      this.later(4200, () => toast(`<b class="oni">👹 Oni learned from this race</b><br><small>${L.faster ? `Faster through ${L.faster} stretch${L.faster === 1 ? '' : 'es'} where you beat him` : 'You taught him nothing new'}${L.careful ? ` · more careful in ${L.careful} where he slipped up` : ''}${beatBoss ? ' · +2% power' : ''}</small>`, 6000, 'oni'));
+      saveBrain(this.g.app.account, this.g.opts.mapId, L.brain, this.bossInfo.id);
+      this.later(4200, () => toast(`<b style="color:${this.bossInfo.color}">${this.bossInfo.icon} ${esc(this.bossInfo.name)} learned from this race</b><br><small>${L.faster ? `Faster through ${L.faster} stretch${L.faster === 1 ? '' : 'es'} where you beat him` : 'You taught him nothing new'}${L.careful ? ` · more careful in ${L.careful} where he slipped up` : ''}${beatBoss ? ' · +2% power' : ''}</small>`, 6000, 'oni'));
     }
-    if (mine.finished) this.g.app.saveRecord('race', { map: this.g.opts.mapId, laps: this.laps, time: mine.time, best: mine.best, pos: rows.indexOf(mine) + 1, field: rows.length, beatBoss });
+    if (mine.finished) this.g.app.saveRecord('race', { map: this.g.opts.mapId, laps: this.laps, time: mine.time, best: mine.best, pos: rows.indexOf(mine) + 1, field: rows.length, beatBoss, bossId: beatBoss ? this.bossInfo.id : null, bossFight: !!this.fight });
     this.showResults(this.resultsHtml(rows, true), { solo: true });
   }
   onServerResult(m) {
@@ -8269,7 +8366,7 @@ class RaceComp extends Comp {
   }
   resultsHtml(rows, solo) {
     const w = rows[0], lead = w.finished ? w.time : null;
-    return `<div class="res-kicker">Speed Race · ${esc(this.route.name)} · ${this.laps} lap${this.laps === 1 ? "" : "s"}${solo ? ` · ${AI_SKILL[this.cfg.difficulty || 'medium'].name} CPU` : ''}</div>
+    return `<div class="res-kicker">Speed Race · ${esc(this.route.name)} · ${this.laps} lap${this.laps === 1 ? "" : "s"}${solo ? (this.fight ? ` · 👑 Boss 1v1 vs ${esc(this.bossInfo.title)}` : ` · ${(AI_SKILL[this.cfg.difficulty] || AI_SKILL.medium).name} CPU`) : ''}</div>
       <h2>${w.finished ? `🏆 ${esc(w.name)} wins` : 'No finishers'}${rows.find((r) => r.me) ? ` · you finished P${rows.findIndex((r) => r.me) + 1}` : ''}</h2>
       <table class="res-table"><tr><th>Pos</th><th>Driver</th><th>Total time</th><th>Gap</th><th>Best lap</th><th>Laps</th></tr>
       ${rows.map((r, i) => `<tr class="${r.me ? 'me' : ''} ${i === 0 && r.finished ? 'win' : ''}"><td>${i + 1}</td><td>${esc(r.name)}${r.cpu ? ' <i class="cpu-tag">CPU</i>' : ''}${r.left ? ' <i class="cpu-tag">left</i>' : ''}</td><td><b>${r.finished ? fmtTime(r.time) : 'DNF'}</b></td><td>${r.finished && i > 0 && lead != null ? '+' + (r.time - lead).toFixed(2) : '—'}</td><td>${fmtTime(r.best)}</td><td>${r.laps}/${this.laps}</td></tr>`).join('')}</table>
@@ -9328,7 +9425,7 @@ function levelInfo(xp) {
 const LEVEL_REWARDS = { 10: 'kitsune', 25: 'raijin' }; // level -> secret car unlock name
 // XP for a finished competition (from App.saveRecord)
 function xpForRecord(type, d) {
-  if (type === 'race') return d.time ? 150 + Math.max(0, (d.field || 1) - (d.pos || 1)) * 60 + (d.pos === 1 && d.field > 1 ? 250 : 0) : 40;
+  if (type === 'race') return (d.time ? 150 + Math.max(0, (d.field || 1) - (d.pos || 1)) * 60 + (d.pos === 1 && d.field > 1 ? 250 : 0) : 40) + (d.beatBoss ? 600 : 0);
   if (type === 'driftrace') return (d.finished ? 150 : 40) + Math.max(0, (d.field || 1) - (d.pos || 1)) * 60 + (d.pos === 1 && d.field > 1 ? 250 : 0);
   if (type === 'battle') return d.solo ? 120 + Math.min(300, (d.total || 0) * 3) : d.won ? 450 : d.draw ? 250 : 150;
   if (type === 'challenge') return 100 + Math.min(600, Math.round((d.total || d.bestChain || 0) / 100));
@@ -9345,7 +9442,7 @@ __mod["js/account.js"] = (function () {
 const { isUnlocked, unlock } = __mod["js/secret.js"];
 const KEY = 'driftclub.account', GUEST = 'driftclub.guest';
 const SYNC_KEYS = ['playerName', 'driveStyle', 'driftAngle', 'car', 'bests', 'garage', 'presets', 'xp', 'publicMap']; // device stuff (graphics, controls) stays per device
-const SECRET_NAMES = ['creator', 'squad', 'mango', 'kitsune', 'raijin', 'oni'];
+const SECRET_NAMES = ['creator', 'squad', 'mango', 'kitsune', 'raijin', 'oni', 'valkyrie', 'sandstorm', 'grizzly', 'phantom', 'ironjaw'];
 
 class Account {
   constructor(app) {
@@ -9523,7 +9620,7 @@ class App {
     } else if (type === 'race') {
       const r = ((R.race = R.race || {})[d.map] = R.race[d.map] || { total: {} });
       if (d.time && (!r.total[d.laps] || d.time < r.total[d.laps])) r.total[d.laps] = d.time;
-      if (d.beatBoss && unlock('oni')) setTimeout(() => toast('<b>You beat Midnight Oni!</b><br><small>Secret car unlocked: Oni Kuro (Garage › Secret)</small>', 6000, 'good'), 800);
+      if (d.beatBoss && d.bossId && unlock(d.bossId)) { const car = CARS.find((c) => c.secret === d.bossId); setTimeout(() => toast(`<b>You beat the boss!</b><br><small>Secret car unlocked: ${esc(car ? car.name : d.bossId)} (Garage › Secret)</small>`, 6000, 'good'), 800); }
       if (d.best && (!r.lap || d.best < r.lap)) r.lap = d.best;
       r.races = (r.races || 0) + 1; if (d.pos === 1 && d.field > 1) r.wins = (r.wins || 0) + 1;
     } else if (type === 'driftrace') {

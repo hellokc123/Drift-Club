@@ -4,6 +4,7 @@ import { CARS, CATEGORIES, SECRET_HINTS, carById, carStats, RIMS, SPOILERS, STRI
 import { PARTS, SLIDERS, RULES, sanitizeTune, applyTune, isStock, allowedTires, maxLevel, builtinPresets, PRESET_NAMES, PRESET_INFO, tuneSummary } from './tuning.js';
 import { measureStats, STAT_SCALE, statFrac } from './carstats.js';
 import { MAP_LIST } from './maps.js';
+import { bossFor } from './bosses.js';
 import { MODES, FREE_MODES, COMP_MODES } from './scoring.js';
 import { RACE, RACE_MAPS, BATTLE, BATTLE_MAPS } from './tracks.js';
 import { CHALLENGE_VARIANTS, DRIFT_RACE } from './judge.js';
@@ -110,9 +111,10 @@ export class UI {
         <div class="setup-row"><label>Time limit</label><input type="range" id="c-time" min="30" max="600" step="30" value="${C.time}"><em id="c-time-v">${Math.floor(C.time / 60)}:${String(C.time % 60).padStart(2, '0')}</em></div>`;
     } else if (isRaceMode(mode)) {
       h += `<div class="setup-row"><label>Laps</label><input type="range" id="c-laps" min="1" max="10" step="1" value="${C.laps}"><em id="c-laps-v">${C.laps}</em></div>
-        <div class="setup-row"><label>CPU opponents (solo)</label><input type="range" id="c-ai" min="0" max="7" step="1" value="${C.ai}"><em id="c-ai-v">${C.ai}</em></div>
-        <div class="setup-row"><label>CPU difficulty</label>${chips(Object.entries(AI_SKILL).filter(([, v]) => !v.hidden).map(([k, v]) => [k, v.name]), C.difficulty, 'cdiff')}</div>
-        ${C.difficulty === 'hard' || C.difficulty === 'legend' ? '<p class="muted boss-note">👹 <b>Midnight Oni</b> starts on pole. Beat him in a Speed Race to win his car.</p>' : ''}
+        ${C.difficulty === 'bossfight' ? '' : `<div class="setup-row"><label>CPU opponents (solo)</label><input type="range" id="c-ai" min="0" max="7" step="1" value="${C.ai}"><em id="c-ai-v">${C.ai}</em></div>`}
+        <div class="setup-row"><label>CPU difficulty</label>${chips([...Object.entries(AI_SKILL).filter(([, v]) => !v.hidden).map(([k, v]) => [k, v.name]), ...(mode === 'race' ? [['bossfight', 'Boss 👑']] : [])], C.difficulty, 'cdiff')}</div>
+        ${C.difficulty === 'bossfight' ? (() => { const B = bossFor(C.map); return `<p class="boss-note" style="border-color:${B.color}">${B.icon} <b style="color:${B.color}">1v1 vs ${esc(B.title)}</b>, the boss of ${esc((MAP_LIST.find((m) => m.id === C.map) || {}).name || C.map)}. Bosses learn from every race. Beat them to win their car${isUnlocked(B.id) ? ' (already yours ✓)' : ''}.</p>`; })()
+          : C.difficulty === 'hard' || C.difficulty === 'legend' ? '<p class="muted boss-note">👹 <b>Midnight Oni</b> starts on pole. Beat him to win his car — or pick <b>Boss</b> for a 1v1 with each map\'s boss.</p>' : ''}
         ${mode === 'driftrace' ? `<p class="setup-note"><b>Score = (drift points × position factor + position bonus) × gap factor.</b> Position factor P1 ×1.0, P2 ×0.9, P3 ×0.8, P4 ×0.68 …; the gap factor drops 1/60 for every second you finish behind the winner (min ${DRIFT_RACE.minGap}, also for a DNF). Drift points count from GO until you cross the finish line (and stop ${DRIFT_RACE.lateWindow} s after the winner finishes); your combo banks at every lap line (max ×${DRIFT_RACE.judge.maxMult}), faster drifts pay more and slow drifting earns almost nothing. Bonus per lap: ${DRIFT_RACE.bonusPerLap.slice(0, 4).map((b, i) => `P${i + 1} +${fmt(b)}`).join(', ')}… — no bonus if you don't finish. Crashes and leaving the track cost your live combo.</p>` : ''}
         <p class="setup-note">Pass every checkpoint in order. Resets never count as checkpoints. Solo races start you at the back of the grid. CPU drivers are clearly labelled and only appear in solo races.</p>`;
     } else {

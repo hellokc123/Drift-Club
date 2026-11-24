@@ -6,24 +6,24 @@
 //  - lost the race -> a bit more power overall
 // The brain lives on the game server (shared by everyone who races him) with a copy on this device.
 export const BIN = 10; // path samples per stretch (3 m each = 30 m)
-const LOCAL = (map) => 'driftclub.oni.' + map;
+const LOCAL = (map, boss) => (boss === 'oni' ? 'driftclub.oni.' + map : `driftclub.boss.${boss}.${map}`);
 const MAX_POWER = 0.2;
 
 export function emptyBrain(nBins) { return { v: 1, bins: nBins, speed: new Array(nBins).fill(1), line: new Array(nBins).fill(0), power: 0, races: 0, wins: 0, losses: 0 }; }
 export function validBrain(b, nBins) { return b && b.v === 1 && b.bins === nBins && Array.isArray(b.speed) && b.speed.length === nBins && Array.isArray(b.line) && b.line.length === nBins; }
 
-export async function loadBrain(account, map, nBins) {
+export async function loadBrain(account, map, nBins, boss = 'oni') {
   let local = null;
-  try { local = JSON.parse(localStorage.getItem(LOCAL(map)) || 'null'); } catch { /* */ }
+  try { local = JSON.parse(localStorage.getItem(LOCAL(map, boss)) || 'null'); } catch { /* */ }
   try {
-    const r = await account.call('oni/get', { map, bins: nBins }, 5000);
+    const r = await account.call('oni/get', { map, boss, bins: nBins }, 5000);
     if (validBrain(r.brain, nBins)) return r.brain;
   } catch { /* offline: use this device's copy */ }
   return validBrain(local, nBins) ? local : emptyBrain(nBins);
 }
-export function saveBrain(account, map, brain) {
-  try { localStorage.setItem(LOCAL(map), JSON.stringify(brain)); } catch { /* */ }
-  account.call('oni/learn', { map, brain }, 15000).catch(() => {});
+export function saveBrain(account, map, brain, boss = 'oni') {
+  try { localStorage.setItem(LOCAL(map, boss), JSON.stringify(brain)); } catch { /* */ }
+  account.call('oni/learn', { map, boss, brain }, 15000).catch(() => {});
 }
 
 // what happened on each stretch during one race

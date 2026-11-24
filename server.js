@@ -123,11 +123,13 @@ function accountTaken(c) {
 // Midnight Oni's shared brain, per map: clients send what he learned; the server only lets each
 // race nudge it a little (so one bad or fake upload can't break him)
 const ONI_MAPS = ['track', 'desert', 'mountain', 'forest', 'city', 'drift'];
+const BOSS_IDS = ['oni', 'valkyrie', 'sandstorm', 'grizzly', 'phantom', 'ironjaw'];
 async function oniApi(route, body, ip) {
   const map = String(body.map || ''); if (!ONI_MAPS.includes(map)) return [400, { error: 'Unknown map' }];
-  const k = 'oni:' + map, cur = await store.get(k);
+  const boss = String(body.boss || 'oni'); if (!BOSS_IDS.includes(boss)) return [400, { error: 'Unknown boss' }];
+  const k = boss === 'oni' ? 'oni:' + map : `boss:${boss}:${map}`, cur = await store.get(k);
   if (route === 'oni/get') return [200, { brain: cur && cur.bins === clampInt(body.bins, 1, 5000, 0) ? cur : null }];
-  if (limited('oni:' + ip, 20, 600000)) return [429, { error: 'Slow down' }];
+  if (limited('oni:' + ip, 30, 600000)) return [429, { error: 'Slow down' }];
   hit('oni:' + ip);
   const b = body.brain, n = b && clampInt(b.bins, 1, 5000, 0);
   if (!n || !Array.isArray(b.speed) || !Array.isArray(b.line) || b.speed.length !== n || b.line.length !== n) return [400, { error: 'Bad brain' }];
