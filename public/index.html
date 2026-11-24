@@ -22,9 +22,11 @@
 <section class="screen" id="scr-main">
   <div class="main-left">
     <div class="brand"><div class="logo">DRIFT<span>CLUB</span></div><p>Slide sideways. Chill out. Or crush your friends.</p></div>
+    <div class="lvl-badge main-lvl"></div>
     <nav class="main-nav">
       <button class="nav-btn primary" data-go="play"><b>Play</b><small>Solo drive on any map</small></button>
       <button class="nav-btn" data-go="garage"><b>Garage</b><small>Pick &amp; customise your car</small></button>
+      <button class="nav-btn public-btn" id="btn-public" type="button"><b>Public Room</b><small>Jump in and drive with everyone online</small></button>
       <button class="nav-btn" data-go="mp"><b>Multiplayer</b><small>Create or join a room</small></button>
       <button class="nav-btn" data-go="records"><b>Records</b><small>Personal bests &amp; online leaderboards</small></button>
       <button class="nav-btn" data-go="settings"><b>Settings</b><small>Graphics, audio, controls</small></button>
@@ -159,7 +161,7 @@
 
 <!-- ======================= HUD ======================= -->
 <div id="hud" class="hidden">
-  <div class="hud-tl"><div id="hud-mode"></div><div id="hud-name"></div></div>
+  <div class="hud-tl"><div id="hud-mode"></div><div id="hud-name"></div><div class="lvl-badge hud-lvl"></div></div>
   <div id="hud-timer" class="hidden"></div>
   <div id="hud-drift"><div class="d-row"><span id="drift-score"></span><span id="drift-mult"></span></div><div class="grace"><i id="drift-grace"></i></div><div id="drift-angle"></div></div>
   <div id="pops"></div>

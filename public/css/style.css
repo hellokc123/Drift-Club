@@ -122,6 +122,7 @@ h4 { margin: 14px 0 6px; font-size: 12px; letter-spacing: 0.12em; text-transform
 .car-item { display: flex; align-items: center; gap: 12px; text-align: left; background: var(--surface); border: 2px solid var(--line); border-radius: 12px; padding: 10px 12px; }
 .car-item b { flex: 1; font-style: italic; }
 .car-item small { color: var(--muted); }
+.car-item.locked { opacity: 0.55; cursor: not-allowed; }
 .car-item:hover { border-color: var(--line-strong); }
 .car-item.sel { border-color: var(--accent); background: var(--accent-soft); }
 .garage-code { margin-top: 14px; min-height: 20px; }
@@ -627,3 +628,21 @@ body.touch-on .controls-help { font-size: 13px; }
   .gtabs { top: -14px; }
   .fs-btn { top: max(10px, env(safe-area-inset-top)); }
 }
+/* level badge */
+.lvl-badge { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
+.lvl-badge b { font-style: italic; font-weight: 900; color: var(--accent); letter-spacing: 0.04em; }
+.lvl-badge i { display: block; width: 110px; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.15); overflow: hidden; }
+.lvl-badge s { display: block; height: 100%; background: var(--accent); text-decoration: none; transition: width 0.3s; }
+.lvl-badge small { font-size: 11px; color: var(--muted); }
+.main-lvl { margin: 6px 0 14px; }
+.hud-lvl { margin-top: 4px; text-shadow: var(--text-shadow); }
+.hud-lvl i { width: 80px; height: 4px; }
+.hud-lvl small { display: none; }
+.public-btn { border-color: var(--accent) !important; }
+.nametag .lv { color: var(--accent); font-weight: 900; margin-right: 4px; font-size: 0.85em; }
+.travel-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.travel-row small { width: 100%; color: var(--muted); }
+/* Midnight Oni, the boss bot */
+.nametag.cpu.boss { border-color: #ff2a1a; color: #ff4a3a; background: rgba(20, 0, 0, 0.85); box-shadow: 0 0 12px rgba(255, 30, 20, 0.6); letter-spacing: 0.08em; }
+.toast.oni { border-left-color: #ff2a1a; background: rgba(18, 4, 4, 0.96); }
+.toast.oni b.oni { color: #ff4a3a; }

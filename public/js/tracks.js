@@ -300,7 +300,7 @@ const CITY_LOOP = [[-180, -360], [270, -360], [270, 180], [90, 180], [90, 360], 
 export const RACE = {
   track: { name: 'Apex Circuit', road: 0, start: 30, width: 16, margin: 14 },
   desert: { name: 'Dune Valley Highway', road: 0, start: 70, width: 14, margin: 16 },
-  mountain: { name: 'Kurogane Pass Loop', legs: [[1, [0, -1350], [0, 50], 1], [3, [65, 85], [1320, 0], -1], [0, [1320, 0], [0, -1350], -1]], start: 20, width: 10, margin: 12 },
+  mountain: { name: 'Kurogane Pass Loop', legs: [[1, [0, -1350], [0, 50], 1], [2, [0, 50], [0, 1320], 1], [0, [0, 1320], [0, -1350], 1]], start: 20, width: 10, margin: 12 },
   forest: { name: 'Pinewood Loop', road: 0, start: 40, width: 12, margin: 12 },
   drift: { name: 'Ironbay Figure-Eight', road: 0, start: 40, width: 18, margin: 12 },
   city: { name: 'Downtown Street Circuit', pts: streetLoop(CITY_LOOP, 12), linear: true, start: 0, width: 16, margin: 6 },

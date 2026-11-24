@@ -9,6 +9,8 @@ export const CATEGORIES = [
   // hidden until unlocked with the secret code (see secret.js); its cars are still valid ids online
   { id: 'creator', name: 'Creator', secret: 'creator' },
   { id: 'squad', name: 'Squad', secret: 'squad' },
+  // always shown: each car in it has its own unlock (level, beating the boss bot, or a code). Locked ones show a hint.
+  { id: 'secret', name: 'Secret', perCar: true },
 ];
 
 // accel m/s², top m/s, grip = lateral grip rate, lat = max cornering accel (m/s²), steer = max wheel angle (rad),
@@ -50,9 +52,16 @@ export const CARS = [
   { id: 'creatorR', name: 'Nocturne Aurum R', cat: 'creator', style: 'wedge', paint: '#151618', wheel: '#c8ccd2', livery: 2, liveryColor: '#d9dbe0', satin: true, accel: 12.2, top: 92, grip: 14.6, lat: 15.3, steer: 0.64, wb: 2.7, driftGrip: 1.95, driftPower: 1.15, driftSteer: 2.0, momentum: 0.5, powerOver: 0.15, mass: 1.05, noSpin: true, engine: { pitch: 1.6, cyl: 12, grit: 0.4 } },
   // --- secret: the Squad car (its own code). Very fast, huge grip, sharp steering, stability control - but
   // a step below the creator race car in every number
+  // --- secret cars, one unlock each (see SECRET_HINTS). All a step below the creator race car.
+  { id: 'kitsuneS', name: 'Kitsune S', cat: 'secret', secret: 'kitsune', style: 'coupe', paint: '#e8742a', wheel: '#f2f2f2', livery: 1, liveryColor: '#f4f1ea', accel: 9.4, top: 70, grip: 12, lat: 12.8, steer: 0.7, wb: 2.45, driftGrip: 1.25, driftPower: 1.4, driftSteer: 2.6, momentum: 0.6, powerOver: 0.45, mass: 0.95, engine: { pitch: 1.4, cyl: 4, grit: 0.55 } },
+  { id: 'mango', name: 'Mango Midnight', cat: 'secret', secret: 'mango', style: 'coupe', paint: '#1b1a3a', wheel: '#ffb21e', livery: 2, liveryColor: '#ff9f1a', accel: 10.2, top: 78, grip: 12.6, lat: 13.4, steer: 0.66, wb: 2.55, driftGrip: 1.3, driftPower: 1.5, driftSteer: 2.55, momentum: 0.6, powerOver: 0.45, mass: 1.0, engine: { pitch: 1.3, cyl: 6, grit: 0.5 } },
+  { id: 'raijin', name: 'Raijin GT-R', cat: 'secret', secret: 'raijin', style: 'wedge', paint: '#f2d21b', wheel: '#232323', livery: 1, liveryColor: '#151515', accel: 11.0, top: 84, grip: 13.5, lat: 14.3, steer: 0.6, wb: 2.65, driftGrip: 1.7, driftPower: 1.2, driftSteer: 2.2, momentum: 0.52, powerOver: 0.2, mass: 1.15, engine: { pitch: 1.45, cyl: 6, grit: 0.6 } },
+  { id: 'oni', name: 'Oni Kuro', cat: 'secret', secret: 'oni', style: 'coupe', paint: '#0c0c0e', wheel: '#b01010', livery: 2, liveryColor: '#c8140f', satin: true, accel: 11.2, top: 85, grip: 13.4, lat: 14.2, steer: 0.66, wb: 2.6, driftGrip: 1.2, driftPower: 1.5, driftSteer: 2.6, momentum: 0.62, powerOver: 0.5, mass: 1.05, engine: { pitch: 1.25, cyl: 6, grit: 0.7 } },
   { id: 'vanta', name: 'Vanta GT', cat: 'squad', style: 'wedge', paint: '#1f3f7a', wheel: '#2b2d31', livery: 1, liveryColor: '#e8eaee', accel: 11.4, top: 86, grip: 14.0, lat: 14.8, steer: 0.62, wb: 2.7, driftGrip: 1.95, driftPower: 1.1, driftSteer: 2.0, momentum: 0.5, powerOver: 0.12, mass: 1.1, noSpin: true, engine: { pitch: 1.5, cyl: 8, grit: 0.35 } },
 ];
 export const carById = (id) => CARS.find((c) => c.id === id) || CARS[0];
+// how each secret car is unlocked (shown on the locked car in the garage)
+export const SECRET_HINTS = { kitsuneS: 'Reach level 10', raijin: 'Reach level 25', oni: 'Beat Midnight Oni in a Speed Race', mango: 'Secret code' };
 
 // 0-10 stats for the garage
 export function carStats(c) {
@@ -306,6 +315,26 @@ export const LOOKS = {
     shape: { L: 4.75, W: 2.08, H: 0.48, ride: 0.09, nose: 0.32, cowl: 1.3, deck: 0.05, rearTop: 0.86, cab: [1.4, 1.3, 2.1, 1.8], ch: 0.42, cw: 0.72, crown: 0.04, taperF: 0.24, taperR: 0.08 },
     head: 'bar', grille: 'intake', tail: 'bar', hood: 'vents', arches: 'over', aero: 'swan', exhaust: 'center2', mirror: 'sport',
     extras: ['splitter', 'canards', 'diffuser', 'sideIntake', 'goldAccent'], accent: [0.82, 0.84, 0.88],
+  },
+  kitsuneS: { // Kitsune S: small, light fastback drift coupe with pop-up lights and a ducktail
+    shape: { L: 4.2, W: 1.76, H: 0.53, ride: 0.13, nose: 0.5, cowl: 1.5, cab: [0.9, 1.4, 2.15, 1.35], ch: 0.48, taperF: 0.12, taperR: 0.08 },
+    head: 'popup', grille: 'slot', tail: 'round', hood: 'vents', arches: 'flare', aero: 'ducktail', exhaust: 'single', mirror: 'sport',
+    extras: ['splitter', 'skirts'],
+  },
+  mango: { // Mango Midnight: midnight-blue widebody coupe, mango-orange stripes and wheels, big wing
+    shape: { L: 4.45, W: 1.94, H: 0.52, ride: 0.11, nose: 0.48, cowl: 1.5, cab: [0.95, 1.45, 2.2, 1.45], ch: 0.47, cw: 0.8, taperF: 0.15, taperR: 0.07 },
+    head: 'swept', grille: 'intake', tail: 'C', hood: 'scoop', arches: 'over', aero: 'wing', exhaust: 'quad', mirror: 'sport',
+    extras: ['splitter', 'canards', 'diffuser', 'goldAccent'], accent: [1, 0.62, 0.1],
+  },
+  raijin: { // Raijin GT-R: wide, square-shouldered grip monster, round quad tails, roof fin
+    shape: { L: 4.6, W: 2.0, H: 0.54, ride: 0.12, nose: 0.42, cowl: 1.35, cab: [1.1, 1.35, 2.1, 1.6], ch: 0.46, cw: 0.78, taperF: 0.16, taperR: 0.03 },
+    head: 'slim', grille: 'big', tail: 'quad', hood: 'power', arches: 'box', aero: 'wing', exhaust: 'dual', mirror: 'sport',
+    extras: ['splitter', 'diffuser', 'sideVent'],
+  },
+  oni: { // Oni Kuro: the boss bot's car. Satin black widebody coupe, blood-red accents, swan wing
+    shape: { L: 4.5, W: 2.02, H: 0.5, ride: 0.1, nose: 0.42, cowl: 1.45, cab: [1.0, 1.4, 2.15, 1.5], ch: 0.45, cw: 0.78, crown: 0.03, taperF: 0.18, taperR: 0.06 },
+    head: 'bar', grille: 'intake', tail: 'bar', hood: 'vents', arches: 'over', aero: 'swan', exhaust: 'center2', mirror: 'sport',
+    extras: ['splitter', 'canards', 'diffuser', 'sideIntake', 'goldAccent'], accent: [0.85, 0.06, 0.05],
   },
   vanta: { // Vanta GT: clean GT wedge with a swan wing and white accents
     head: 'bar', grille: 'intake', tail: 'bar', hood: 'vents', arches: 'over', aero: 'swan', exhaust: 'center2', mirror: 'sport',

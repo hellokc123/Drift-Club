@@ -4,11 +4,19 @@
 // a reset if stuck (resets never count as checkpoints).
 import { clamp, wrapAngle } from './tracks.js';
 
+// assist: CPU cars on Hard/Legend get a small engine + tyre advantage (like a pro driver's setup)
 export const AI_SKILL = {
-  easy: { name: 'Easy', pace: 0.78, grip: 0.85, brake: 7, noise: 0.08, boost: false },
-  medium: { name: 'Medium', pace: 0.9, grip: 0.95, brake: 9, noise: 0.035, boost: false },
-  hard: { name: 'Hard', pace: 1.0, grip: 1.05, brake: 11, noise: 0.0, boost: true },
+  easy: { name: 'Easy', pace: 0.84, grip: 0.9, brake: 8, noise: 0.05, boost: false, assist: 1 },
+  medium: { name: 'Medium', pace: 0.96, grip: 0.98, brake: 10, noise: 0.015, boost: true, assist: 1.02 },
+  hard: { name: 'Hard', pace: 1.0, grip: 1.02, brake: 12, noise: 0.0, boost: true, assist: 1.08 },
+  legend: { name: 'Legend', pace: 1.0, grip: 1.04, brake: 13, noise: 0.0, boost: true, assist: 1.15 },
 };
+// the car a CPU driver actually drives at this skill
+export function aiDef(def, skill) {
+  const a = (AI_SKILL[skill] || AI_SKILL.medium).assist || 1;
+  if (a === 1) return def;
+  return { ...def, accel: def.accel * a, lat: def.lat * a, grip: def.grip * a, top: def.top * (1 + (a - 1) * 0.6) };
+}
 
 export class AIDriver {
   constructor(vehicle, path, skill = 'medium', seed = 1) {
@@ -64,7 +72,8 @@ export class AIDriver {
     if (blocked) { this.lane = clamp(this.lane + blocked * 4 * dt, -3.5, 3.5); this.laneT = 1.5; }
     else if ((this.laneT -= dt) < 0) this.lane *= 1 - dt * 0.8;
     // ---- pure pursuit steering
-    const la = Math.round((6 + speed * 0.42) / 3);
+    const rNow = Math.min(this.radiusAt(this.idx), this.radiusAt(this.idx + 3));
+    const la = Math.max(2, Math.round(Math.min(6 + speed * 0.42, 4 + rNow * 0.7) / 3));
     const ti = this.at(this.idx + la);
     const tx = p.x[ti] - p.tz[ti] * this.lane, tz = p.z[ti] + p.tx[ti] * this.lane;
     if (sk.noise) this.wobble += (this.rand() - 0.5) * sk.noise * 4 * dt - this.wobble * dt;

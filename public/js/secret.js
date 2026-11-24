@@ -60,6 +60,7 @@ export const sha256Hex = async (text) => {
 const SECRETS = {
   creator: CREATOR_HASH,                                                     // the creator's two cars
   squad: 'f187a4ffa0f83153c17e645104b8524918ad93857b01e049f03fe96d01ab35ac',  // the Squad car
+  mango: '8851b6b5d94912264033695d1044b97e233e5a06cae45cc0140aef6034e2d399',  // Mango Midnight (secret tab)
 };
 const keyOf = (name) => (name === 'creator' ? KEY : 'driftclub.unlocked.' + name);
 const session = new Set();
@@ -79,6 +80,13 @@ export async function tryCode(code) {
   session.add(name);
   try { localStorage.setItem(keyOf(name), '1'); } catch { /* private mode: this session only */ }
   return name;
+}
+// unlocks earned in game (levels, beating the boss bot); returns true if it was new
+export function unlock(name) {
+  if (isUnlocked(name)) return false;
+  session.add(name);
+  try { localStorage.setItem(keyOf(name), '1'); } catch { /* this session only */ }
+  return true;
 }
 // older names, kept for anything still importing them
 export function creatorUnlocked() { return isUnlocked('creator'); }

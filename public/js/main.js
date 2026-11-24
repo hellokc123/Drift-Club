@@ -10,6 +10,9 @@ import { loadSettings, saveSettings } from './settings.js';
 import { MAP_LIST } from './maps.js';
 import { MODES } from './scoring.js';
 import { TouchControls, goFullscreen } from './touch.js';
+import { levelInfo, LEVEL_REWARDS, xpForRecord } from './level.js';
+import { unlock } from './secret.js';
+import { CARS } from './cars.js';
 
 class App {
   constructor() {
@@ -24,7 +27,7 @@ class App {
     this.audio = new AudioEngine();
     this.audio.setVolumes({ master: this.settings.master, sfx: this.settings.sfx, music: this.settings.music });
     this.input = new Input(this.settings);
-    this.net = new Net();
+    this.net = new Net(); this.net.level = () => this.level;
     this.ui = new UI(this);
     this.touch = new TouchControls(this);
     this.showroom = new Showroom(this);
@@ -37,11 +40,37 @@ class App {
     // after a refresh / crash, quietly resume an unfinished multiplayer session (same room & game)
     if (this.net.token) this.net.connect(this.settings.playerName, this.settings.car, this.settings.serverUrl, { patience: 8000 }).catch(() => {});
     $('#fps').classList.toggle('hidden', !this.settings.showFps);
+    this.renderLevel();
     this.last = performance.now();
     requestAnimationFrame((t) => this.loop(t));
     window.__app = this; // handy for debugging & automated tests
   }
   saveSettings() { saveSettings(this.settings); }
+  get level() { return levelInfo(this.settings.xp || 0).level; }
+  // XP: drifting, distance, finished competitions. Level ups unlock secret cars at some levels.
+  addXP(n, why) {
+    n = Math.round(n); if (!(n > 0)) return;
+    const S = this.settings, before = levelInfo(S.xp || 0).level;
+    S.xp = (S.xp || 0) + n;
+    const after = levelInfo(S.xp).level;
+    if (after > before) {
+      this.audio.chime(true);
+      if (this.game) this.game.bigText(`LEVEL ${after}!`, 1800);
+      toast(`<b>Level up! You are level ${after}</b>${why ? `<br><small>${esc(why)}</small>` : ''}`, 3500, 'good');
+      for (let L = before + 1; L <= after; L++) {
+        const r = LEVEL_REWARDS[L];
+        if (r && unlock(r)) setTimeout(() => toast(`<b>Secret car unlocked: ${esc((CARS.find((c) => c.secret === r) || { name: r }).name)}</b><br><small>Garage › Secret tab</small>`, 5000, 'good'), 1200);
+      }
+      this.net.send({ t: 'level', level: after, up: true });
+    }
+    this._xpSave = (this._xpSave || 0) + n;
+    if (this._xpSave > 200 || after > before) { this._xpSave = 0; this.saveSettings(); }
+    this.renderLevel();
+  }
+  renderLevel() {
+    const li = levelInfo(this.settings.xp || 0), pct = Math.round((li.into / li.need) * 100);
+    for (const el of document.querySelectorAll('.lvl-badge')) el.innerHTML = `<b>LV ${li.level}</b><i><s style="width:${pct}%"></s></i><small>${li.into} / ${li.need} XP</small>`;
+  }
   // personal records — only called once per COMPLETED competition
   saveRecord(type, d) {
     const R = this.settings.records = this.settings.records || {};
@@ -53,6 +82,7 @@ class App {
     } else if (type === 'race') {
       const r = ((R.race = R.race || {})[d.map] = R.race[d.map] || { total: {} });
       if (d.time && (!r.total[d.laps] || d.time < r.total[d.laps])) r.total[d.laps] = d.time;
+      if (d.beatBoss && unlock('oni')) setTimeout(() => toast('<b>You beat Midnight Oni!</b><br><small>Secret car unlocked: Oni Kuro (Garage › Secret)</small>', 6000, 'good'), 800);
       if (d.best && (!r.lap || d.best < r.lap)) r.lap = d.best;
       r.races = (r.races || 0) + 1; if (d.pos === 1 && d.field > 1) r.wins = (r.wins || 0) + 1;
     } else if (type === 'driftrace') {
@@ -66,6 +96,7 @@ class App {
       else { if (d.draw) b.draws = (b.draws || 0) + 1; else if (d.won) b.wins = (b.wins || 0) + 1; else b.losses = (b.losses || 0) + 1; b.points = Math.round(((b.points || 0) + d.total) * 10) / 10; }
     }
     this.saveSettings();
+    this.addXP(xpForRecord(type, d), type === 'race' ? 'Speed Race finished' : type === 'driftrace' ? 'Drift Race finished' : type === 'battle' ? 'Drift Battle finished' : 'Challenge finished');
   }
   saveBest(map, mode, score) {
     const k = `${map}:${mode}`;
@@ -125,7 +156,7 @@ class App {
   bindNet() {
     const N = this.net;
     N.on('rooms', (m) => this.ui.renderRooms(m.rooms));
-    N.on('joined', () => { if (!this.game) this.ui.show('lobby'); });
+    N.on('joined', (m) => { if (!this.game && !(m.room && m.room.permanent)) this.ui.show('lobby'); }); // the public room drops you straight into the game
     N.on('room', () => { if (this.ui.current === 'lobby') this.ui.renderLobby(); });
     N.on('left', () => { this.settings.lastRoom = ''; this.saveSettings(); if (!this.game) this.ui.show('mp'); });
     N.on('error', (m) => {
@@ -137,7 +168,7 @@ class App {
       // never guess a mode: an unknown one used to silently fall back to Endless
       if (!MODES.find((x) => x.id === m.mode)) { toast(`This room uses a game mode your page doesn't know (${esc(m.mode)}). Refresh the page.`, 6000, 'bad'); return; }
       if (this.game && this.game.mp) this.endGame();
-      this.startGame({ mp: true, mapId: m.map, modeId: m.mode, spawn: m.spawn, rounds: m.rounds, roundTime: m.roundTime, comp: m.comp, spectator: m.spectator, grid: m.grid, resume: m.resume, rules: m.rules || 'open' });
+      this.startGame({ mp: true, mapId: m.map, modeId: m.mode, spawn: m.spawn, rounds: m.rounds, roundTime: m.roundTime, comp: m.comp, spectator: m.spectator, grid: m.grid, resume: m.resume, rules: m.rules || 'open', permanent: !!m.permanent });
     });
     N.on('gameEnd', () => {
       if (this.game && this.game.mp) { this.endGame(); this.audio.playMusic('menu'); this.ui.show('lobby'); toast('Back in the room lobby', 2000); }

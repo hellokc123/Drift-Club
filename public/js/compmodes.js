@@ -6,7 +6,7 @@ import { Vehicle, PHYS_DT } from './physics.js';
 import { CARS, carById, buildCarModel, carDrawItems } from './cars.js';
 import { raceRoute, gridSlots, RaceTracker, battleCourse, RACE } from './tracks.js';
 import { CompDriftJudge, round2, BattleRun, battleTotals, challengeScore, CHALLENGE_VARIANTS, DRIFT_RACE, AI_DRIFT, AI_JUDGE, aiDriftSample, driftRaceRank, driftRaceBonus, posFactor } from './judge.js';
-import { AIDriver, AI_SKILL } from './ai.js';
+import { AIDriver, AI_SKILL, aiDef } from './ai.js';
 import { $, fmt, esc, toast } from './ui.js';
 
 export const fmtTime = (t) => (t == null || !Number.isFinite(t) ? '—' : `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`);
@@ -159,6 +159,22 @@ class ChallengeComp extends Comp {
   }
 }
 
+// ======================================================================= CPU RIVALS
+// named CPU drivers (each with their own factory paint) and the boss, Midnight Oni
+const RIVALS = [
+  { name: 'Kenji "Hairpin" Mori', paint: '#c9ccd1' }, { name: 'Lola Vance', paint: '#d4a32a' }, { name: 'Big Tex', paint: '#7c1d22' },
+  { name: 'Yuki Snow', paint: '#e8eef5' }, { name: 'Marco Turbo', paint: '#c2531d' }, { name: 'Priya Blaze', paint: '#5b2a86' },
+  { name: 'Dutch', paint: '#2f6b3a' }, { name: 'Rook', paint: '#34506e' }, { name: 'Sasha Volt', paint: '#1f9bb5' }, { name: 'Old Man Gus', paint: '#5b6647' },
+];
+const ONI_LINES = {
+  start: ['Midnight belongs to me.', 'Try to keep up. Nobody ever does.', 'You hear that engine? That is your nightmare.', 'Another challenger. How cute.'],
+  passed: ['Hmph. Enjoy it while it lasts.', 'Lucky. It won\'t happen twice.', 'Oh? So you can drive.'],
+  passes: ['Too slow.', 'See you at the finish. Eventually.', 'Was that your best?', 'Bye bye.'],
+  win: ['As expected. Come back when you are ready.', 'The night is still mine.'],
+  lose: ['...Impossible. Take the car. You earned it.', 'Well driven. The Oni bows to you.'],
+};
+const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
 // ======================================================================= SPEED RACE
 class RaceComp extends Comp {
   get kind() { return 'race'; }
@@ -175,18 +191,30 @@ class RaceComp extends Comp {
     g.car.place(mySlot.x, mySlot.z, mySlot.h); g.cam.snap();
     this.mySlot = mySlot;
     // CPU racers get a random mix of road cars from the whole catalogue (never trucks, never the secret car)
-    const pool = CARS.filter((c) => !['pickup', 'suv', 'creator', 'squad'].includes(c.cat)).map((c) => c.id);
+    const diff = this.cfg.difficulty || 'medium';
+    // harder CPUs pick from the faster cars
+    let pool = CARS.filter((c) => !['pickup', 'suv', 'creator', 'squad', 'secret'].includes(c.cat));
+    if (diff === 'hard' || diff === 'legend') pool = pool.filter((c) => c.top >= 60);
+    pool = pool.map((c) => c.id);
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-    const names = ['CPU Akira', 'CPU Bea', 'CPU Carlos', 'CPU Dana', 'CPU Emil', 'CPU Freya', 'CPU Goro'];
-    const paints = ['#34506e', '#d4a32a', '#5b6647', '#7c1d22', '#c9ccd1', '#c2531d', '#26292c']; // normal factory paints
+    const roster = shuffle([...RIVALS]);
+    // Hard and Legend: Midnight Oni, the boss, takes pole position
+    const boss = nAI > 0 && (diff === 'hard' || diff === 'legend');
     for (let i = 0; i < nAI; i++) {
-      const id = pool[i % pool.length], cfg = { id, paint: paints[i], wheel: '#cccccc', rim: i % 6, spoiler: i % 4, kit: i % 2, stripes: 0, lowered: 0, underglow: '' };
-      const model = buildCarModel(g.app.renderer, cfg), def = carById(id);
+      const isBoss = boss && i === 0, rv = isBoss ? null : roster[i % roster.length];
+      const id = isBoss ? 'oni' : pool[i % pool.length];
+      const cfg = isBoss ? { id, paint: '#0c0c0e', wheel: '#b01010', rim: 3, spoiler: 0, kit: 2, stripes: 0, lowered: 1, underglow: '#ff1a12', livery: 2, liveryColor: '#c8140f' }
+        : { id, paint: rv.paint, wheel: '#cccccc', rim: i % 6, spoiler: i % 4, kit: i % 2, stripes: 0, lowered: 0, underglow: '' };
+      const model = buildCarModel(g.app.renderer, cfg);
+      const def = aiDef(carById(id), isBoss ? 'hard' : diff); // the boss: Hard-level car setup, Legend driving
       const v = new Vehicle(def, g.world, model.meshes.dims, { style: 'race' });
       v.place(slots[i].x, slots[i].z, slots[i].h);
-      const tag = document.createElement('div'); tag.className = 'nametag cpu'; tag.textContent = names[i]; $('#tags').appendChild(tag);
-      this.ai.push({ name: names[i], v, model, def, drv: new AIDriver(v, this.route.path, this.cfg.difficulty || 'medium', 11 + i * 7), tr: new RaceTracker(this.route, this.laps), tag, k: 0 });
+      const name = isBoss ? 'Midnight Oni' : rv.name;
+      const tag = document.createElement('div'); tag.className = 'nametag cpu' + (isBoss ? ' boss' : ''); tag.textContent = isBoss ? '👹 MIDNIGHT ONI' : name; $('#tags').appendChild(tag);
+      this.ai.push({ name, boss: isBoss, v, model, def, drv: new AIDriver(v, this.route.path, isBoss ? 'legend' : diff, 11 + i * 7), tr: new RaceTracker(this.route, this.laps), tag, k: 0 });
     }
+    this.boss = this.ai.find((a) => a.boss) || null;
+    if (this.boss) setTimeout(() => this.taunt('start'), 900);
     this.standings = [];
     if (this.mp) { this.bindStart(); this.on('mState', (m) => { if (m.mode === this.kind) { this.standings = m.rows; this.serverMe = m.rows.find((r) => r.id === this.net.id); } }); }
     this.readyUp();
@@ -220,8 +248,20 @@ class RaceComp extends Comp {
     }
     if (ev.type === 'checkpoint') g.app.audio.blip(1400, 0.05, 'sine', 0.04);
   }
+  // the boss bot talks: at the start, when you pass him, when he passes you, and at the end
+  taunt(kind) {
+    const L = ONI_LINES[kind]; if (!L || !this.boss) return;
+    const now = performance.now(); if (kind !== 'start' && kind !== 'win' && kind !== 'lose' && now - (this.tauntAt || 0) < 9000) return;
+    this.tauntAt = now;
+    toast(`<b class="oni">👹 Midnight Oni:</b> “${L[Math.floor(Math.random() * L.length)]}”`, 3200, 'oni');
+  }
   update(dt, sim) {
     super.update(dt, sim);
+    if (this.boss && this.phase === 'running' && this.tracker.started) {
+      const me = this.tracker.progress(0, 0), him = this.boss.tr.progress(0, 0), ahead = me > him;
+      if (this.bossAhead === undefined) this.bossAhead = ahead;
+      else if (ahead !== this.bossAhead) { this.bossAhead = ahead; this.taunt(ahead ? 'passed' : 'passes'); }
+    }
     // solo: finish once all CPUs are done or 30 s after the player
     if (!this.mp && this.phase === 'done' && !this.resultShown) {
       this.doneT = (this.doneT || 0) + (sim ? dt : 0);
@@ -241,7 +281,10 @@ class RaceComp extends Comp {
     const rows = all.map((r) => ({ name: r.name, me: r.me, cpu: r.cpu, finished: r.tr.finished, time: r.tr.finishTime, best: r.tr.best, laps: r.tr.lap, prog: r.tr.progress(0, 0) }))
       .sort((a, b) => (b.finished - a.finished) || (a.finished ? a.time - b.time : b.prog - a.prog));
     const mine = rows.find((r) => r.me);
-    if (mine.finished) this.g.app.saveRecord('race', { map: this.g.opts.mapId, laps: this.laps, time: mine.time, best: mine.best, pos: rows.indexOf(mine) + 1, field: rows.length });
+    const bossRow = this.boss ? rows.find((r) => r.name === 'Midnight Oni') : null;
+    const beatBoss = !!(bossRow && mine.finished && rows.indexOf(mine) < rows.indexOf(bossRow));
+    if (this.boss) this.taunt(beatBoss ? 'lose' : 'win');
+    if (mine.finished) this.g.app.saveRecord('race', { map: this.g.opts.mapId, laps: this.laps, time: mine.time, best: mine.best, pos: rows.indexOf(mine) + 1, field: rows.length, beatBoss });
     this.showResults(this.resultsHtml(rows, true), { solo: true });
   }
   onServerResult(m) {

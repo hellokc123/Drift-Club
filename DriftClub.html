@@ -135,6 +135,7 @@ h4 { margin: 14px 0 6px; font-size: 12px; letter-spacing: 0.12em; text-transform
 .car-item { display: flex; align-items: center; gap: 12px; text-align: left; background: var(--surface); border: 2px solid var(--line); border-radius: 12px; padding: 10px 12px; }
 .car-item b { flex: 1; font-style: italic; }
 .car-item small { color: var(--muted); }
+.car-item.locked { opacity: 0.55; cursor: not-allowed; }
 .car-item:hover { border-color: var(--line-strong); }
 .car-item.sel { border-color: var(--accent); background: var(--accent-soft); }
 .garage-code { margin-top: 14px; min-height: 20px; }
@@ -640,6 +641,24 @@ body.touch-on .controls-help { font-size: 13px; }
   .gtabs { top: -14px; }
   .fs-btn { top: max(10px, env(safe-area-inset-top)); }
 }
+/* level badge */
+.lvl-badge { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
+.lvl-badge b { font-style: italic; font-weight: 900; color: var(--accent); letter-spacing: 0.04em; }
+.lvl-badge i { display: block; width: 110px; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.15); overflow: hidden; }
+.lvl-badge s { display: block; height: 100%; background: var(--accent); text-decoration: none; transition: width 0.3s; }
+.lvl-badge small { font-size: 11px; color: var(--muted); }
+.main-lvl { margin: 6px 0 14px; }
+.hud-lvl { margin-top: 4px; text-shadow: var(--text-shadow); }
+.hud-lvl i { width: 80px; height: 4px; }
+.hud-lvl small { display: none; }
+.public-btn { border-color: var(--accent) !important; }
+.nametag .lv { color: var(--accent); font-weight: 900; margin-right: 4px; font-size: 0.85em; }
+.travel-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.travel-row small { width: 100%; color: var(--muted); }
+/* Midnight Oni, the boss bot */
+.nametag.cpu.boss { border-color: #ff2a1a; color: #ff4a3a; background: rgba(20, 0, 0, 0.85); box-shadow: 0 0 12px rgba(255, 30, 20, 0.6); letter-spacing: 0.08em; }
+.toast.oni { border-left-color: #ff2a1a; background: rgba(18, 4, 4, 0.96); }
+.toast.oni b.oni { color: #ff4a3a; }
 
 </style>
 </head>
@@ -651,9 +670,11 @@ body.touch-on .controls-help { font-size: 13px; }
 <section class="screen" id="scr-main">
   <div class="main-left">
     <div class="brand"><div class="logo">DRIFT<span>CLUB</span></div><p>Slide sideways. Chill out. Or crush your friends.</p></div>
+    <div class="lvl-badge main-lvl"></div>
     <nav class="main-nav">
       <button class="nav-btn primary" data-go="play"><b>Play</b><small>Solo drive on any map</small></button>
       <button class="nav-btn" data-go="garage"><b>Garage</b><small>Pick &amp; customise your car</small></button>
+      <button class="nav-btn public-btn" id="btn-public" type="button"><b>Public Room</b><small>Jump in and drive with everyone online</small></button>
       <button class="nav-btn" data-go="mp"><b>Multiplayer</b><small>Create or join a room</small></button>
       <button class="nav-btn" data-go="records"><b>Records</b><small>Personal bests &amp; online leaderboards</small></button>
       <button class="nav-btn" data-go="settings"><b>Settings</b><small>Graphics, audio, controls</small></button>
@@ -788,7 +809,7 @@ body.touch-on .controls-help { font-size: 13px; }
 
 <!-- ======================= HUD ======================= -->
 <div id="hud" class="hidden">
-  <div class="hud-tl"><div id="hud-mode"></div><div id="hud-name"></div></div>
+  <div class="hud-tl"><div id="hud-mode"></div><div id="hud-name"></div><div class="lvl-badge hud-lvl"></div></div>
   <div id="hud-timer" class="hidden"></div>
   <div id="hud-drift"><div class="d-row"><span id="drift-score"></span><span id="drift-mult"></span></div><div class="grace"><i id="drift-grace"></i></div><div id="drift-angle"></div></div>
   <div id="pops"></div>
@@ -1680,7 +1701,7 @@ class Net {
       try { ws = new WebSocket(this.url(custom)); } catch (e) { reject(e); return; }
       const fail = (msg) => { if (!settled) { settled = true; clearTimeout(timer); reject(new Error(msg)); } };
       const timer = setTimeout(() => { if (!settled) { ws.onclose = null; try { ws.close(); } catch { /* */ } fail('timeout'); } }, 8000);
-      ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', name, car, token: this.token, inGame: this.inGame() }));
+      ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', name, car, token: this.token, inGame: this.inGame(), level: this.level ? this.level() : 1 }));
       ws.onmessage = (e) => {
         let m; try { m = JSON.parse(e.data); } catch { return; }
         if (m.t === 'welcome') {
@@ -2106,7 +2127,7 @@ const CITY_LOOP = [[-180, -360], [270, -360], [270, 180], [90, 180], [90, 360], 
 const RACE = {
   track: { name: 'Apex Circuit', road: 0, start: 30, width: 16, margin: 14 },
   desert: { name: 'Dune Valley Highway', road: 0, start: 70, width: 14, margin: 16 },
-  mountain: { name: 'Kurogane Pass Loop', legs: [[1, [0, -1350], [0, 50], 1], [3, [65, 85], [1320, 0], -1], [0, [1320, 0], [0, -1350], -1]], start: 20, width: 10, margin: 12 },
+  mountain: { name: 'Kurogane Pass Loop', legs: [[1, [0, -1350], [0, 50], 1], [2, [0, 50], [0, 1320], 1], [0, [0, 1320], [0, -1350], 1]], start: 20, width: 10, margin: 12 },
   forest: { name: 'Pinewood Loop', road: 0, start: 40, width: 12, margin: 12 },
   drift: { name: 'Ironbay Figure-Eight', road: 0, start: 40, width: 18, margin: 12 },
   city: { name: 'Downtown Street Circuit', pts: streetLoop(CITY_LOOP, 12), linear: true, start: 0, width: 16, margin: 6 },
@@ -2731,6 +2752,8 @@ const CATEGORIES = [
   // hidden until unlocked with the secret code (see secret.js); its cars are still valid ids online
   { id: 'creator', name: 'Creator', secret: 'creator' },
   { id: 'squad', name: 'Squad', secret: 'squad' },
+  // always shown: each car in it has its own unlock (level, beating the boss bot, or a code). Locked ones show a hint.
+  { id: 'secret', name: 'Secret', perCar: true },
 ];
 
 // accel m/s², top m/s, grip = lateral grip rate, lat = max cornering accel (m/s²), steer = max wheel angle (rad),
@@ -2772,9 +2795,16 @@ const CARS = [
   { id: 'creatorR', name: 'Nocturne Aurum R', cat: 'creator', style: 'wedge', paint: '#151618', wheel: '#c8ccd2', livery: 2, liveryColor: '#d9dbe0', satin: true, accel: 12.2, top: 92, grip: 14.6, lat: 15.3, steer: 0.64, wb: 2.7, driftGrip: 1.95, driftPower: 1.15, driftSteer: 2.0, momentum: 0.5, powerOver: 0.15, mass: 1.05, noSpin: true, engine: { pitch: 1.6, cyl: 12, grit: 0.4 } },
   // --- secret: the Squad car (its own code). Very fast, huge grip, sharp steering, stability control - but
   // a step below the creator race car in every number
+  // --- secret cars, one unlock each (see SECRET_HINTS). All a step below the creator race car.
+  { id: 'kitsuneS', name: 'Kitsune S', cat: 'secret', secret: 'kitsune', style: 'coupe', paint: '#e8742a', wheel: '#f2f2f2', livery: 1, liveryColor: '#f4f1ea', accel: 9.4, top: 70, grip: 12, lat: 12.8, steer: 0.7, wb: 2.45, driftGrip: 1.25, driftPower: 1.4, driftSteer: 2.6, momentum: 0.6, powerOver: 0.45, mass: 0.95, engine: { pitch: 1.4, cyl: 4, grit: 0.55 } },
+  { id: 'mango', name: 'Mango Midnight', cat: 'secret', secret: 'mango', style: 'coupe', paint: '#1b1a3a', wheel: '#ffb21e', livery: 2, liveryColor: '#ff9f1a', accel: 10.2, top: 78, grip: 12.6, lat: 13.4, steer: 0.66, wb: 2.55, driftGrip: 1.3, driftPower: 1.5, driftSteer: 2.55, momentum: 0.6, powerOver: 0.45, mass: 1.0, engine: { pitch: 1.3, cyl: 6, grit: 0.5 } },
+  { id: 'raijin', name: 'Raijin GT-R', cat: 'secret', secret: 'raijin', style: 'wedge', paint: '#f2d21b', wheel: '#232323', livery: 1, liveryColor: '#151515', accel: 11.0, top: 84, grip: 13.5, lat: 14.3, steer: 0.6, wb: 2.65, driftGrip: 1.7, driftPower: 1.2, driftSteer: 2.2, momentum: 0.52, powerOver: 0.2, mass: 1.15, engine: { pitch: 1.45, cyl: 6, grit: 0.6 } },
+  { id: 'oni', name: 'Oni Kuro', cat: 'secret', secret: 'oni', style: 'coupe', paint: '#0c0c0e', wheel: '#b01010', livery: 2, liveryColor: '#c8140f', satin: true, accel: 11.2, top: 85, grip: 13.4, lat: 14.2, steer: 0.66, wb: 2.6, driftGrip: 1.2, driftPower: 1.5, driftSteer: 2.6, momentum: 0.62, powerOver: 0.5, mass: 1.05, engine: { pitch: 1.25, cyl: 6, grit: 0.7 } },
   { id: 'vanta', name: 'Vanta GT', cat: 'squad', style: 'wedge', paint: '#1f3f7a', wheel: '#2b2d31', livery: 1, liveryColor: '#e8eaee', accel: 11.4, top: 86, grip: 14.0, lat: 14.8, steer: 0.62, wb: 2.7, driftGrip: 1.95, driftPower: 1.1, driftSteer: 2.0, momentum: 0.5, powerOver: 0.12, mass: 1.1, noSpin: true, engine: { pitch: 1.5, cyl: 8, grit: 0.35 } },
 ];
 const carById = (id) => CARS.find((c) => c.id === id) || CARS[0];
+// how each secret car is unlocked (shown on the locked car in the garage)
+const SECRET_HINTS = { kitsuneS: 'Reach level 10', raijin: 'Reach level 25', oni: 'Beat Midnight Oni in a Speed Race', mango: 'Secret code' };
 
 // 0-10 stats for the garage
 function carStats(c) {
@@ -3028,6 +3058,26 @@ const LOOKS = {
     shape: { L: 4.75, W: 2.08, H: 0.48, ride: 0.09, nose: 0.32, cowl: 1.3, deck: 0.05, rearTop: 0.86, cab: [1.4, 1.3, 2.1, 1.8], ch: 0.42, cw: 0.72, crown: 0.04, taperF: 0.24, taperR: 0.08 },
     head: 'bar', grille: 'intake', tail: 'bar', hood: 'vents', arches: 'over', aero: 'swan', exhaust: 'center2', mirror: 'sport',
     extras: ['splitter', 'canards', 'diffuser', 'sideIntake', 'goldAccent'], accent: [0.82, 0.84, 0.88],
+  },
+  kitsuneS: { // Kitsune S: small, light fastback drift coupe with pop-up lights and a ducktail
+    shape: { L: 4.2, W: 1.76, H: 0.53, ride: 0.13, nose: 0.5, cowl: 1.5, cab: [0.9, 1.4, 2.15, 1.35], ch: 0.48, taperF: 0.12, taperR: 0.08 },
+    head: 'popup', grille: 'slot', tail: 'round', hood: 'vents', arches: 'flare', aero: 'ducktail', exhaust: 'single', mirror: 'sport',
+    extras: ['splitter', 'skirts'],
+  },
+  mango: { // Mango Midnight: midnight-blue widebody coupe, mango-orange stripes and wheels, big wing
+    shape: { L: 4.45, W: 1.94, H: 0.52, ride: 0.11, nose: 0.48, cowl: 1.5, cab: [0.95, 1.45, 2.2, 1.45], ch: 0.47, cw: 0.8, taperF: 0.15, taperR: 0.07 },
+    head: 'swept', grille: 'intake', tail: 'C', hood: 'scoop', arches: 'over', aero: 'wing', exhaust: 'quad', mirror: 'sport',
+    extras: ['splitter', 'canards', 'diffuser', 'goldAccent'], accent: [1, 0.62, 0.1],
+  },
+  raijin: { // Raijin GT-R: wide, square-shouldered grip monster, round quad tails, roof fin
+    shape: { L: 4.6, W: 2.0, H: 0.54, ride: 0.12, nose: 0.42, cowl: 1.35, cab: [1.1, 1.35, 2.1, 1.6], ch: 0.46, cw: 0.78, taperF: 0.16, taperR: 0.03 },
+    head: 'slim', grille: 'big', tail: 'quad', hood: 'power', arches: 'box', aero: 'wing', exhaust: 'dual', mirror: 'sport',
+    extras: ['splitter', 'diffuser', 'sideVent'],
+  },
+  oni: { // Oni Kuro: the boss bot's car. Satin black widebody coupe, blood-red accents, swan wing
+    shape: { L: 4.5, W: 2.02, H: 0.5, ride: 0.1, nose: 0.42, cowl: 1.45, cab: [1.0, 1.4, 2.15, 1.5], ch: 0.45, cw: 0.78, crown: 0.03, taperF: 0.18, taperR: 0.06 },
+    head: 'bar', grille: 'intake', tail: 'bar', hood: 'vents', arches: 'over', aero: 'swan', exhaust: 'center2', mirror: 'sport',
+    extras: ['splitter', 'canards', 'diffuser', 'sideIntake', 'goldAccent'], accent: [0.85, 0.06, 0.05],
   },
   vanta: { // Vanta GT: clean GT wedge with a swan wing and white accents
     head: 'bar', grille: 'intake', tail: 'bar', hood: 'vents', arches: 'over', aero: 'swan', exhaust: 'center2', mirror: 'sport',
@@ -3663,7 +3713,7 @@ function carDrawItems(model, st, out) {
   });
 }
 
-return { CATEGORIES, CARS, carById, carStats, RIMS, SPOILERS, STRIPES, PAINTS, WHEEL_COLORS, GLOWS, normalColor, normalGlow, normalizeColors, VISUAL, fitsPart, defaultConfig, LOOKS, carDims, buildCarModel, clearCarCache, carDrawItems };
+return { CATEGORIES, CARS, carById, SECRET_HINTS, carStats, RIMS, SPOILERS, STRIPES, PAINTS, WHEEL_COLORS, GLOWS, normalColor, normalGlow, normalizeColors, VISUAL, fitsPart, defaultConfig, LOOKS, carDims, buildCarModel, clearCarCache, carDrawItems };
 })();
 
 // ===== js/tuning.js =====
@@ -4601,6 +4651,20 @@ class Hash {
 }
 const EMPTY = [];
 
+// ---------------------------------------------------------------- MAP GATES
+// Every map links to the next and the previous one in this loop. Drive through the glowing gate on
+// the road to drive on into the next map (free-drive modes and the public room).
+const MAP_LOOP = ['track', 'desert', 'mountain', 'forest', 'city', 'drift'];
+// where each map's two gates stand: road index, position along it (0..1), and which way is "out"
+const GATE_SPOTS = {
+  track: [{ road: 0, f: 0.3, dir: 1 }, { road: 0, f: 0.62, dir: -1 }],
+  desert: [{ road: 1, f: 0.62, dir: 1 }, { road: 1, f: 0.3, dir: -1 }],
+  mountain: [{ road: 0, f: 0.3, dir: 1 }, { road: 0, f: 0.72, dir: -1 }],
+  forest: [{ road: 0, f: 0.3, dir: 1 }, { road: 0, f: 0.65, dir: -1 }],
+  city: [{ road: 0, f: 0.3, dir: 1 }, { road: 0, f: 0.65, dir: -1 }],
+  drift: [{ road: 0, f: 0.3, dir: 1 }, { road: 0, f: 0.65, dir: -1 }],
+};
+
 // ================================================================ WORLD
 class World {
   constructor(renderer, id, quality = 'medium') {
@@ -4628,6 +4692,7 @@ class World {
     this.spawns = spec.spawns ? spec.spawns(this) : this.roadSpawns(0, 0);
     this.challenges = (spec.challenges || []).map((c) => ({ ...c, y: this.heightAt(c.x, c.z) }));
     this.challenges.forEach((c) => this.challengeMarker(c));
+    this.buildGates();
     // finalise
     this.statics = this.batch.build(renderer).map((s) => ({ ...s, maxDist: this.env.fogFar + 60 }));
     this.fx.push(this.makeStaticFx(this.shadowV, false), this.makeStaticFx(this.glowV, true));
@@ -5029,6 +5094,45 @@ class World {
     const b = new FxBuffer(this.renderer, vcount, additive);
     b.data.set(arr); b.count = vcount; b.markDirty(0, vcount);
     return b;
+  }
+  buildGates() {
+    this.gates = [];
+    const k = MAP_LOOP.indexOf(this.id), spots = GATE_SPOTS[this.id];
+    if (k < 0 || !spots) return;
+    const dests = [MAP_LOOP[(k + 1) % MAP_LOOP.length], MAP_LOOP[(k - 1 + MAP_LOOP.length) % MAP_LOOP.length]];
+    spots.forEach((sp, gi) => {
+      const rd = this.roads[sp.road]; if (!rd) return;
+      const i = Math.round(sp.f * (rd.n - 1)), d = sp.dir;
+      const x = rd.x[i], z = rd.z[i], y = rd.h[i], ex = rd.tx[i] * d, ez = rd.tz[i] * d; // exit direction
+      const half = rd.half + 1.6, yaw = Math.atan2(ex, ez);
+      const to = dests[gi], info = MAP_LIST.find((m) => m.id === to);
+      const ac = info ? col(info.accent) : [1, 0.8, 0.3];
+      const back = rd.closed ? ((i - d * 9) % rd.n + rd.n) % rd.n : Math.min(rd.n - 1, Math.max(0, i - d * 9));
+      const spawn = { x: rd.x[back], z: rd.z[back], h: Math.atan2(-ex, -ez) };
+      this.gates.push({ x, z, y, ex, ez, half, to, name: info ? info.name : to, spawn });
+      // two pillars + crossbeam, and a glowing curtain in the destination map's colour
+      const nx = ez, nz = -ex; // sideways
+      const g = this.batch.geo(x, z);
+      for (const s of [-1, 1]) {
+        const px = x + nx * half * s, pz = z + nz * half * s, py = this.heightAt(px, pz);
+        g.at(px, py, pz, yaw).box(0, 3.6, 0, 0.9, 7.2 + (y - py), 0.9, { top: [0.2, 0.2, 0.22], side: [0.16, 0.16, 0.18] }).reset();
+        this.addCircle(px, pz, 0.6);
+      }
+      g.at(x, y, z, yaw).box(0, 7.4, 0, half * 2 + 0.9, 0.9, 0.9, { top: [0.2, 0.2, 0.22], side: [0.16, 0.16, 0.18], front: [...ac.map((v) => v * 0.9)], back: [...ac.map((v) => v * 0.9)] }).reset();
+      const col4 = [ac[0], ac[1], ac[2], 0.35];
+      const P = (s, yy) => [x + nx * half * s, y + yy, z + nz * half * s];
+      const quad = (A, B, C2, D) => { for (const p of [A, B, C2, A, C2, D]) this.glowV.push(p[0], p[1], p[2], ...col4, 0, 0); };
+      quad(P(-1, 0.2), P(-1, 6.9), P(1, 6.9), P(1, 0.2));
+      // bright light bands: along the crossbeam (both faces) and up the inside of each pillar
+      const band = [ac[0], ac[1], ac[2], 0.95], bx = ex * 0.47, bz = ez * 0.47;
+      const bandQ = (A, B, C2, D) => { for (const p of [A, B, C2, A, C2, D]) this.glowV.push(p[0], p[1], p[2], ...band, 0, 0); };
+      for (const f of [-1, 1]) {
+        const o = (q) => [q[0] + bx * f, q[1], q[2] + bz * f];
+        bandQ(o(P(-1.05, 7.1)), o(P(-1.05, 7.7)), o(P(1.05, 7.7)), o(P(1.05, 7.1)));
+        for (const sd of [-1, 1]) { const w = sd * (half - 0.5) / half, w2 = sd * (half - 0.8) / half; bandQ(o(P(w, 0.3)), o(P(w, 6.9)), o(P(w2, 6.9)), o(P(w2, 0.3))); }
+      }
+      this.disc(this.glowV, x, y + 0.1, z, half * 1.2, [ac[0] * 0.5, ac[1] * 0.5, ac[2] * 0.5, 1], 20);
+    });
   }
   challengeMarker(c) {
     const y = c.y + 0.1, seg = 40;
@@ -5781,7 +5885,7 @@ const SPECS = {
 
 function norm(v) { const l = Math.hypot(...v); return v.map((x) => x / l); }
 
-return { MAP_LIST, SURFACES, World };
+return { MAP_LIST, SURFACES, MAP_LOOP, World };
 })();
 
 // ===== js/scoring.js =====
@@ -6117,7 +6221,7 @@ function driftRaceRank(rows, laps) {
 // CPU drivers race on grip, so their drift points are ESTIMATED from how hard they corner: the same judge
 // is fed a virtual slip angle that grows with lateral acceleration (skill sets how bold they are).
 // The estimate is then scaled by skill (AI_DRIFT) so CPUs are beatable but never score zero.
-const AI_DRIFT = { easy: 0.25, medium: 0.4, hard: 0.55 };
+const AI_DRIFT = { easy: 0.3, medium: 0.47, hard: 0.62, legend: 0.75 };
 const AI_JUDGE = { ...DRIFT_RACE.judge, pace: false, noDecelCrash: true };
 function aiDriftSample(s, prevVelYaw, dt) {
   const speed = Math.hypot(s.vx, s.vz); if (speed < 1.2) return { s, velYaw: prevVelYaw };
@@ -6260,11 +6364,19 @@ __mod["js/ai.js"] = (function () {
 // the curvature ahead (corner speed + braking distance), simple lane changes to overtake, and
 // a reset if stuck (resets never count as checkpoints).
 const { clamp, wrapAngle } = __mod["js/tracks.js"];
+// assist: CPU cars on Hard/Legend get a small engine + tyre advantage (like a pro driver's setup)
 const AI_SKILL = {
-  easy: { name: 'Easy', pace: 0.78, grip: 0.85, brake: 7, noise: 0.08, boost: false },
-  medium: { name: 'Medium', pace: 0.9, grip: 0.95, brake: 9, noise: 0.035, boost: false },
-  hard: { name: 'Hard', pace: 1.0, grip: 1.05, brake: 11, noise: 0.0, boost: true },
+  easy: { name: 'Easy', pace: 0.84, grip: 0.9, brake: 8, noise: 0.05, boost: false, assist: 1 },
+  medium: { name: 'Medium', pace: 0.96, grip: 0.98, brake: 10, noise: 0.015, boost: true, assist: 1.02 },
+  hard: { name: 'Hard', pace: 1.0, grip: 1.02, brake: 12, noise: 0.0, boost: true, assist: 1.08 },
+  legend: { name: 'Legend', pace: 1.0, grip: 1.04, brake: 13, noise: 0.0, boost: true, assist: 1.15 },
 };
+// the car a CPU driver actually drives at this skill
+function aiDef(def, skill) {
+  const a = (AI_SKILL[skill] || AI_SKILL.medium).assist || 1;
+  if (a === 1) return def;
+  return { ...def, accel: def.accel * a, lat: def.lat * a, grip: def.grip * a, top: def.top * (1 + (a - 1) * 0.6) };
+}
 
 class AIDriver {
   constructor(vehicle, path, skill = 'medium', seed = 1) {
@@ -6320,7 +6432,8 @@ class AIDriver {
     if (blocked) { this.lane = clamp(this.lane + blocked * 4 * dt, -3.5, 3.5); this.laneT = 1.5; }
     else if ((this.laneT -= dt) < 0) this.lane *= 1 - dt * 0.8;
     // ---- pure pursuit steering
-    const la = Math.round((6 + speed * 0.42) / 3);
+    const rNow = Math.min(this.radiusAt(this.idx), this.radiusAt(this.idx + 3));
+    const la = Math.max(2, Math.round(Math.min(6 + speed * 0.42, 4 + rNow * 0.7) / 3));
     const ti = this.at(this.idx + la);
     const tx = p.x[ti] - p.tz[ti] * this.lane, tz = p.z[ti] + p.tx[ti] * this.lane;
     if (sk.noise) this.wobble += (this.rand() - 0.5) * sk.noise * 4 * dt - this.wobble * dt;
@@ -6341,7 +6454,7 @@ class AIDriver {
   }
 }
 
-return { AI_SKILL, AIDriver };
+return { AI_SKILL, aiDef, AIDriver };
 })();
 
 // ===== js/camera.js =====
@@ -6477,6 +6590,7 @@ const sha256Hex = async (text) => {
 const SECRETS = {
   creator: CREATOR_HASH,                                                     // the creator's two cars
   squad: 'f187a4ffa0f83153c17e645104b8524918ad93857b01e049f03fe96d01ab35ac',  // the Squad car
+  mango: '8851b6b5d94912264033695d1044b97e233e5a06cae45cc0140aef6034e2d399',  // Mango Midnight (secret tab)
 };
 const keyOf = (name) => (name === 'creator' ? KEY : 'driftclub.unlocked.' + name);
 const session = new Set();
@@ -6497,12 +6611,19 @@ async function tryCode(code) {
   try { localStorage.setItem(keyOf(name), '1'); } catch { /* private mode: this session only */ }
   return name;
 }
+// unlocks earned in game (levels, beating the boss bot); returns true if it was new
+function unlock(name) {
+  if (isUnlocked(name)) return false;
+  session.add(name);
+  try { localStorage.setItem(keyOf(name), '1'); } catch { /* this session only */ }
+  return true;
+}
 // older names, kept for anything still importing them
 function creatorUnlocked() { return isUnlocked('creator'); }
 const isCreatorUnlocked = () => isUnlocked('creator');
 const tryCreatorCode = async (code) => (await tryCode(code)) === 'creator';
 
-return { sha256Fallback, sha256Hex, isUnlocked, allUnlocked, tryCode, creatorUnlocked, isCreatorUnlocked, tryCreatorCode };
+return { sha256Fallback, sha256Hex, isUnlocked, allUnlocked, tryCode, unlock, creatorUnlocked, isCreatorUnlocked, tryCreatorCode };
 })();
 
 // ===== js/touch.js =====
@@ -6770,7 +6891,7 @@ return { isTouchDevice, TouchControls, goFullscreen, exitFullscreen };
 __mod["js/ui.js"] = (function () {
 // DOM menus: main menu, play setup, garage, multiplayer rooms, settings, pause, HUD helpers.
 const { MINIMAP_RANGES } = __mod["js/minimap.js"];
-const { CARS, CATEGORIES, carById, carStats, RIMS, SPOILERS, STRIPES, PAINTS, WHEEL_COLORS, GLOWS, defaultConfig, VISUAL, fitsPart } = __mod["js/cars.js"];
+const { CARS, CATEGORIES, SECRET_HINTS, carById, carStats, RIMS, SPOILERS, STRIPES, PAINTS, WHEEL_COLORS, GLOWS, defaultConfig, VISUAL, fitsPart } = __mod["js/cars.js"];
 const { PARTS, SLIDERS, RULES, sanitizeTune, applyTune, isStock, allowedTires, maxLevel, builtinPresets, PRESET_NAMES, PRESET_INFO, tuneSummary } = __mod["js/tuning.js"];
 const { measureStats, STAT_SCALE, statFrac } = __mod["js/carstats.js"];
 const { MAP_LIST } = __mod["js/maps.js"];
@@ -6831,6 +6952,7 @@ class UI {
       fs.onclick = async () => { this.click(); if (document.fullscreenElement) exitFullscreen(); else await goFullscreen(true); };
       document.addEventListener('fullscreenchange', () => { fs.textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen'; });
     }
+    $('#btn-public').onclick = () => { this.click(); this.joinPublic(); };
     $('#btn-start').onclick = () => { this.click(); this.app.startGame({ mapId: this.playSel.map, modeId: this.playSel.mode, mp: false }); };
     $('#settings-back').onclick = () => { this.click(); this.app.saveSettings(); if (this.app.game) { this.show('none'); this.showPause(true, this.app.game); } else this.show(this.settingsReturn === 'settings' ? 'main' : this.settingsReturn); };
   }
@@ -6879,6 +7001,7 @@ class UI {
       h += `<div class="setup-row"><label>Laps</label><input type="range" id="c-laps" min="1" max="10" step="1" value="${C.laps}"><em id="c-laps-v">${C.laps}</em></div>
         <div class="setup-row"><label>CPU opponents (solo)</label><input type="range" id="c-ai" min="0" max="7" step="1" value="${C.ai}"><em id="c-ai-v">${C.ai}</em></div>
         <div class="setup-row"><label>CPU difficulty</label>${chips(Object.entries(AI_SKILL).map(([k, v]) => [k, v.name]), C.difficulty, 'cdiff')}</div>
+        ${C.difficulty === 'hard' || C.difficulty === 'legend' ? '<p class="muted boss-note">👹 <b>Midnight Oni</b> starts on pole. Beat him in a Speed Race to win his car.</p>' : ''}
         ${mode === 'driftrace' ? `<p class="setup-note"><b>Score = (drift points × position factor + position bonus) × gap factor.</b> Position factor P1 ×1.0, P2 ×0.9, P3 ×0.8, P4 ×0.68 …; the gap factor drops 1/60 for every second you finish behind the winner (min ${DRIFT_RACE.minGap}, also for a DNF). Drift points count from GO until you cross the finish line (and stop ${DRIFT_RACE.lateWindow} s after the winner finishes); your combo banks at every lap line (max ×${DRIFT_RACE.judge.maxMult}), faster drifts pay more and slow drifting earns almost nothing. Bonus per lap: ${DRIFT_RACE.bonusPerLap.slice(0, 4).map((b, i) => `P${i + 1} +${fmt(b)}`).join(', ')}… — no bonus if you don't finish. Crashes and leaving the track cost your live combo.</p>` : ''}
         <p class="setup-note">Pass every checkpoint in order. Resets never count as checkpoints. Solo races start you at the back of the grid. CPU drivers are clearly labelled and only appear in solo races.</p>`;
     } else {
@@ -6955,7 +7078,7 @@ class UI {
     const cats = CATEGORIES.filter((c) => !c.secret || isUnlocked(c.secret)); // secret tabs appear once their code is entered
     if (!cats.some((c) => c.id === this.garageCat)) this.garageCat = cats[0].id;
     $('#cat-tabs').innerHTML = cats.map((c) => `<button class="tab ${c.id === this.garageCat ? 'sel' : ''}" data-cat="${c.id}">${c.name}</button>`).join('');
-    $('#car-list').innerHTML = CARS.filter((c) => c.cat === this.garageCat).map((c) => { const g = (S.garage || {})[c.id]; const tuned = g && !isStock(g.tune); return `<button class="car-item ${c.id === cfg.id ? 'sel' : ''}" data-car="${c.id}"><span class="swatch" style="background:${(g && g.paint) || c.paint}"></span><b>${c.name}</b><small>${tuned ? '<i class="tuned">TUNED</i> ' : ''}${Math.round(this.measuredTop(c, g && g.tune))} km/h</small></button>`; }).join('');
+    $('#car-list').innerHTML = CARS.filter((c) => c.cat === this.garageCat).map((c) => { if (c.secret && !isUnlocked(c.secret)) return `<button class="car-item locked" disabled><span class="swatch" style="background:#222"></span><b>??? 🔒</b><small>${SECRET_HINTS[c.id] || 'Locked'}</small></button>`; const g = (S.garage || {})[c.id]; const tuned = g && !isStock(g.tune); return `<button class="car-item ${c.id === cfg.id ? 'sel' : ''}" data-car="${c.id}"><span class="swatch" style="background:${(g && g.paint) || c.paint}"></span><b>${c.name}</b><small>${tuned ? '<i class="tuned">TUNED</i> ' : ''}${Math.round(this.measuredTop(c, g && g.tune))} km/h</small></button>`; }).join('');
     $('#car-name').innerHTML = `<small>${CATEGORIES.find((c) => c.id === def.cat).name}</small>${def.name}`;
     this.renderCode();
     const ds = DRIVE_STYLES[S.driveStyle] || DRIVE_STYLES.drift;
@@ -7029,8 +7152,8 @@ class UI {
       const inp = $('#code-in'), got = await tryCode(inp.value);
       if (!got) { inp.value = ''; inp.classList.remove('nope'); void inp.offsetWidth; inp.classList.add('nope'); return; }
       this.codeOpen = false; this.app.audio.chime(true);
-      const tab = CATEGORIES.find((c) => c.secret === got);
-      toast(got === 'creator' ? '<b>Creator cars unlocked</b><br><small>Find them under the new Creator tab</small>' : `<b>${tab ? tab.name : 'Secret'} car unlocked</b><br><small>Find it under the new ${tab ? tab.name : ''} tab</small>`, 3200);
+      const carU = CARS.find((c) => c.secret === got), tab = CATEGORIES.find((c) => c.secret === got || (carU && c.id === carU.cat));
+      toast(got === 'creator' ? '<b>Creator cars unlocked</b><br><small>Find them under the new Creator tab</small>' : `<b>${carU ? carU.name : (tab ? tab.name : 'Secret') + ' car'} unlocked</b><br><small>Find it under the ${tab ? tab.name : 'Secret'} tab</small>`, 3200);
       this.garageCat = tab ? tab.id : 'creator'; this.renderGarage();
     };
   }
@@ -7165,6 +7288,13 @@ class UI {
       const ok = await this.confirmRules(info); if (!ok) return;
     }
     N.send({ t: 'join', code, car: S.car });
+  }
+  // one tap: connect and drop straight into the always-on public free-roam room
+  async joinPublic() {
+    const N = this.app.net, S = this.S;
+    toast('Joining the public room…', 1500);
+    try { await N.connect(S.playerName, S.car, S.serverUrl, { patience: 30000 }); } catch { return toast('Multiplayer server unreachable', 3000, 'bad'); }
+    N.send({ t: 'join', code: 'OPEN', car: S.car, map: S.publicMap || 'track' });
   }
   confirmRules(r) {
     const tuned = !isStock(this.S.car.tune);
@@ -7395,16 +7525,18 @@ class UI {
     const el = $('#pause');
     el.classList.toggle('hidden', !on);
     if (!on) return;
-    const mp = game.mp, host = mp && this.app.net.isHost;
+    const mp = game.mp, host = mp && this.app.net.isHost, N = this.app.net;
     el.innerHTML = `<div class="pause-card"><h2>Paused</h2>${mp ? '<p class="muted">Multiplayer keeps running while this menu is open.</p>' : ''}
       <button class="btn primary" data-p="resume">Resume</button>
       ${mp ? '' : '<button class="btn" data-p="restart">Restart</button>'}
       <button class="btn" data-p="style">Driving style: <b>${game.car.styleId === 'race' ? 'Race' : 'Drift'}</b> (switch)</button>
       <button class="btn" data-p="settings">Settings</button>
+      ${game.canTravel() ? `<div class="travel-row"><small>Drive to another map (or use the glowing gates on the road):</small>${MAP_LIST.filter((m) => m.id !== game.opts.mapId).map((m) => `<button class="btn small" data-travel="${m.id}">${m.name}</button>`).join('')}</div>` : ''}
       ${host ? '<button class="btn" data-p="end">End session (everyone → lobby)</button>' : ''}
-      ${mp ? '<button class="btn" data-p="lobby">Back to room lobby</button><button class="btn danger" data-p="leave">Leave room</button>' : '<button class="btn danger" data-p="quit">Quit to main menu</button>'}
+      ${mp ? (N.room && N.room.permanent ? '<button class="btn danger" data-p="leavepub">Leave public room</button>' : '<button class="btn" data-p="lobby">Back to room lobby</button><button class="btn danger" data-p="leave">Leave room</button>') : '<button class="btn danger" data-p="quit">Quit to main menu</button>'}
       ${this.app.touch && this.app.touch.active ? `<button class="btn" data-p="fs">${document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen'}</button><div class="controls-help"><b>Touch</b> left thumb: slide to steer · right thumb: Gas, Brake/Reverse, Handbrake (tap = flick), Boost · top-left: pause, camera, reset${mp ? ', chat' : ''}. Tilt steering and button size: Settings › Controls.</div>` : ''}
       <div class="controls-help kb-help"><b>Controls</b> W/S accelerate·brake · A/D steer · Space handbrake · Shift boost · C camera · R reset · H hide HUD · M music${mp ? ' · T chat' : ''}<br><b>Tricks</b> Throttle sets the drift angle · opposite lock (+ handbrake tap in Race) = transition · hold handbrake + steer into the slide = 360 · keep sliding past 180° = reverse drift · slow + full lock + throttle = donuts</div></div>`;
+    $$('[data-travel]', el).forEach((b) => (b.onclick = () => { this.click(); el.classList.add('hidden'); game.travelTo(b.dataset.travel, false); }));
     $$('[data-p]', el).forEach((b) => (b.onclick = () => {
       this.click();
       const a = b.dataset.p, N = this.app.net;
@@ -7417,6 +7549,7 @@ class UI {
       if (a === 'end') { N.send({ t: 'end' }); }
       if (a === 'lobby') { this.app.quitToMenu('lobby'); }
       if (a === 'leave') { N.send({ t: 'leave' }); this.app.quitToMenu('mp'); }
+      if (a === 'leavepub') { N.send({ t: 'leave' }); this.app.quitToMenu('main'); }
     }));
   }
   loading(on, text) { $('#loading').classList.toggle('hidden', !on); if (text) $('#loading-text').textContent = text; }
@@ -7638,7 +7771,7 @@ const { Vehicle, PHYS_DT } = __mod["js/physics.js"];
 const { CARS, carById, buildCarModel, carDrawItems } = __mod["js/cars.js"];
 const { raceRoute, gridSlots, RaceTracker, battleCourse, RACE } = __mod["js/tracks.js"];
 const { CompDriftJudge, round2, BattleRun, battleTotals, challengeScore, CHALLENGE_VARIANTS, DRIFT_RACE, AI_DRIFT, AI_JUDGE, aiDriftSample, driftRaceRank, driftRaceBonus, posFactor } = __mod["js/judge.js"];
-const { AIDriver, AI_SKILL } = __mod["js/ai.js"];
+const { AIDriver, AI_SKILL, aiDef } = __mod["js/ai.js"];
 const { $, fmt, esc, toast } = __mod["js/ui.js"];
 const fmtTime = (t) => (t == null || !Number.isFinite(t) ? '—' : `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`);
 const COUNTDOWN = 3;
@@ -7790,6 +7923,22 @@ class ChallengeComp extends Comp {
   }
 }
 
+// ======================================================================= CPU RIVALS
+// named CPU drivers (each with their own factory paint) and the boss, Midnight Oni
+const RIVALS = [
+  { name: 'Kenji "Hairpin" Mori', paint: '#c9ccd1' }, { name: 'Lola Vance', paint: '#d4a32a' }, { name: 'Big Tex', paint: '#7c1d22' },
+  { name: 'Yuki Snow', paint: '#e8eef5' }, { name: 'Marco Turbo', paint: '#c2531d' }, { name: 'Priya Blaze', paint: '#5b2a86' },
+  { name: 'Dutch', paint: '#2f6b3a' }, { name: 'Rook', paint: '#34506e' }, { name: 'Sasha Volt', paint: '#1f9bb5' }, { name: 'Old Man Gus', paint: '#5b6647' },
+];
+const ONI_LINES = {
+  start: ['Midnight belongs to me.', 'Try to keep up. Nobody ever does.', 'You hear that engine? That is your nightmare.', 'Another challenger. How cute.'],
+  passed: ['Hmph. Enjoy it while it lasts.', 'Lucky. It won\'t happen twice.', 'Oh? So you can drive.'],
+  passes: ['Too slow.', 'See you at the finish. Eventually.', 'Was that your best?', 'Bye bye.'],
+  win: ['As expected. Come back when you are ready.', 'The night is still mine.'],
+  lose: ['...Impossible. Take the car. You earned it.', 'Well driven. The Oni bows to you.'],
+};
+const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
 // ======================================================================= SPEED RACE
 class RaceComp extends Comp {
   get kind() { return 'race'; }
@@ -7806,18 +7955,30 @@ class RaceComp extends Comp {
     g.car.place(mySlot.x, mySlot.z, mySlot.h); g.cam.snap();
     this.mySlot = mySlot;
     // CPU racers get a random mix of road cars from the whole catalogue (never trucks, never the secret car)
-    const pool = CARS.filter((c) => !['pickup', 'suv', 'creator', 'squad'].includes(c.cat)).map((c) => c.id);
+    const diff = this.cfg.difficulty || 'medium';
+    // harder CPUs pick from the faster cars
+    let pool = CARS.filter((c) => !['pickup', 'suv', 'creator', 'squad', 'secret'].includes(c.cat));
+    if (diff === 'hard' || diff === 'legend') pool = pool.filter((c) => c.top >= 60);
+    pool = pool.map((c) => c.id);
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-    const names = ['CPU Akira', 'CPU Bea', 'CPU Carlos', 'CPU Dana', 'CPU Emil', 'CPU Freya', 'CPU Goro'];
-    const paints = ['#34506e', '#d4a32a', '#5b6647', '#7c1d22', '#c9ccd1', '#c2531d', '#26292c']; // normal factory paints
+    const roster = shuffle([...RIVALS]);
+    // Hard and Legend: Midnight Oni, the boss, takes pole position
+    const boss = nAI > 0 && (diff === 'hard' || diff === 'legend');
     for (let i = 0; i < nAI; i++) {
-      const id = pool[i % pool.length], cfg = { id, paint: paints[i], wheel: '#cccccc', rim: i % 6, spoiler: i % 4, kit: i % 2, stripes: 0, lowered: 0, underglow: '' };
-      const model = buildCarModel(g.app.renderer, cfg), def = carById(id);
+      const isBoss = boss && i === 0, rv = isBoss ? null : roster[i % roster.length];
+      const id = isBoss ? 'oni' : pool[i % pool.length];
+      const cfg = isBoss ? { id, paint: '#0c0c0e', wheel: '#b01010', rim: 3, spoiler: 0, kit: 2, stripes: 0, lowered: 1, underglow: '#ff1a12', livery: 2, liveryColor: '#c8140f' }
+        : { id, paint: rv.paint, wheel: '#cccccc', rim: i % 6, spoiler: i % 4, kit: i % 2, stripes: 0, lowered: 0, underglow: '' };
+      const model = buildCarModel(g.app.renderer, cfg);
+      const def = aiDef(carById(id), isBoss ? 'hard' : diff); // the boss: Hard-level car setup, Legend driving
       const v = new Vehicle(def, g.world, model.meshes.dims, { style: 'race' });
       v.place(slots[i].x, slots[i].z, slots[i].h);
-      const tag = document.createElement('div'); tag.className = 'nametag cpu'; tag.textContent = names[i]; $('#tags').appendChild(tag);
-      this.ai.push({ name: names[i], v, model, def, drv: new AIDriver(v, this.route.path, this.cfg.difficulty || 'medium', 11 + i * 7), tr: new RaceTracker(this.route, this.laps), tag, k: 0 });
+      const name = isBoss ? 'Midnight Oni' : rv.name;
+      const tag = document.createElement('div'); tag.className = 'nametag cpu' + (isBoss ? ' boss' : ''); tag.textContent = isBoss ? '👹 MIDNIGHT ONI' : name; $('#tags').appendChild(tag);
+      this.ai.push({ name, boss: isBoss, v, model, def, drv: new AIDriver(v, this.route.path, isBoss ? 'legend' : diff, 11 + i * 7), tr: new RaceTracker(this.route, this.laps), tag, k: 0 });
     }
+    this.boss = this.ai.find((a) => a.boss) || null;
+    if (this.boss) setTimeout(() => this.taunt('start'), 900);
     this.standings = [];
     if (this.mp) { this.bindStart(); this.on('mState', (m) => { if (m.mode === this.kind) { this.standings = m.rows; this.serverMe = m.rows.find((r) => r.id === this.net.id); } }); }
     this.readyUp();
@@ -7851,8 +8012,20 @@ class RaceComp extends Comp {
     }
     if (ev.type === 'checkpoint') g.app.audio.blip(1400, 0.05, 'sine', 0.04);
   }
+  // the boss bot talks: at the start, when you pass him, when he passes you, and at the end
+  taunt(kind) {
+    const L = ONI_LINES[kind]; if (!L || !this.boss) return;
+    const now = performance.now(); if (kind !== 'start' && kind !== 'win' && kind !== 'lose' && now - (this.tauntAt || 0) < 9000) return;
+    this.tauntAt = now;
+    toast(`<b class="oni">👹 Midnight Oni:</b> “${L[Math.floor(Math.random() * L.length)]}”`, 3200, 'oni');
+  }
   update(dt, sim) {
     super.update(dt, sim);
+    if (this.boss && this.phase === 'running' && this.tracker.started) {
+      const me = this.tracker.progress(0, 0), him = this.boss.tr.progress(0, 0), ahead = me > him;
+      if (this.bossAhead === undefined) this.bossAhead = ahead;
+      else if (ahead !== this.bossAhead) { this.bossAhead = ahead; this.taunt(ahead ? 'passed' : 'passes'); }
+    }
     // solo: finish once all CPUs are done or 30 s after the player
     if (!this.mp && this.phase === 'done' && !this.resultShown) {
       this.doneT = (this.doneT || 0) + (sim ? dt : 0);
@@ -7872,7 +8045,10 @@ class RaceComp extends Comp {
     const rows = all.map((r) => ({ name: r.name, me: r.me, cpu: r.cpu, finished: r.tr.finished, time: r.tr.finishTime, best: r.tr.best, laps: r.tr.lap, prog: r.tr.progress(0, 0) }))
       .sort((a, b) => (b.finished - a.finished) || (a.finished ? a.time - b.time : b.prog - a.prog));
     const mine = rows.find((r) => r.me);
-    if (mine.finished) this.g.app.saveRecord('race', { map: this.g.opts.mapId, laps: this.laps, time: mine.time, best: mine.best, pos: rows.indexOf(mine) + 1, field: rows.length });
+    const bossRow = this.boss ? rows.find((r) => r.name === 'Midnight Oni') : null;
+    const beatBoss = !!(bossRow && mine.finished && rows.indexOf(mine) < rows.indexOf(bossRow));
+    if (this.boss) this.taunt(beatBoss ? 'lose' : 'win');
+    if (mine.finished) this.g.app.saveRecord('race', { map: this.g.opts.mapId, laps: this.laps, time: mine.time, best: mine.best, pos: rows.indexOf(mine) + 1, field: rows.length, beatBoss });
     this.showResults(this.resultsHtml(rows, true), { solo: true });
   }
   onServerResult(m) {
@@ -8299,6 +8475,12 @@ class Game {
     this.setupHud();
     if (this.mp) this.bindNet();
     if (this.mode.comp) { this.comp = createComp(this); this.comp.load(); }
+    this.gateCD = 1.5; this.gatePrev = new Map();
+    if (this.opts.arrive && !this.spectator) { // came through a gate: start at this map's gate back to where we came from
+      const g = this.world.gates.find((x) => x.to === this.opts.arrive);
+      if (g) { this.car.place(g.spawn.x, g.spawn.z, g.spawn.h); this.cam.snap(); this.teleportFlag = true; this.gateCD = 3; }
+      setTimeout(() => this.bigText(this.mapInfo ? this.mapInfo.name.toUpperCase() : '', 1600), 300);
+    }
     if (this.opts.resume && !this.spectator) { const r = this.opts.resume; this.car.place(r.x, r.z, r.h); this.cam.snap(); this.teleportFlag = true; }
     if (this.spectator) this.startSpectating();
     this.minimap = new Minimap(this);
@@ -8309,6 +8491,31 @@ class Game {
     if (this.mode.challenges) setTimeout(() => toast(`Drive into a glowing ring to start a timed drift challenge`, 4000), 1500);
     if (this.rules !== 'open' && !this.spectator) setTimeout(() => toast(`Room rules: <b>${RULES[this.rules].name}</b>. ${!isStock(S.car.tune) ? 'Your performance mods are not used in this room; ' : ''}${RULES[this.rules].desc}`, 5500), 900);
     if (this.mode.id === 'chill') setTimeout(() => toast('Chill mode — no score, no pressure. H hides the HUD, M toggles music.', 4500), 1200);
+  }
+
+  // free drive (solo) and the public room: maps are linked by gates
+  canTravel() { return !this.mode.comp && !this.spectator && (!this.mp || !!this.opts.permanent); }
+  travelTo(map, viaGate = true) {
+    if (!this.canTravel() || map === this.opts.mapId) return;
+    const S = this.app.settings;
+    if (this.mp) { this.net.send({ t: 'travel', map }); S.publicMap = map; this.app.saveSettings(); }
+    this.app.startGame({ ...this.opts, mapId: map, arrive: viaGate ? this.opts.mapId : null, resume: null });
+  }
+  checkGates(dt) {
+    if (!this.canTravel() || !this.world.gates.length) return;
+    if (this.gateCD > 0) this.gateCD -= dt;
+    if (this.gateHintT > 0) this.gateHintT -= dt;
+    const c = this.car;
+    for (const g of this.world.gates) {
+      const dx = c.x - g.x, dz = c.z - g.z;
+      const s = dx * g.ex + dz * g.ez, lat = Math.abs(dx * g.ez - dz * g.ex);
+      const prev = this.gatePrev.get(g);
+      this.gatePrev.set(g, s);
+      if (Math.hypot(dx, dz) < 70 && (this.gateHintT || 0) <= 0 && s < 0 && Math.sin(c.h) * g.ex + Math.cos(c.h) * g.ez > 0.5) { this.gateHintT = 8; toast(`Gate ahead → <b>${esc(g.name)}</b><br><small>drive through it to go there</small>`, 2500); }
+      if (this.gateCD <= 0 && prev !== undefined && prev < 0 && s >= 0 && lat < g.half && Math.abs(c.y - g.y) < 5) {
+        this.gateCD = 99; setTimeout(() => this.travelTo(g.to, true), 0); return; // after this frame
+      }
+    }
   }
 
   respawn() {
@@ -8370,7 +8577,7 @@ class Game {
     return r;
   }
   applyRemoteInfo(r, info) {
-    r.name = info.name; r.away = !!info.away; r.tag.textContent = info.away ? `${info.name} (reconnecting…)` : info.name; r.tag.classList.toggle('away', r.away);
+    r.name = info.name; r.away = !!info.away; r.tag.innerHTML = `<span class="lv">Lv${info.level || 1}</span>${esc(info.name)}${info.away ? ' (reconnecting…)' : ''}`; r.tag.classList.toggle('away', r.away);
     const key = JSON.stringify(info.car);
     if (key !== r.cfgKey) {
       r.cfgKey = key; r.cfg = info.car;
@@ -8381,9 +8588,11 @@ class Game {
   }
   syncRoom(room) {
     if (!room) return;
-    const ids = new Set(room.players.map((p) => p.id));
+    // public room: only the players on this map
+    const here = room.permanent ? room.players.filter((p) => (p.map || room.map) === this.opts.mapId) : room.players;
+    const ids = new Set(here.map((p) => p.id));
     for (const id of [...this.remotes.keys()]) if (!ids.has(id)) this.removeRemote(id);
-    for (const p of room.players) { if (p.id === this.net.id) continue; const r = this.remotes.get(p.id) || this.addRemote(p.id); this.applyRemoteInfo(r, p); }
+    for (const p of here) { if (p.id === this.net.id) continue; const r = this.remotes.get(p.id) || this.addRemote(p.id); this.applyRemoteInfo(r, p); }
     this.roomPlayers = room.players;
   }
   removeRemote(id) {
@@ -8552,6 +8761,7 @@ class Game {
       const el = document.createElement('div'); el.className = 'pop ' + (cls || ''); el.innerHTML = html;
       $('#pops').appendChild(el); setTimeout(() => el.remove(), 1800);
     };
+    if (type === 'banked' && !this.spectator) this.app.addXP(d.value / 50, 'Drift XP');
     if (type === 'banked') { pop(`+${fmt(d.value)}<small>${d.label}${d.best ? ' · NEW BEST' : ''}</small>`, d.value > 15000 ? 'big' : ''); if (d.value > 6000) this.app.audio.blip(1200, 0.1, 'sine', 0.08); }
     if (type === 'crash') { pop(`CRASHED<small>−${fmt(d.lost)} chain lost</small>`, 'bad'); }
     if (type === 'offtrack') pop(`OFF TRACK<small>−${fmt(d.lost)} chain lost</small>`, 'bad');
@@ -8572,6 +8782,10 @@ class Game {
     input.pollPad(); // controller buttons work even while paused / chatting
     for (const a of input.pressed()) this.action(a);
     const simPaused = this.paused && !this.mp;
+    if (!simPaused && !this.spectator) { // distance XP: 5 XP every 500 m driven
+      this.distAcc = (this.distAcc || 0) + this.car.speed * Math.min(dt, 0.1);
+      if (this.distAcc > 500) { this.distAcc -= 500; this.app.addXP(5); }
+    }
     if (!simPaused) {
       this.accum += Math.min(dt, 0.1);
       let steps = 0, maxImpact = 0;
@@ -8604,6 +8818,7 @@ class Game {
       }
       if (this.mode.challenges) this.updateChallenges(dt);
       this.updateRound(dt);
+      this.checkGates(dt);
     }
     if (this.comp) this.comp.update(dt, !simPaused);
     if (this.mp) {
@@ -8890,6 +9105,30 @@ function saveSettings(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); }
 return { isMobileDevice, DEFAULTS, loadSettings, saveSettings };
 })();
 
+// ===== js/level.js =====
+__mod["js/level.js"] = (function () {
+// Player level: XP from drifting, distance driven and finishing races/battles/challenges.
+// Each level needs a bit more XP than the last. Some levels unlock secret cars.
+const xpNeed = (L) => 400 + 200 * (L - 1);
+const MAX_LEVEL = 999;
+function levelInfo(xp) {
+  let L = 1, x = Math.max(0, Math.floor(xp || 0));
+  while (L < MAX_LEVEL && x >= xpNeed(L)) { x -= xpNeed(L); L++; }
+  return { level: L, into: x, need: xpNeed(L) };
+}
+const LEVEL_REWARDS = { 10: 'kitsune', 25: 'raijin' }; // level -> secret car unlock name
+// XP for a finished competition (from App.saveRecord)
+function xpForRecord(type, d) {
+  if (type === 'race') return d.time ? 150 + Math.max(0, (d.field || 1) - (d.pos || 1)) * 60 + (d.pos === 1 && d.field > 1 ? 250 : 0) : 40;
+  if (type === 'driftrace') return (d.finished ? 150 : 40) + Math.max(0, (d.field || 1) - (d.pos || 1)) * 60 + (d.pos === 1 && d.field > 1 ? 250 : 0);
+  if (type === 'battle') return d.solo ? 120 + Math.min(300, (d.total || 0) * 3) : d.won ? 450 : d.draw ? 250 : 150;
+  if (type === 'challenge') return 100 + Math.min(600, Math.round((d.total || d.bestChain || 0) / 100));
+  return 0;
+}
+
+return { xpNeed, MAX_LEVEL, levelInfo, LEVEL_REWARDS, xpForRecord };
+})();
+
 // ===== js/main.js =====
 __mod["js/main.js"] = (function () {
 // App bootstrap: renderer, menus, main loop, multiplayer event routing.
@@ -8904,6 +9143,9 @@ const { loadSettings, saveSettings } = __mod["js/settings.js"];
 const { MAP_LIST } = __mod["js/maps.js"];
 const { MODES } = __mod["js/scoring.js"];
 const { TouchControls, goFullscreen } = __mod["js/touch.js"];
+const { levelInfo, LEVEL_REWARDS, xpForRecord } = __mod["js/level.js"];
+const { unlock } = __mod["js/secret.js"];
+const { CARS } = __mod["js/cars.js"];
 class App {
   constructor() {
     this.settings = loadSettings();
@@ -8917,7 +9159,7 @@ class App {
     this.audio = new AudioEngine();
     this.audio.setVolumes({ master: this.settings.master, sfx: this.settings.sfx, music: this.settings.music });
     this.input = new Input(this.settings);
-    this.net = new Net();
+    this.net = new Net(); this.net.level = () => this.level;
     this.ui = new UI(this);
     this.touch = new TouchControls(this);
     this.showroom = new Showroom(this);
@@ -8930,11 +9172,37 @@ class App {
     // after a refresh / crash, quietly resume an unfinished multiplayer session (same room & game)
     if (this.net.token) this.net.connect(this.settings.playerName, this.settings.car, this.settings.serverUrl, { patience: 8000 }).catch(() => {});
     $('#fps').classList.toggle('hidden', !this.settings.showFps);
+    this.renderLevel();
     this.last = performance.now();
     requestAnimationFrame((t) => this.loop(t));
     window.__app = this; // handy for debugging & automated tests
   }
   saveSettings() { saveSettings(this.settings); }
+  get level() { return levelInfo(this.settings.xp || 0).level; }
+  // XP: drifting, distance, finished competitions. Level ups unlock secret cars at some levels.
+  addXP(n, why) {
+    n = Math.round(n); if (!(n > 0)) return;
+    const S = this.settings, before = levelInfo(S.xp || 0).level;
+    S.xp = (S.xp || 0) + n;
+    const after = levelInfo(S.xp).level;
+    if (after > before) {
+      this.audio.chime(true);
+      if (this.game) this.game.bigText(`LEVEL ${after}!`, 1800);
+      toast(`<b>Level up! You are level ${after}</b>${why ? `<br><small>${esc(why)}</small>` : ''}`, 3500, 'good');
+      for (let L = before + 1; L <= after; L++) {
+        const r = LEVEL_REWARDS[L];
+        if (r && unlock(r)) setTimeout(() => toast(`<b>Secret car unlocked: ${esc((CARS.find((c) => c.secret === r) || { name: r }).name)}</b><br><small>Garage › Secret tab</small>`, 5000, 'good'), 1200);
+      }
+      this.net.send({ t: 'level', level: after, up: true });
+    }
+    this._xpSave = (this._xpSave || 0) + n;
+    if (this._xpSave > 200 || after > before) { this._xpSave = 0; this.saveSettings(); }
+    this.renderLevel();
+  }
+  renderLevel() {
+    const li = levelInfo(this.settings.xp || 0), pct = Math.round((li.into / li.need) * 100);
+    for (const el of document.querySelectorAll('.lvl-badge')) el.innerHTML = `<b>LV ${li.level}</b><i><s style="width:${pct}%"></s></i><small>${li.into} / ${li.need} XP</small>`;
+  }
   // personal records — only called once per COMPLETED competition
   saveRecord(type, d) {
     const R = this.settings.records = this.settings.records || {};
@@ -8946,6 +9214,7 @@ class App {
     } else if (type === 'race') {
       const r = ((R.race = R.race || {})[d.map] = R.race[d.map] || { total: {} });
       if (d.time && (!r.total[d.laps] || d.time < r.total[d.laps])) r.total[d.laps] = d.time;
+      if (d.beatBoss && unlock('oni')) setTimeout(() => toast('<b>You beat Midnight Oni!</b><br><small>Secret car unlocked: Oni Kuro (Garage › Secret)</small>', 6000, 'good'), 800);
       if (d.best && (!r.lap || d.best < r.lap)) r.lap = d.best;
       r.races = (r.races || 0) + 1; if (d.pos === 1 && d.field > 1) r.wins = (r.wins || 0) + 1;
     } else if (type === 'driftrace') {
@@ -8959,6 +9228,7 @@ class App {
       else { if (d.draw) b.draws = (b.draws || 0) + 1; else if (d.won) b.wins = (b.wins || 0) + 1; else b.losses = (b.losses || 0) + 1; b.points = Math.round(((b.points || 0) + d.total) * 10) / 10; }
     }
     this.saveSettings();
+    this.addXP(xpForRecord(type, d), type === 'race' ? 'Speed Race finished' : type === 'driftrace' ? 'Drift Race finished' : type === 'battle' ? 'Drift Battle finished' : 'Challenge finished');
   }
   saveBest(map, mode, score) {
     const k = `${map}:${mode}`;
@@ -9018,7 +9288,7 @@ class App {
   bindNet() {
     const N = this.net;
     N.on('rooms', (m) => this.ui.renderRooms(m.rooms));
-    N.on('joined', () => { if (!this.game) this.ui.show('lobby'); });
+    N.on('joined', (m) => { if (!this.game && !(m.room && m.room.permanent)) this.ui.show('lobby'); }); // the public room drops you straight into the game
     N.on('room', () => { if (this.ui.current === 'lobby') this.ui.renderLobby(); });
     N.on('left', () => { this.settings.lastRoom = ''; this.saveSettings(); if (!this.game) this.ui.show('mp'); });
     N.on('error', (m) => {
@@ -9030,7 +9300,7 @@ class App {
       // never guess a mode: an unknown one used to silently fall back to Endless
       if (!MODES.find((x) => x.id === m.mode)) { toast(`This room uses a game mode your page doesn't know (${esc(m.mode)}). Refresh the page.`, 6000, 'bad'); return; }
       if (this.game && this.game.mp) this.endGame();
-      this.startGame({ mp: true, mapId: m.map, modeId: m.mode, spawn: m.spawn, rounds: m.rounds, roundTime: m.roundTime, comp: m.comp, spectator: m.spectator, grid: m.grid, resume: m.resume, rules: m.rules || 'open' });
+      this.startGame({ mp: true, mapId: m.map, modeId: m.mode, spawn: m.spawn, rounds: m.rounds, roundTime: m.roundTime, comp: m.comp, spectator: m.spectator, grid: m.grid, resume: m.resume, rules: m.rules || 'open', permanent: !!m.permanent });
     });
     N.on('gameEnd', () => {
       if (this.game && this.game.mp) { this.endGame(); this.audio.playMusic('menu'); this.ui.show('lobby'); toast('Back in the room lobby', 2000); }

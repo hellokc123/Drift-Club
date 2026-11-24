@@ -25,6 +25,8 @@ const FLOOD_LIMIT = 60; // messages per half second per connection (the game sen
 const RESULTS_AUTO_LOBBY_MS = Number(process.env.RESULTS_AUTO_LOBBY_MS) || 120000; // a finished match goes back to the lobby by itself after this
 const RACE_REST_MS = Number(process.env.RACE_REST_MS) || 60000; // after the first finisher, the others get this long
 const BOOT_ID = crypto.randomBytes(4).toString('hex'); // changes on every server restart
+const PUBLIC_CODE = 'OPEN'; // the always-on public free-roam room everyone can join
+const FREE_MAPS = MAPS; // maps players can travel between in the public room
 const MODE_NAMES = { endless: 'Endless', standard: 'Standard', chill: 'Chill', competitive: 'Competitive', challenge: 'Drift Challenge', race: 'Speed Race', driftrace: 'Drift Race', battle: 'Drift Battle' };
 // per-message-type limits: [messages per second, burst]
 const RATE = { chat: [2, 3], create: [1, 2], join: [2, 3], peek: [2, 3], list: [2, 3], records: [1, 2], settings: [5, 8], start: [1, 2], rematch: [1, 2] };
@@ -206,6 +208,15 @@ function clientIp(req) {
 const rooms = new Map();   // code -> room
 const clients = new Map(); // id -> client
 const sessions = new Map(); // resume token -> client
+function makePublicRoom() {
+  const r = {
+    code: PUBLIC_CODE, name: 'Public Free Roam', isPublic: true, permanent: true, map: 'track', mode: 'endless',
+    maxPlayers: 40, rounds: 3, roundTime: 90, variant: 'timed', matchTime: 120, laps: 3, rules: 'open', hostId: null, status: 'playing', match: null,
+    players: new Set(), game: { round: 0, phase: 'free', roundStartAt: 0, roundEndAt: 0, history: [] }, timers: [], spawnSeq: 0,
+  };
+  rooms.set(r.code, r);
+}
+makePublicRoom();
 let nextId = 1;
 
 const clampInt = (v, a, b, d) => { v = Math.round(Number(v)); return Number.isFinite(v) ? Math.min(b, Math.max(a, v)) : d; };
@@ -251,18 +262,18 @@ function speedCap(car, rules) {
 
 function roomInfo(r) {
   return {
-    code: r.code, name: r.name, isPublic: r.isPublic, map: r.map, mode: r.mode,
+    code: r.code, name: r.name, isPublic: r.isPublic, map: r.map, mode: r.mode, permanent: !!r.permanent,
     maxPlayers: r.maxPlayers, rounds: r.rounds, roundTime: r.roundTime, hostId: r.hostId,
     status: r.status, variant: r.variant, matchTime: r.matchTime, laps: r.laps, rules: r.rules,
     match: r.match ? { mode: r.match.mode, phase: r.match.phase, competitors: r.match.competitors } : null,
     players: [...r.players].filter((id) => clients.has(id)).map((id) => {
       const c = clients.get(id);
-      return { id, name: c.name, car: c.car, wins: c.wins || 0, away: !!c.suspended };
+      return { id, name: c.name, car: c.car, wins: c.wins || 0, away: !!c.suspended, map: c.map || r.map, level: c.level || 1 };
     }),
   };
 }
 function listInfo(r) {
-  return { code: r.code, name: r.name, map: r.map, mode: r.mode, count: r.players.size, max: r.maxPlayers, status: r.status, rules: r.rules };
+  return { code: r.code, name: r.name, map: r.map, mode: r.mode, count: r.players.size, max: r.maxPlayers, status: r.status, rules: r.rules, permanent: !!r.permanent };
 }
 
 function send(c, msg) { if (c && !c.suspended && c.ws.open) c.ws.send(JSON.stringify(msg)); }
@@ -308,6 +319,7 @@ function joinRoom(c, r) {
   if (c.room) leaveRoom(c);
   r.players.add(c.id);
   c.room = r.code; c.state = null; c.score = { total: 0, best: 0, chain: 0 }; c.wins = 0;
+  c.map = r.permanent && FREE_MAPS.includes(c.wantMap) ? c.wantMap : r.map;
   send(c, { t: 'joined', room: roomInfo(r), you: c.id });
   broadcast(r, { t: 'room', room: roomInfo(r) }, c.id);
   broadcast(r, { t: 'chat', system: true, text: `${c.name} joined` }, c.id);
@@ -319,6 +331,7 @@ function leaveRoom(c) {
   c.room = null; c.state = null; c.suspended = false; clearTimeout(c.dropTimer);
   if (!r) return;
   r.players.delete(c.id);
+  if (r.permanent) { broadcast(r, { t: 'playerLeft', id: c.id }); broadcastRoom(r); return; } // the public room never closes and has no host
   if (r.players.size === 0) { clearTimers(r); rooms.delete(r.code); log(`room ${r.code} closed`); return; }
   if (r.match && r.match.competitors.includes(c.id)) competitorLeft(r, c.id);
   if (r.hostId === c.id) {
@@ -349,7 +362,7 @@ function sendGameStart(r, c) {
   const comp = M ? { variant: M.variant, time: M.time, laps: M.laps } : null;
   const isComp = M && M.competitors.includes(c.id);
   send(c, {
-    t: 'gameStart', map: r.map, mode: r.mode, spawn: (r.spawnSeq++) % 12, rules: r.rules,
+    t: 'gameStart', map: r.permanent ? (c.map || r.map) : r.map, mode: r.mode, spawn: (r.spawnSeq++) % 12, rules: r.rules, permanent: !!r.permanent,
     rounds: r.rounds, roundTime: r.roundTime, room: roomInfo(r),
     comp, spectator: !!M && !isComp, grid: isComp ? M.p[c.id].grid : 0,
     resume: isComp && M.phase !== 'loading' && c.state ? { x: c.state[0], z: c.state[2], h: c.state[3] } : null,
@@ -780,6 +793,7 @@ function handle(c, m) {
     case 'hello':
       c.name = cleanText(m.name, 16, `Driver${c.id}`);
       if (m.car) c.car = sanitizeCar(m.car);
+      if (m.level !== undefined) c.level = clampInt(m.level, 1, 999, 1);
       if (!c.token) { c.token = crypto.randomBytes(12).toString('hex'); sessions.set(c.token, c); }
       // hadToken: the browser asked to resume but that session no longer exists (expired or server restarted)
       send(c, { t: 'welcome', id: c.id, token: c.token, resumed: false, serverTime: Date.now(), boot: BOOT_ID, hadToken: typeof m.token === 'string' && m.token !== c.token });
@@ -789,7 +803,7 @@ function handle(c, m) {
       if (r) broadcastRoom(r);
       break;
     case 'list':
-      send(c, { t: 'rooms', rooms: [...rooms.values()].filter((x) => x.isPublic).map(listInfo) });
+      send(c, { t: 'rooms', rooms: [...rooms.values()].filter((x) => x.isPublic).sort((a, b) => (b.permanent ? 1 : 0) - (a.permanent ? 1 : 0)).map(listInfo) });
       break;
     case 'create': {
       const s = m.settings || {};
@@ -813,6 +827,7 @@ function handle(c, m) {
         return;
       }
       if (jr.players.size >= jr.maxPlayers) return send(c, { t: 'error', msg: 'That room is full' });
+      c.wantMap = typeof m.map === 'string' ? m.map : null;
       if (m.car) c.car = sanitizeCar(m.car);
       joinRoom(c, jr);
       break;
@@ -822,6 +837,7 @@ function handle(c, m) {
       send(c, { t: 'left' });
       break;
     case 'settings':
+      if (r && r.permanent) return send(c, { t: 'error', msg: 'The public room can\'t be changed — make your own room for that' });
       if (!isHost) return send(c, { t: 'error', msg: r ? 'Only the host can change settings' : 'You are not in a room any more' });
       if (r.status !== 'lobby' && m.settings && (m.settings.mode || m.settings.map)) send(c, { t: 'error', msg: 'Mode and map can be changed once the game is back in the lobby' });
       const ch = applySettings(r, m.settings || {}, false);
@@ -848,6 +864,16 @@ function handle(c, m) {
       break;
     case 'records':
       send(c, { t: 'records', records: publicRecords() });
+      break;
+    case 'travel': // public room: drive through a gate to another map
+      if (!r || !r.permanent || !FREE_MAPS.includes(m.map) || m.map === c.map) return;
+      c.map = m.map; c.state = null; c.stateNew = false;
+      broadcastRoom(r);
+      break;
+    case 'level':
+      c.level = clampInt(m.level, 1, 999, c.level || 1);
+      if (r) broadcastRoom(r);
+      if (r && m.up) broadcast(r, { t: 'chat', system: true, text: `${c.name} reached level ${c.level}!` });
       break;
     case 'end':
       if (!isHost || !r || r.status !== 'playing') return;
@@ -892,7 +918,15 @@ setInterval(() => {
       c.stateNew = false;
       ps.push([id, ...c.state, Math.min(1000, now - c.stateAt)]);
     }
-    if (ps.length) broadcast(r, { t: 'snap', ts: now, ps });
+    if (!ps.length) continue;
+    if (!r.permanent) { broadcast(r, { t: 'snap', ts: now, ps }); continue; }
+    // public room: everyone only gets the cars on the map they are on
+    const byMap = new Map();
+    for (const p of ps) { const m = clients.get(p[0]).map; if (!byMap.has(m)) byMap.set(m, []); byMap.get(m).push(p); }
+    for (const id of r.players) {
+      const c = clients.get(id); if (!c || c.suspended || !c.ws.open) continue;
+      const mine = byMap.get(c.map); if (mine) c.ws.send(JSON.stringify({ t: 'snap', ts: now, ps: mine }));
+    }
   } catch (e) { console.error(`room ${r.code} snapshot error`, e); }
 }, 1000 / SNAPSHOT_HZ);
 

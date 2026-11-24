@@ -1,6 +1,6 @@
 // DOM menus: main menu, play setup, garage, multiplayer rooms, settings, pause, HUD helpers.
 import { MINIMAP_RANGES } from './minimap.js';
-import { CARS, CATEGORIES, carById, carStats, RIMS, SPOILERS, STRIPES, PAINTS, WHEEL_COLORS, GLOWS, defaultConfig, VISUAL, fitsPart } from './cars.js';
+import { CARS, CATEGORIES, SECRET_HINTS, carById, carStats, RIMS, SPOILERS, STRIPES, PAINTS, WHEEL_COLORS, GLOWS, defaultConfig, VISUAL, fitsPart } from './cars.js';
 import { PARTS, SLIDERS, RULES, sanitizeTune, applyTune, isStock, allowedTires, maxLevel, builtinPresets, PRESET_NAMES, PRESET_INFO, tuneSummary } from './tuning.js';
 import { measureStats, STAT_SCALE, statFrac } from './carstats.js';
 import { MAP_LIST } from './maps.js';
@@ -61,6 +61,7 @@ export class UI {
       fs.onclick = async () => { this.click(); if (document.fullscreenElement) exitFullscreen(); else await goFullscreen(true); };
       document.addEventListener('fullscreenchange', () => { fs.textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen'; });
     }
+    $('#btn-public').onclick = () => { this.click(); this.joinPublic(); };
     $('#btn-start').onclick = () => { this.click(); this.app.startGame({ mapId: this.playSel.map, modeId: this.playSel.mode, mp: false }); };
     $('#settings-back').onclick = () => { this.click(); this.app.saveSettings(); if (this.app.game) { this.show('none'); this.showPause(true, this.app.game); } else this.show(this.settingsReturn === 'settings' ? 'main' : this.settingsReturn); };
   }
@@ -109,6 +110,7 @@ export class UI {
       h += `<div class="setup-row"><label>Laps</label><input type="range" id="c-laps" min="1" max="10" step="1" value="${C.laps}"><em id="c-laps-v">${C.laps}</em></div>
         <div class="setup-row"><label>CPU opponents (solo)</label><input type="range" id="c-ai" min="0" max="7" step="1" value="${C.ai}"><em id="c-ai-v">${C.ai}</em></div>
         <div class="setup-row"><label>CPU difficulty</label>${chips(Object.entries(AI_SKILL).map(([k, v]) => [k, v.name]), C.difficulty, 'cdiff')}</div>
+        ${C.difficulty === 'hard' || C.difficulty === 'legend' ? '<p class="muted boss-note">👹 <b>Midnight Oni</b> starts on pole. Beat him in a Speed Race to win his car.</p>' : ''}
         ${mode === 'driftrace' ? `<p class="setup-note"><b>Score = (drift points × position factor + position bonus) × gap factor.</b> Position factor P1 ×1.0, P2 ×0.9, P3 ×0.8, P4 ×0.68 …; the gap factor drops 1/60 for every second you finish behind the winner (min ${DRIFT_RACE.minGap}, also for a DNF). Drift points count from GO until you cross the finish line (and stop ${DRIFT_RACE.lateWindow} s after the winner finishes); your combo banks at every lap line (max ×${DRIFT_RACE.judge.maxMult}), faster drifts pay more and slow drifting earns almost nothing. Bonus per lap: ${DRIFT_RACE.bonusPerLap.slice(0, 4).map((b, i) => `P${i + 1} +${fmt(b)}`).join(', ')}… — no bonus if you don't finish. Crashes and leaving the track cost your live combo.</p>` : ''}
         <p class="setup-note">Pass every checkpoint in order. Resets never count as checkpoints. Solo races start you at the back of the grid. CPU drivers are clearly labelled and only appear in solo races.</p>`;
     } else {
@@ -185,7 +187,7 @@ export class UI {
     const cats = CATEGORIES.filter((c) => !c.secret || isUnlocked(c.secret)); // secret tabs appear once their code is entered
     if (!cats.some((c) => c.id === this.garageCat)) this.garageCat = cats[0].id;
     $('#cat-tabs').innerHTML = cats.map((c) => `<button class="tab ${c.id === this.garageCat ? 'sel' : ''}" data-cat="${c.id}">${c.name}</button>`).join('');
-    $('#car-list').innerHTML = CARS.filter((c) => c.cat === this.garageCat).map((c) => { const g = (S.garage || {})[c.id]; const tuned = g && !isStock(g.tune); return `<button class="car-item ${c.id === cfg.id ? 'sel' : ''}" data-car="${c.id}"><span class="swatch" style="background:${(g && g.paint) || c.paint}"></span><b>${c.name}</b><small>${tuned ? '<i class="tuned">TUNED</i> ' : ''}${Math.round(this.measuredTop(c, g && g.tune))} km/h</small></button>`; }).join('');
+    $('#car-list').innerHTML = CARS.filter((c) => c.cat === this.garageCat).map((c) => { if (c.secret && !isUnlocked(c.secret)) return `<button class="car-item locked" disabled><span class="swatch" style="background:#222"></span><b>??? 🔒</b><small>${SECRET_HINTS[c.id] || 'Locked'}</small></button>`; const g = (S.garage || {})[c.id]; const tuned = g && !isStock(g.tune); return `<button class="car-item ${c.id === cfg.id ? 'sel' : ''}" data-car="${c.id}"><span class="swatch" style="background:${(g && g.paint) || c.paint}"></span><b>${c.name}</b><small>${tuned ? '<i class="tuned">TUNED</i> ' : ''}${Math.round(this.measuredTop(c, g && g.tune))} km/h</small></button>`; }).join('');
     $('#car-name').innerHTML = `<small>${CATEGORIES.find((c) => c.id === def.cat).name}</small>${def.name}`;
     this.renderCode();
     const ds = DRIVE_STYLES[S.driveStyle] || DRIVE_STYLES.drift;
@@ -259,8 +261,8 @@ export class UI {
       const inp = $('#code-in'), got = await tryCode(inp.value);
       if (!got) { inp.value = ''; inp.classList.remove('nope'); void inp.offsetWidth; inp.classList.add('nope'); return; }
       this.codeOpen = false; this.app.audio.chime(true);
-      const tab = CATEGORIES.find((c) => c.secret === got);
-      toast(got === 'creator' ? '<b>Creator cars unlocked</b><br><small>Find them under the new Creator tab</small>' : `<b>${tab ? tab.name : 'Secret'} car unlocked</b><br><small>Find it under the new ${tab ? tab.name : ''} tab</small>`, 3200);
+      const carU = CARS.find((c) => c.secret === got), tab = CATEGORIES.find((c) => c.secret === got || (carU && c.id === carU.cat));
+      toast(got === 'creator' ? '<b>Creator cars unlocked</b><br><small>Find them under the new Creator tab</small>' : `<b>${carU ? carU.name : (tab ? tab.name : 'Secret') + ' car'} unlocked</b><br><small>Find it under the ${tab ? tab.name : 'Secret'} tab</small>`, 3200);
       this.garageCat = tab ? tab.id : 'creator'; this.renderGarage();
     };
   }
@@ -395,6 +397,13 @@ export class UI {
       const ok = await this.confirmRules(info); if (!ok) return;
     }
     N.send({ t: 'join', code, car: S.car });
+  }
+  // one tap: connect and drop straight into the always-on public free-roam room
+  async joinPublic() {
+    const N = this.app.net, S = this.S;
+    toast('Joining the public room…', 1500);
+    try { await N.connect(S.playerName, S.car, S.serverUrl, { patience: 30000 }); } catch { return toast('Multiplayer server unreachable', 3000, 'bad'); }
+    N.send({ t: 'join', code: 'OPEN', car: S.car, map: S.publicMap || 'track' });
   }
   confirmRules(r) {
     const tuned = !isStock(this.S.car.tune);
@@ -625,16 +634,18 @@ export class UI {
     const el = $('#pause');
     el.classList.toggle('hidden', !on);
     if (!on) return;
-    const mp = game.mp, host = mp && this.app.net.isHost;
+    const mp = game.mp, host = mp && this.app.net.isHost, N = this.app.net;
     el.innerHTML = `<div class="pause-card"><h2>Paused</h2>${mp ? '<p class="muted">Multiplayer keeps running while this menu is open.</p>' : ''}
       <button class="btn primary" data-p="resume">Resume</button>
       ${mp ? '' : '<button class="btn" data-p="restart">Restart</button>'}
       <button class="btn" data-p="style">Driving style: <b>${game.car.styleId === 'race' ? 'Race' : 'Drift'}</b> (switch)</button>
       <button class="btn" data-p="settings">Settings</button>
+      ${game.canTravel() ? `<div class="travel-row"><small>Drive to another map (or use the glowing gates on the road):</small>${MAP_LIST.filter((m) => m.id !== game.opts.mapId).map((m) => `<button class="btn small" data-travel="${m.id}">${m.name}</button>`).join('')}</div>` : ''}
       ${host ? '<button class="btn" data-p="end">End session (everyone → lobby)</button>' : ''}
-      ${mp ? '<button class="btn" data-p="lobby">Back to room lobby</button><button class="btn danger" data-p="leave">Leave room</button>' : '<button class="btn danger" data-p="quit">Quit to main menu</button>'}
+      ${mp ? (N.room && N.room.permanent ? '<button class="btn danger" data-p="leavepub">Leave public room</button>' : '<button class="btn" data-p="lobby">Back to room lobby</button><button class="btn danger" data-p="leave">Leave room</button>') : '<button class="btn danger" data-p="quit">Quit to main menu</button>'}
       ${this.app.touch && this.app.touch.active ? `<button class="btn" data-p="fs">${document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen'}</button><div class="controls-help"><b>Touch</b> left thumb: slide to steer · right thumb: Gas, Brake/Reverse, Handbrake (tap = flick), Boost · top-left: pause, camera, reset${mp ? ', chat' : ''}. Tilt steering and button size: Settings › Controls.</div>` : ''}
       <div class="controls-help kb-help"><b>Controls</b> W/S accelerate·brake · A/D steer · Space handbrake · Shift boost · C camera · R reset · H hide HUD · M music${mp ? ' · T chat' : ''}<br><b>Tricks</b> Throttle sets the drift angle · opposite lock (+ handbrake tap in Race) = transition · hold handbrake + steer into the slide = 360 · keep sliding past 180° = reverse drift · slow + full lock + throttle = donuts</div></div>`;
+    $$('[data-travel]', el).forEach((b) => (b.onclick = () => { this.click(); el.classList.add('hidden'); game.travelTo(b.dataset.travel, false); }));
     $$('[data-p]', el).forEach((b) => (b.onclick = () => {
       this.click();
       const a = b.dataset.p, N = this.app.net;
@@ -647,6 +658,7 @@ export class UI {
       if (a === 'end') { N.send({ t: 'end' }); }
       if (a === 'lobby') { this.app.quitToMenu('lobby'); }
       if (a === 'leave') { N.send({ t: 'leave' }); this.app.quitToMenu('mp'); }
+      if (a === 'leavepub') { N.send({ t: 'leave' }); this.app.quitToMenu('main'); }
     }));
   }
   loading(on, text) { $('#loading').classList.toggle('hidden', !on); if (text) $('#loading-text').textContent = text; }

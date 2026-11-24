@@ -66,6 +66,20 @@ class Hash {
 }
 const EMPTY = [];
 
+// ---------------------------------------------------------------- MAP GATES
+// Every map links to the next and the previous one in this loop. Drive through the glowing gate on
+// the road to drive on into the next map (free-drive modes and the public room).
+export const MAP_LOOP = ['track', 'desert', 'mountain', 'forest', 'city', 'drift'];
+// where each map's two gates stand: road index, position along it (0..1), and which way is "out"
+const GATE_SPOTS = {
+  track: [{ road: 0, f: 0.3, dir: 1 }, { road: 0, f: 0.62, dir: -1 }],
+  desert: [{ road: 1, f: 0.62, dir: 1 }, { road: 1, f: 0.3, dir: -1 }],
+  mountain: [{ road: 0, f: 0.3, dir: 1 }, { road: 0, f: 0.72, dir: -1 }],
+  forest: [{ road: 0, f: 0.3, dir: 1 }, { road: 0, f: 0.65, dir: -1 }],
+  city: [{ road: 0, f: 0.3, dir: 1 }, { road: 0, f: 0.65, dir: -1 }],
+  drift: [{ road: 0, f: 0.3, dir: 1 }, { road: 0, f: 0.65, dir: -1 }],
+};
+
 // ================================================================ WORLD
 export class World {
   constructor(renderer, id, quality = 'medium') {
@@ -93,6 +107,7 @@ export class World {
     this.spawns = spec.spawns ? spec.spawns(this) : this.roadSpawns(0, 0);
     this.challenges = (spec.challenges || []).map((c) => ({ ...c, y: this.heightAt(c.x, c.z) }));
     this.challenges.forEach((c) => this.challengeMarker(c));
+    this.buildGates();
     // finalise
     this.statics = this.batch.build(renderer).map((s) => ({ ...s, maxDist: this.env.fogFar + 60 }));
     this.fx.push(this.makeStaticFx(this.shadowV, false), this.makeStaticFx(this.glowV, true));
@@ -494,6 +509,45 @@ export class World {
     const b = new FxBuffer(this.renderer, vcount, additive);
     b.data.set(arr); b.count = vcount; b.markDirty(0, vcount);
     return b;
+  }
+  buildGates() {
+    this.gates = [];
+    const k = MAP_LOOP.indexOf(this.id), spots = GATE_SPOTS[this.id];
+    if (k < 0 || !spots) return;
+    const dests = [MAP_LOOP[(k + 1) % MAP_LOOP.length], MAP_LOOP[(k - 1 + MAP_LOOP.length) % MAP_LOOP.length]];
+    spots.forEach((sp, gi) => {
+      const rd = this.roads[sp.road]; if (!rd) return;
+      const i = Math.round(sp.f * (rd.n - 1)), d = sp.dir;
+      const x = rd.x[i], z = rd.z[i], y = rd.h[i], ex = rd.tx[i] * d, ez = rd.tz[i] * d; // exit direction
+      const half = rd.half + 1.6, yaw = Math.atan2(ex, ez);
+      const to = dests[gi], info = MAP_LIST.find((m) => m.id === to);
+      const ac = info ? col(info.accent) : [1, 0.8, 0.3];
+      const back = rd.closed ? ((i - d * 9) % rd.n + rd.n) % rd.n : Math.min(rd.n - 1, Math.max(0, i - d * 9));
+      const spawn = { x: rd.x[back], z: rd.z[back], h: Math.atan2(-ex, -ez) };
+      this.gates.push({ x, z, y, ex, ez, half, to, name: info ? info.name : to, spawn });
+      // two pillars + crossbeam, and a glowing curtain in the destination map's colour
+      const nx = ez, nz = -ex; // sideways
+      const g = this.batch.geo(x, z);
+      for (const s of [-1, 1]) {
+        const px = x + nx * half * s, pz = z + nz * half * s, py = this.heightAt(px, pz);
+        g.at(px, py, pz, yaw).box(0, 3.6, 0, 0.9, 7.2 + (y - py), 0.9, { top: [0.2, 0.2, 0.22], side: [0.16, 0.16, 0.18] }).reset();
+        this.addCircle(px, pz, 0.6);
+      }
+      g.at(x, y, z, yaw).box(0, 7.4, 0, half * 2 + 0.9, 0.9, 0.9, { top: [0.2, 0.2, 0.22], side: [0.16, 0.16, 0.18], front: [...ac.map((v) => v * 0.9)], back: [...ac.map((v) => v * 0.9)] }).reset();
+      const col4 = [ac[0], ac[1], ac[2], 0.35];
+      const P = (s, yy) => [x + nx * half * s, y + yy, z + nz * half * s];
+      const quad = (A, B, C2, D) => { for (const p of [A, B, C2, A, C2, D]) this.glowV.push(p[0], p[1], p[2], ...col4, 0, 0); };
+      quad(P(-1, 0.2), P(-1, 6.9), P(1, 6.9), P(1, 0.2));
+      // bright light bands: along the crossbeam (both faces) and up the inside of each pillar
+      const band = [ac[0], ac[1], ac[2], 0.95], bx = ex * 0.47, bz = ez * 0.47;
+      const bandQ = (A, B, C2, D) => { for (const p of [A, B, C2, A, C2, D]) this.glowV.push(p[0], p[1], p[2], ...band, 0, 0); };
+      for (const f of [-1, 1]) {
+        const o = (q) => [q[0] + bx * f, q[1], q[2] + bz * f];
+        bandQ(o(P(-1.05, 7.1)), o(P(-1.05, 7.7)), o(P(1.05, 7.7)), o(P(1.05, 7.1)));
+        for (const sd of [-1, 1]) { const w = sd * (half - 0.5) / half, w2 = sd * (half - 0.8) / half; bandQ(o(P(w, 0.3)), o(P(w, 6.9)), o(P(w2, 6.9)), o(P(w2, 0.3))); }
+      }
+      this.disc(this.glowV, x, y + 0.1, z, half * 1.2, [ac[0] * 0.5, ac[1] * 0.5, ac[2] * 0.5, 1], 20);
+    });
   }
   challengeMarker(c) {
     const y = c.y + 0.1, seg = 40;

@@ -50,6 +50,12 @@ export class Game {
     this.setupHud();
     if (this.mp) this.bindNet();
     if (this.mode.comp) { this.comp = createComp(this); this.comp.load(); }
+    this.gateCD = 1.5; this.gatePrev = new Map();
+    if (this.opts.arrive && !this.spectator) { // came through a gate: start at this map's gate back to where we came from
+      const g = this.world.gates.find((x) => x.to === this.opts.arrive);
+      if (g) { this.car.place(g.spawn.x, g.spawn.z, g.spawn.h); this.cam.snap(); this.teleportFlag = true; this.gateCD = 3; }
+      setTimeout(() => this.bigText(this.mapInfo ? this.mapInfo.name.toUpperCase() : '', 1600), 300);
+    }
     if (this.opts.resume && !this.spectator) { const r = this.opts.resume; this.car.place(r.x, r.z, r.h); this.cam.snap(); this.teleportFlag = true; }
     if (this.spectator) this.startSpectating();
     this.minimap = new Minimap(this);
@@ -60,6 +66,31 @@ export class Game {
     if (this.mode.challenges) setTimeout(() => toast(`Drive into a glowing ring to start a timed drift challenge`, 4000), 1500);
     if (this.rules !== 'open' && !this.spectator) setTimeout(() => toast(`Room rules: <b>${RULES[this.rules].name}</b>. ${!isStock(S.car.tune) ? 'Your performance mods are not used in this room; ' : ''}${RULES[this.rules].desc}`, 5500), 900);
     if (this.mode.id === 'chill') setTimeout(() => toast('Chill mode — no score, no pressure. H hides the HUD, M toggles music.', 4500), 1200);
+  }
+
+  // free drive (solo) and the public room: maps are linked by gates
+  canTravel() { return !this.mode.comp && !this.spectator && (!this.mp || !!this.opts.permanent); }
+  travelTo(map, viaGate = true) {
+    if (!this.canTravel() || map === this.opts.mapId) return;
+    const S = this.app.settings;
+    if (this.mp) { this.net.send({ t: 'travel', map }); S.publicMap = map; this.app.saveSettings(); }
+    this.app.startGame({ ...this.opts, mapId: map, arrive: viaGate ? this.opts.mapId : null, resume: null });
+  }
+  checkGates(dt) {
+    if (!this.canTravel() || !this.world.gates.length) return;
+    if (this.gateCD > 0) this.gateCD -= dt;
+    if (this.gateHintT > 0) this.gateHintT -= dt;
+    const c = this.car;
+    for (const g of this.world.gates) {
+      const dx = c.x - g.x, dz = c.z - g.z;
+      const s = dx * g.ex + dz * g.ez, lat = Math.abs(dx * g.ez - dz * g.ex);
+      const prev = this.gatePrev.get(g);
+      this.gatePrev.set(g, s);
+      if (Math.hypot(dx, dz) < 70 && (this.gateHintT || 0) <= 0 && s < 0 && Math.sin(c.h) * g.ex + Math.cos(c.h) * g.ez > 0.5) { this.gateHintT = 8; toast(`Gate ahead → <b>${esc(g.name)}</b><br><small>drive through it to go there</small>`, 2500); }
+      if (this.gateCD <= 0 && prev !== undefined && prev < 0 && s >= 0 && lat < g.half && Math.abs(c.y - g.y) < 5) {
+        this.gateCD = 99; setTimeout(() => this.travelTo(g.to, true), 0); return; // after this frame
+      }
+    }
   }
 
   respawn() {
@@ -121,7 +152,7 @@ export class Game {
     return r;
   }
   applyRemoteInfo(r, info) {
-    r.name = info.name; r.away = !!info.away; r.tag.textContent = info.away ? `${info.name} (reconnecting…)` : info.name; r.tag.classList.toggle('away', r.away);
+    r.name = info.name; r.away = !!info.away; r.tag.innerHTML = `<span class="lv">Lv${info.level || 1}</span>${esc(info.name)}${info.away ? ' (reconnecting…)' : ''}`; r.tag.classList.toggle('away', r.away);
     const key = JSON.stringify(info.car);
     if (key !== r.cfgKey) {
       r.cfgKey = key; r.cfg = info.car;
@@ -132,9 +163,11 @@ export class Game {
   }
   syncRoom(room) {
     if (!room) return;
-    const ids = new Set(room.players.map((p) => p.id));
+    // public room: only the players on this map
+    const here = room.permanent ? room.players.filter((p) => (p.map || room.map) === this.opts.mapId) : room.players;
+    const ids = new Set(here.map((p) => p.id));
     for (const id of [...this.remotes.keys()]) if (!ids.has(id)) this.removeRemote(id);
-    for (const p of room.players) { if (p.id === this.net.id) continue; const r = this.remotes.get(p.id) || this.addRemote(p.id); this.applyRemoteInfo(r, p); }
+    for (const p of here) { if (p.id === this.net.id) continue; const r = this.remotes.get(p.id) || this.addRemote(p.id); this.applyRemoteInfo(r, p); }
     this.roomPlayers = room.players;
   }
   removeRemote(id) {
@@ -303,6 +336,7 @@ export class Game {
       const el = document.createElement('div'); el.className = 'pop ' + (cls || ''); el.innerHTML = html;
       $('#pops').appendChild(el); setTimeout(() => el.remove(), 1800);
     };
+    if (type === 'banked' && !this.spectator) this.app.addXP(d.value / 50, 'Drift XP');
     if (type === 'banked') { pop(`+${fmt(d.value)}<small>${d.label}${d.best ? ' · NEW BEST' : ''}</small>`, d.value > 15000 ? 'big' : ''); if (d.value > 6000) this.app.audio.blip(1200, 0.1, 'sine', 0.08); }
     if (type === 'crash') { pop(`CRASHED<small>−${fmt(d.lost)} chain lost</small>`, 'bad'); }
     if (type === 'offtrack') pop(`OFF TRACK<small>−${fmt(d.lost)} chain lost</small>`, 'bad');
@@ -323,6 +357,10 @@ export class Game {
     input.pollPad(); // controller buttons work even while paused / chatting
     for (const a of input.pressed()) this.action(a);
     const simPaused = this.paused && !this.mp;
+    if (!simPaused && !this.spectator) { // distance XP: 5 XP every 500 m driven
+      this.distAcc = (this.distAcc || 0) + this.car.speed * Math.min(dt, 0.1);
+      if (this.distAcc > 500) { this.distAcc -= 500; this.app.addXP(5); }
+    }
     if (!simPaused) {
       this.accum += Math.min(dt, 0.1);
       let steps = 0, maxImpact = 0;
@@ -355,6 +393,7 @@ export class Game {
       }
       if (this.mode.challenges) this.updateChallenges(dt);
       this.updateRound(dt);
+      this.checkGates(dt);
     }
     if (this.comp) this.comp.update(dt, !simPaused);
     if (this.mp) {
