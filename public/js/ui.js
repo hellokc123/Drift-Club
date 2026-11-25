@@ -1,6 +1,6 @@
 // DOM menus: main menu, play setup, garage, multiplayer rooms, settings, pause, HUD helpers.
 import { MINIMAP_RANGES } from './minimap.js';
-import { CARS, CATEGORIES, SECRET_HINTS, carById, carStats, RIMS, SPOILERS, STRIPES, PAINTS, WHEEL_COLORS, GLOWS, defaultConfig, VISUAL, fitsPart } from './cars.js';
+import { CARS, CATEGORIES, carById, carStats, RIMS, SPOILERS, STRIPES, PAINTS, WHEEL_COLORS, GLOWS, defaultConfig, VISUAL, fitsPart } from './cars.js';
 import { PARTS, SLIDERS, RULES, sanitizeTune, applyTune, isStock, allowedTires, maxLevel, builtinPresets, PRESET_NAMES, PRESET_INFO, tuneSummary } from './tuning.js';
 import { measureStats, STAT_SCALE, statFrac } from './carstats.js';
 import { MAP_LIST } from './maps.js';
@@ -188,10 +188,11 @@ export class UI {
     const S = this.S, cfg = S.car, def = carById(cfg.id);
     cfg.tune = sanitizeTune(cfg.tune, def);
     const tab = this.garageTab || 'looks';
-    const cats = CATEGORIES.filter((c) => !c.secret || isUnlocked(c.secret)); // secret tabs appear once their code is entered
+    // hidden tabs: code tabs appear once the code is entered; per-car tabs (Secret, Boss) once this player owns a car in them
+    const cats = CATEGORIES.filter((c) => c.perCar ? CARS.some((d) => d.cat === c.id && isUnlocked(d.secret)) : !c.secret || isUnlocked(c.secret));
     if (!cats.some((c) => c.id === this.garageCat)) this.garageCat = cats[0].id;
     $('#cat-tabs').innerHTML = cats.map((c) => `<button class="tab ${c.id === this.garageCat ? 'sel' : ''}" data-cat="${c.id}">${c.name}</button>`).join('');
-    $('#car-list').innerHTML = CARS.filter((c) => c.cat === this.garageCat).map((c) => { if (c.secret && !isUnlocked(c.secret)) return `<button class="car-item locked" disabled><span class="swatch" style="background:#222"></span><b>??? 🔒</b><small>${SECRET_HINTS[c.id] || 'Locked'}</small></button>`; const g = (S.garage || {})[c.id]; const tuned = g && !isStock(g.tune); return `<button class="car-item ${c.id === cfg.id ? 'sel' : ''}" data-car="${c.id}"><span class="swatch" style="background:${(g && g.paint) || c.paint}"></span><b>${c.name}</b><small>${tuned ? '<i class="tuned">TUNED</i> ' : ''}${Math.round(this.measuredTop(c, g && g.tune))} km/h</small></button>`; }).join('');
+    $('#car-list').innerHTML = CARS.filter((c) => c.cat === this.garageCat && (!c.secret || isUnlocked(c.secret))).map((c) => { const g = (S.garage || {})[c.id]; const tuned = g && !isStock(g.tune); return `<button class="car-item ${c.id === cfg.id ? 'sel' : ''}" data-car="${c.id}"><span class="swatch" style="background:${(g && g.paint) || c.paint}"></span><b>${c.name}</b><small>${tuned ? '<i class="tuned">TUNED</i> ' : ''}${Math.round(this.measuredTop(c, g && g.tune))} km/h</small></button>`; }).join('');
     $('#car-name').innerHTML = `<small>${CATEGORIES.find((c) => c.id === def.cat).name}</small>${def.name}`;
     this.renderCode();
     const ds = DRIVE_STYLES[S.driveStyle] || DRIVE_STYLES.drift;

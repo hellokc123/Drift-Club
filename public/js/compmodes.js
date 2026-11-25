@@ -189,7 +189,7 @@ class RaceComp extends Comp {
     // CPU racers get a random mix of road cars from the whole catalogue (never trucks, never the secret car)
     const diff = this.cfg.difficulty || 'medium';
     // harder CPUs pick from the faster cars
-    let pool = CARS.filter((c) => !['pickup', 'suv', 'creator', 'squad', 'secret'].includes(c.cat));
+    let pool = CARS.filter((c) => !['pickup', 'suv', 'creator', 'squad', 'secret', 'boss'].includes(c.cat));
     if (diff === 'hard' || diff === 'legend') pool = pool.filter((c) => c.top >= 60);
     pool = pool.map((c) => c.id);
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
@@ -204,27 +204,22 @@ class RaceComp extends Comp {
       const cfg = isBoss ? { id, spoiler: 0, stripes: 0, ...BI.cfg }
         : { id, paint: rv.paint, wheel: '#cccccc', rim: i % 6, spoiler: i % 4, kit: i % 2, stripes: 0, lowered: 0, underglow: '' };
       const model = buildCarModel(g.app.renderer, cfg);
-      let def = aiDef(carById(id), isBoss ? 'boss' : diff); // bosses have their own, much stronger setup
-      if (isBoss) { const k = BI.rage || 1.05; def = { ...def, accel: def.accel * k, lat: def.lat * Math.sqrt(k), grip: def.grip * Math.sqrt(k), top: def.top * (1 + (k - 1) * 0.6) }; }
+      const def = isBoss ? carById(id) : aiDef(carById(id), diff); // bosses drive their car exactly as it is in the garage
       const v = new Vehicle(def, g.world, model.meshes.dims, { style: 'race' });
       v.place(slots[i].x, slots[i].z, slots[i].h);
       const name = isBoss ? BI.name : rv.name;
       const tag = document.createElement('div'); tag.className = 'nametag cpu' + (isBoss ? ' boss' : ''); tag.textContent = isBoss ? `${BI.icon} ${BI.title.toUpperCase()}` : name; $('#tags').appendChild(tag);
       if (isBoss) { tag.style.color = BI.color; tag.style.borderColor = BI.color; tag.style.boxShadow = `0 0 12px ${BI.color}99`; }
-      // when you get ahead of the boss, he finds more power (catch-up)
-      const fast = isBoss ? { ...def, accel: def.accel * 1.28, top: def.top * 1.14, lat: def.lat * 1.08 } : null;
-      this.ai.push({ name, boss: isBoss, v, model, def, fast, drv: new AIDriver(v, this.route.path, isBoss ? 'boss' : diff, 11 + i * 7), tr: new RaceTracker(this.route, this.laps), tag, k: 0 });
+      this.ai.push({ name, boss: isBoss, v, model, def, drv: new AIDriver(v, this.route.path, isBoss ? 'boss' : diff, 11 + i * 7), tr: new RaceTracker(this.route, this.laps), tag, k: 0 });
     }
     this.boss = this.ai.find((a) => a.boss) || null;
     if (this.boss && !this.mp) { // load what Oni has learned about this track
-      const B = this.boss; B.baseDef = B.def; B.baseFast = B.fast;
+      const B = this.boss;
       this.oniRec = new OniRecorder(this.route.path, this.route.width);
       loadBrain(g.app.account, g.opts.mapId, this.oniRec.n, BI.id).then((brain) => {
         if (this.destroyed) return;
-        this.oniBrain = brain; B.drv.brain = brain;
-        const pw = 1 + brain.power, up = (d) => ({ ...d, accel: d.accel * pw, top: d.top * (1 + brain.power * 0.5), lat: d.lat * (1 + brain.power * 0.4) });
-        B.def = up(B.baseDef); B.fast = up(B.baseFast); B.v.def = B.def;
-        if (brain.races) toast(`<b style="color:${BI.color}">${BI.icon} ${esc(BI.name)}</b> has raced here ${brain.races}× (won ${brain.wins}, lost ${brain.losses})<br><small>Remembers this track: +${Math.round(brain.power * 100)}% power, ${brain.speed.filter((x) => x !== 1).length} stretches studied</small>`, 4500, 'oni');
+        this.oniBrain = brain; B.drv.brain = brain; // learned braking points and lines only — no extra power
+        if (brain.races) toast(`<b style="color:${BI.color}">${BI.icon} ${esc(BI.name)}</b> has raced here ${brain.races}× (won ${brain.wins}, lost ${brain.losses})<br><small>Remembers this track: ${brain.speed.filter((x) => x !== 1).length} stretches studied</small>`, 4500, 'oni');
       });
     }
     if (this.boss) setTimeout(() => this.taunt(this.oniBrain && this.oniBrain.races ? 'remember' : 'start'), 1600);
@@ -241,10 +236,6 @@ class RaceComp extends Comp {
     const racing = this.phase === 'running' || (this.phase === 'done' && !this.timeUp);
     const cars = [this.g.car, ...this.ai.map((a) => a.v)];
     for (const a of this.ai) {
-      if (a.boss) { // catch-up: more than 15 m behind the player = extra power
-        const gap = (this.tracker.progress(this.g.car.x, this.g.car.z) - a.tr.progress(a.v.x, a.v.z)) * ((this.route.length || 1000) / this.route.gates.length); // progress counts gates
-        a.v.def = gap > 8 && !this.tracker.finished ? a.fast : a.def;
-      }
       const inp = a.drv.control(dt, cars.filter((c) => c !== a.v), racing && !a.tr.finished);
       a.v.step(dt, inp);
     }
@@ -319,7 +310,7 @@ class RaceComp extends Comp {
       this.oniLearned = true;
       const L = this.oniRec.learn(this.oniBrain, !beatBoss, true);
       saveBrain(this.g.app.account, this.g.opts.mapId, L.brain, this.bossInfo.id);
-      this.later(4200, () => toast(`<b style="color:${this.bossInfo.color}">${this.bossInfo.icon} ${esc(this.bossInfo.name)} learned from this race</b><br><small>${L.faster ? `Faster through ${L.faster} stretch${L.faster === 1 ? '' : 'es'} where you beat him` : 'You taught him nothing new'}${L.careful ? ` · more careful in ${L.careful} where he slipped up` : ''}${beatBoss ? ' · +2% power' : ''}</small>`, 6000, 'oni'));
+      this.later(4200, () => toast(`<b style="color:${this.bossInfo.color}">${this.bossInfo.icon} ${esc(this.bossInfo.name)} learned from this race</b><br><small>${L.faster ? `Faster through ${L.faster} stretch${L.faster === 1 ? '' : 'es'} where you beat him` : 'You taught him nothing new'}${L.careful ? ` · more careful in ${L.careful} where he slipped up` : ''}</small>`, 6000, 'oni'));
     }
     if (mine.finished) this.g.app.saveRecord('race', { map: this.g.opts.mapId, laps: this.laps, time: mine.time, best: mine.best, pos: rows.indexOf(mine) + 1, field: rows.length, beatBoss, bossId: beatBoss ? this.bossInfo.id : null, bossFight: !!this.fight });
     this.showResults(this.resultsHtml(rows, true), { solo: true });

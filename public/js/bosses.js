@@ -1,7 +1,6 @@
 // One boss per map. Pick "Boss" as the CPU difficulty for a 1v1 Speed Race against that map's boss.
-// Every boss learns from each race (oni.js brain) and beating one unlocks their car (Garage › Secret).
+// Every boss learns from each race (oni.js brain) and beating one unlocks their car (Garage › Boss, a tab you only see once you own one).
 // Midnight Oni (Kurogane Pass) also turns up on pole in Hard and Legend races on any map.
-// rage: extra engine/grip on top of the boss setup for that boss (default 1.05).
 export const BOSSES = {
   track: {
     id: 'valkyrie', name: 'Valkyrie', title: 'Ingrid "Valkyrie" Holm', icon: '🛡️', color: '#7fb4ff', car: 'valkyrie',
@@ -40,7 +39,7 @@ export const BOSSES = {
     },
   },
   forest: {
-    id: 'grizzly', name: 'Grizzly', title: 'Bjorn "Grizzly" Vale', icon: '🐻', color: '#8fcf6a', car: 'timber', rage: 1.12, // the hardest boss
+    id: 'grizzly', name: 'Grizzly', title: 'Bjorn "Grizzly" Vale', icon: '🐻', color: '#8fcf6a', car: 'timber',
     cfg: { paint: '#2f5d3a', wheel: '#e8e8e8', rim: 4, kit: 1, lowered: 0, underglow: '', livery: 1, liveryColor: '#f2f2f2' },
     lines: {
       start: ['These trails are my backyard.', 'Mind the trees. I won\'t.', 'Gravel, mud, rain. I love all of it.'],

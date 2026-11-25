@@ -3,11 +3,9 @@
 //  - stretches where the player was faster -> he carries more speed there next time
 //  - stretches where the player was faster -> he also shifts toward the player's line
 //  - stretches where he left the road or had to reset -> he backs off there
-//  - lost the race -> a bit more power overall
 // The brain lives on the game server (shared by everyone who races him) with a copy on this device.
 export const BIN = 10; // path samples per stretch (3 m each = 30 m)
 const LOCAL = (map, boss) => (boss === 'oni' ? 'driftclub.oni.' + map : `driftclub.boss.${boss}.${map}`);
-const MAX_POWER = 0.2;
 
 export function emptyBrain(nBins) { return { v: 1, bins: nBins, speed: new Array(nBins).fill(1), line: new Array(nBins).fill(0), power: 0, races: 0, wins: 0, losses: 0 }; }
 export function validBrain(b, nBins) { return b && b.v === 1 && b.bins === nBins && Array.isArray(b.speed) && b.speed.length === nBins && Array.isArray(b.line) && b.line.length === nBins; }
@@ -77,8 +75,7 @@ export class OniRecorder {
     }
     if (played) {
       B.races++;
-      if (oniWon) { B.wins++; B.power = Math.max(0, B.power - 0.004); }
-      else { B.losses++; B.power = Math.min(MAX_POWER, B.power + 0.02); }
+      if (oniWon) B.wins++; else B.losses++; // (no power gain: bosses only learn lines and braking points)
     }
     return { brain: B, faster, careful };
   }

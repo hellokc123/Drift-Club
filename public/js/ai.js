@@ -10,7 +10,7 @@ export const AI_SKILL = {
   medium: { name: 'Medium', pace: 0.96, grip: 0.98, brake: 10, noise: 0.015, boost: true, assist: 1.02 },
   hard: { name: 'Hard', pace: 1.0, grip: 1.02, brake: 12, noise: 0.0, boost: true, assist: 1.08 },
   legend: { name: 'Legend', pace: 1.0, grip: 1.04, brake: 13, noise: 0.0, boost: true, assist: 1.15 },
-  boss: { name: 'Boss', hidden: true, pace: 1.0, grip: 1.12, brake: 16, noise: 0.0, boost: true, assist: 1.45 }, // Midnight Oni only
+  boss: { name: 'Boss', hidden: true, pace: 1.0, grip: 1.12, brake: 16, noise: 0.0, boost: true, assist: 1 }, // driving style only: the car does the rest // Midnight Oni only
 };
 // the car a CPU driver actually drives at this skill
 export function aiDef(def, skill) {

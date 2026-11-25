@@ -2784,8 +2784,9 @@ const CATEGORIES = [
   // hidden until unlocked with the secret code (see secret.js); its cars are still valid ids online
   { id: 'creator', name: 'Creator', secret: 'creator' },
   { id: 'squad', name: 'Squad', secret: 'squad' },
-  // always shown: each car in it has its own unlock (level, beating the boss bot, or a code). Locked ones show a hint.
+  // per-car unlocks: a player only sees these tabs (and only the cars in them) once they've earned one
   { id: 'secret', name: 'Secret', perCar: true },
+  { id: 'boss', name: 'Boss', perCar: true },
 ];
 
 // accel m/s², top m/s, grip = lateral grip rate, lat = max cornering accel (m/s²), steer = max wheel angle (rad),
@@ -2824,20 +2825,20 @@ const CARS = [
   // --- secret: the creator's car. Hidden in the garage until unlocked; satin black with gold accents.
   { id: 'creator', name: 'Nocturne Aurum D', cat: 'creator', style: 'wedge', paint: '#1d1d1f', wheel: '#b8975a', livery: 2, liveryColor: '#c9a24a', satin: true, accel: 11.6, top: 87, grip: 13.2, lat: 14.0, steer: 0.68, wb: 2.55, driftGrip: 1.05, driftPower: 1.65, driftSteer: 2.75, momentum: 0.66, powerOver: 0.6, mass: 1.0, engine: { pitch: 1.45, cyl: 10, grit: 0.55 } },
   // creator race car: the fastest, grippiest car in the game, with stability control (can't spin out)
-  { id: 'creatorR', name: 'Nocturne Aurum R', cat: 'creator', style: 'wedge', paint: '#151618', wheel: '#c8ccd2', livery: 2, liveryColor: '#d9dbe0', satin: true, accel: 12.2, top: 92, grip: 14.6, lat: 15.3, steer: 0.64, wb: 2.7, driftGrip: 1.95, driftPower: 1.15, driftSteer: 2.0, momentum: 0.5, powerOver: 0.15, mass: 1.05, noSpin: true, engine: { pitch: 1.6, cyl: 12, grit: 0.4 } },
+  { id: 'creatorR', name: 'Nocturne Aurum R', cat: 'creator', style: 'wedge', paint: '#151618', wheel: '#c8ccd2', livery: 2, liveryColor: '#d9dbe0', satin: true, accel: 19, top: 126, grip: 22, lat: 23.5, steer: 0.64, wb: 2.7, driftGrip: 1.95, driftPower: 1.15, driftSteer: 2.0, momentum: 0.5, powerOver: 0.15, mass: 1.05, noSpin: true, engine: { pitch: 1.6, cyl: 12, grit: 0.4 } },
   // --- secret: the Squad car (its own code). Very fast, huge grip, sharp steering, stability control - but
   // a step below the creator race car in every number
   // --- secret cars, one unlock each (see SECRET_HINTS). All a step below the creator race car.
   { id: 'kitsuneS', name: 'Kitsune S', cat: 'secret', secret: 'kitsune', style: 'coupe', paint: '#e8742a', wheel: '#f2f2f2', livery: 1, liveryColor: '#f4f1ea', accel: 9.4, top: 70, grip: 12, lat: 12.8, steer: 0.7, wb: 2.45, driftGrip: 1.25, driftPower: 1.4, driftSteer: 2.6, momentum: 0.6, powerOver: 0.45, mass: 0.95, engine: { pitch: 1.4, cyl: 4, grit: 0.55 } },
   { id: 'mango', name: 'Mango Midnight', cat: 'secret', secret: 'mango', style: 'coupe', paint: '#1b1a3a', wheel: '#ffb21e', livery: 2, liveryColor: '#ff9f1a', accel: 10.2, top: 78, grip: 12.6, lat: 13.4, steer: 0.66, wb: 2.55, driftGrip: 1.3, driftPower: 1.5, driftSteer: 2.55, momentum: 0.6, powerOver: 0.45, mass: 1.0, engine: { pitch: 1.3, cyl: 6, grit: 0.5 } },
   { id: 'raijin', name: 'Raijin GT-R', cat: 'secret', secret: 'raijin', style: 'wedge', paint: '#f2d21b', wheel: '#232323', livery: 1, liveryColor: '#151515', accel: 11.0, top: 84, grip: 13.5, lat: 14.3, steer: 0.6, wb: 2.65, driftGrip: 1.7, driftPower: 1.2, driftSteer: 2.2, momentum: 0.52, powerOver: 0.2, mass: 1.15, engine: { pitch: 1.45, cyl: 6, grit: 0.6 } },
-  { id: 'oni', name: 'Oni Kuro', cat: 'secret', secret: 'oni', style: 'coupe', paint: '#0c0c0e', wheel: '#b01010', livery: 2, liveryColor: '#c8140f', satin: true, accel: 11.9, top: 90, grip: 14.2, lat: 15.0, steer: 0.66, wb: 2.6, driftGrip: 1.2, driftPower: 1.5, driftSteer: 2.6, momentum: 0.62, powerOver: 0.5, mass: 1.05, engine: { pitch: 1.25, cyl: 6, grit: 0.7 } },
-  // boss cars: supercars built for each boss's map; beat the boss in a 1v1 to unlock theirs (all still a step below the Aurum R)
-  { id: 'valkyrie', name: 'Valkyrie RS', cat: 'secret', secret: 'valkyrie', style: 'wedge', paint: '#c9ced6', wheel: '#1d3c78', livery: 1, liveryColor: '#1d3c78', accel: 12.0, top: 91, grip: 14.4, lat: 15.1, steer: 0.58, wb: 2.6, driftGrip: 1.8, driftPower: 1.2, driftSteer: 2.1, momentum: 0.5, powerOver: 0.2, mass: 1.05, engine: { pitch: 1.55, cyl: 10, grit: 0.4 } },
-  { id: 'mirage', name: 'Mirage V8', cat: 'secret', secret: 'sandstorm', style: 'muscle', paint: '#c8a46a', wheel: '#151515', livery: 1, liveryColor: '#151515', accel: 12.1, top: 91.5, grip: 13.2, lat: 14.4, steer: 0.55, wb: 2.8, driftGrip: 1.4, driftPower: 1.55, driftSteer: 2.1, momentum: 0.55, powerOver: 0.5, mass: 1.2, engine: { pitch: 0.85, cyl: 8, grit: 0.85 } },
-  { id: 'timber', name: 'Timber Rally', cat: 'secret', secret: 'grizzly', style: 'hatch', paint: '#2f5d3a', wheel: '#e8e8e8', livery: 1, liveryColor: '#f2f2f2', accel: 12.0, top: 89, grip: 14.4, lat: 15.0, steer: 0.72, wb: 2.5, driftGrip: 1.5, driftPower: 1.35, driftSteer: 2.4, momentum: 0.56, powerOver: 0.35, mass: 0.95, engine: { pitch: 1.5, cyl: 4, grit: 0.7 } },
-  { id: 'phantom', name: 'Phantom GT', cat: 'secret', secret: 'phantom', style: 'coupe', paint: '#2a1740', wheel: '#1ee3ff', livery: 2, liveryColor: '#1ee3ff', accel: 12.0, top: 90.5, grip: 14.3, lat: 15.0, steer: 0.6, wb: 2.7, driftGrip: 1.5, driftPower: 1.35, driftSteer: 2.3, momentum: 0.56, powerOver: 0.35, mass: 1.05, engine: { pitch: 1.35, cyl: 6, grit: 0.45 } },
-  { id: 'ironjaw', name: 'Ironjaw 440', cat: 'secret', secret: 'ironjaw', style: 'muscle', paint: '#151515', wheel: '#ffd23a', livery: 1, liveryColor: '#ffd23a', accel: 11.9, top: 89, grip: 13.6, lat: 14.8, steer: 0.62, wb: 2.7, driftGrip: 1.2, driftPower: 1.6, driftSteer: 2.6, momentum: 0.62, powerOver: 0.6, mass: 1.15, engine: { pitch: 0.8, cyl: 8, grit: 0.9 } },
+  { id: 'oni', name: 'Oni Kuro', cat: 'boss', secret: 'oni', style: 'coupe', paint: '#0c0c0e', wheel: '#b01010', livery: 2, liveryColor: '#c8140f', satin: true, accel: 17.2, top: 116, grip: 20.2, lat: 21.4, steer: 0.66, wb: 2.6, driftGrip: 1.2, driftPower: 1.5, driftSteer: 2.6, momentum: 0.62, powerOver: 0.5, mass: 1.05, engine: { pitch: 1.25, cyl: 6, grit: 0.7 } },
+  // boss cars: the bosses' strength is all in these cars (no hidden AI buffs). Beat a boss 1v1 to unlock theirs (Boss tab). The Aurum R stays above them all.
+  { id: 'valkyrie', name: 'Valkyrie RS', cat: 'boss', secret: 'valkyrie', style: 'wedge', paint: '#c9ced6', wheel: '#1d3c78', livery: 1, liveryColor: '#1d3c78', accel: 17.5, top: 118, grip: 20.5, lat: 21.5, steer: 0.58, wb: 2.6, driftGrip: 1.8, driftPower: 1.2, driftSteer: 2.1, momentum: 0.5, powerOver: 0.2, mass: 1.05, engine: { pitch: 1.55, cyl: 10, grit: 0.4 } },
+  { id: 'mirage', name: 'Mirage V8', cat: 'boss', secret: 'sandstorm', style: 'muscle', paint: '#c8a46a', wheel: '#151515', livery: 1, liveryColor: '#151515', accel: 18, top: 122, grip: 19, lat: 20.5, steer: 0.55, wb: 2.8, driftGrip: 1.4, driftPower: 1.55, driftSteer: 2.1, momentum: 0.55, powerOver: 0.5, mass: 1.2, engine: { pitch: 0.85, cyl: 8, grit: 0.85 } },
+  { id: 'timber', name: 'Timber Rally', cat: 'boss', secret: 'grizzly', style: 'hatch', paint: '#2f5d3a', wheel: '#e8e8e8', livery: 1, liveryColor: '#f2f2f2', accel: 18, top: 115, grip: 21, lat: 22.5, steer: 0.72, wb: 2.5, driftGrip: 1.5, driftPower: 1.35, driftSteer: 2.4, momentum: 0.56, powerOver: 0.35, mass: 0.95, engine: { pitch: 1.5, cyl: 4, grit: 0.7 } },
+  { id: 'phantom', name: 'Phantom GT', cat: 'boss', secret: 'phantom', style: 'coupe', paint: '#2a1740', wheel: '#1ee3ff', livery: 2, liveryColor: '#1ee3ff', accel: 17.5, top: 117, grip: 20.3, lat: 21.4, steer: 0.6, wb: 2.7, driftGrip: 1.5, driftPower: 1.35, driftSteer: 2.3, momentum: 0.56, powerOver: 0.35, mass: 1.05, engine: { pitch: 1.35, cyl: 6, grit: 0.45 } },
+  { id: 'ironjaw', name: 'Ironjaw 440', cat: 'boss', secret: 'ironjaw', style: 'muscle', paint: '#151515', wheel: '#ffd23a', livery: 1, liveryColor: '#ffd23a', accel: 17.2, top: 115, grip: 19.5, lat: 21, steer: 0.62, wb: 2.7, driftGrip: 1.2, driftPower: 1.6, driftSteer: 2.6, momentum: 0.62, powerOver: 0.6, mass: 1.15, engine: { pitch: 0.8, cyl: 8, grit: 0.9 } },
   { id: 'vanta', name: 'Vanta GT', cat: 'squad', style: 'wedge', paint: '#1f3f7a', wheel: '#2b2d31', livery: 1, liveryColor: '#e8eaee', accel: 11.4, top: 86, grip: 14.0, lat: 14.8, steer: 0.62, wb: 2.7, driftGrip: 1.95, driftPower: 1.1, driftSteer: 2.0, momentum: 0.5, powerOver: 0.12, mass: 1.1, noSpin: true, engine: { pitch: 1.5, cyl: 8, grit: 0.35 } },
 ];
 const carById = (id) => CARS.find((c) => c.id === id) || CARS[0];
@@ -5992,9 +5993,8 @@ return { MAP_LIST, SURFACES, MAP_LOOP, World };
 // ===== js/bosses.js =====
 __mod["js/bosses.js"] = (function () {
 // One boss per map. Pick "Boss" as the CPU difficulty for a 1v1 Speed Race against that map's boss.
-// Every boss learns from each race (oni.js brain) and beating one unlocks their car (Garage › Secret).
+// Every boss learns from each race (oni.js brain) and beating one unlocks their car (Garage › Boss, a tab you only see once you own one).
 // Midnight Oni (Kurogane Pass) also turns up on pole in Hard and Legend races on any map.
-// rage: extra engine/grip on top of the boss setup for that boss (default 1.05).
 const BOSSES = {
   track: {
     id: 'valkyrie', name: 'Valkyrie', title: 'Ingrid "Valkyrie" Holm', icon: '🛡️', color: '#7fb4ff', car: 'valkyrie',
@@ -6033,7 +6033,7 @@ const BOSSES = {
     },
   },
   forest: {
-    id: 'grizzly', name: 'Grizzly', title: 'Bjorn "Grizzly" Vale', icon: '🐻', color: '#8fcf6a', car: 'timber', rage: 1.12, // the hardest boss
+    id: 'grizzly', name: 'Grizzly', title: 'Bjorn "Grizzly" Vale', icon: '🐻', color: '#8fcf6a', car: 'timber',
     cfg: { paint: '#2f5d3a', wheel: '#e8e8e8', rim: 4, kit: 1, lowered: 0, underglow: '', livery: 1, liveryColor: '#f2f2f2' },
     lines: {
       start: ['These trails are my backyard.', 'Mind the trees. I won\'t.', 'Gravel, mud, rain. I love all of it.'],
@@ -6557,7 +6557,7 @@ const AI_SKILL = {
   medium: { name: 'Medium', pace: 0.96, grip: 0.98, brake: 10, noise: 0.015, boost: true, assist: 1.02 },
   hard: { name: 'Hard', pace: 1.0, grip: 1.02, brake: 12, noise: 0.0, boost: true, assist: 1.08 },
   legend: { name: 'Legend', pace: 1.0, grip: 1.04, brake: 13, noise: 0.0, boost: true, assist: 1.15 },
-  boss: { name: 'Boss', hidden: true, pace: 1.0, grip: 1.12, brake: 16, noise: 0.0, boost: true, assist: 1.45 }, // Midnight Oni only
+  boss: { name: 'Boss', hidden: true, pace: 1.0, grip: 1.12, brake: 16, noise: 0.0, boost: true, assist: 1 }, // driving style only: the car does the rest // Midnight Oni only
 };
 // the car a CPU driver actually drives at this skill
 function aiDef(def, skill) {
@@ -7084,7 +7084,7 @@ return { isTouchDevice, TouchControls, goFullscreen, exitFullscreen };
 __mod["js/ui.js"] = (function () {
 // DOM menus: main menu, play setup, garage, multiplayer rooms, settings, pause, HUD helpers.
 const { MINIMAP_RANGES } = __mod["js/minimap.js"];
-const { CARS, CATEGORIES, SECRET_HINTS, carById, carStats, RIMS, SPOILERS, STRIPES, PAINTS, WHEEL_COLORS, GLOWS, defaultConfig, VISUAL, fitsPart } = __mod["js/cars.js"];
+const { CARS, CATEGORIES, carById, carStats, RIMS, SPOILERS, STRIPES, PAINTS, WHEEL_COLORS, GLOWS, defaultConfig, VISUAL, fitsPart } = __mod["js/cars.js"];
 const { PARTS, SLIDERS, RULES, sanitizeTune, applyTune, isStock, allowedTires, maxLevel, builtinPresets, PRESET_NAMES, PRESET_INFO, tuneSummary } = __mod["js/tuning.js"];
 const { measureStats, STAT_SCALE, statFrac } = __mod["js/carstats.js"];
 const { MAP_LIST } = __mod["js/maps.js"];
@@ -7272,10 +7272,11 @@ class UI {
     const S = this.S, cfg = S.car, def = carById(cfg.id);
     cfg.tune = sanitizeTune(cfg.tune, def);
     const tab = this.garageTab || 'looks';
-    const cats = CATEGORIES.filter((c) => !c.secret || isUnlocked(c.secret)); // secret tabs appear once their code is entered
+    // hidden tabs: code tabs appear once the code is entered; per-car tabs (Secret, Boss) once this player owns a car in them
+    const cats = CATEGORIES.filter((c) => c.perCar ? CARS.some((d) => d.cat === c.id && isUnlocked(d.secret)) : !c.secret || isUnlocked(c.secret));
     if (!cats.some((c) => c.id === this.garageCat)) this.garageCat = cats[0].id;
     $('#cat-tabs').innerHTML = cats.map((c) => `<button class="tab ${c.id === this.garageCat ? 'sel' : ''}" data-cat="${c.id}">${c.name}</button>`).join('');
-    $('#car-list').innerHTML = CARS.filter((c) => c.cat === this.garageCat).map((c) => { if (c.secret && !isUnlocked(c.secret)) return `<button class="car-item locked" disabled><span class="swatch" style="background:#222"></span><b>??? 🔒</b><small>${SECRET_HINTS[c.id] || 'Locked'}</small></button>`; const g = (S.garage || {})[c.id]; const tuned = g && !isStock(g.tune); return `<button class="car-item ${c.id === cfg.id ? 'sel' : ''}" data-car="${c.id}"><span class="swatch" style="background:${(g && g.paint) || c.paint}"></span><b>${c.name}</b><small>${tuned ? '<i class="tuned">TUNED</i> ' : ''}${Math.round(this.measuredTop(c, g && g.tune))} km/h</small></button>`; }).join('');
+    $('#car-list').innerHTML = CARS.filter((c) => c.cat === this.garageCat && (!c.secret || isUnlocked(c.secret))).map((c) => { const g = (S.garage || {})[c.id]; const tuned = g && !isStock(g.tune); return `<button class="car-item ${c.id === cfg.id ? 'sel' : ''}" data-car="${c.id}"><span class="swatch" style="background:${(g && g.paint) || c.paint}"></span><b>${c.name}</b><small>${tuned ? '<i class="tuned">TUNED</i> ' : ''}${Math.round(this.measuredTop(c, g && g.tune))} km/h</small></button>`; }).join('');
     $('#car-name').innerHTML = `<small>${CATEGORIES.find((c) => c.id === def.cat).name}</small>${def.name}`;
     this.renderCode();
     const ds = DRIVE_STYLES[S.driveStyle] || DRIVE_STYLES.drift;
@@ -8005,11 +8006,9 @@ __mod["js/oni.js"] = (function () {
 //  - stretches where the player was faster -> he carries more speed there next time
 //  - stretches where the player was faster -> he also shifts toward the player's line
 //  - stretches where he left the road or had to reset -> he backs off there
-//  - lost the race -> a bit more power overall
 // The brain lives on the game server (shared by everyone who races him) with a copy on this device.
 const BIN = 10; // path samples per stretch (3 m each = 30 m)
 const LOCAL = (map, boss) => (boss === 'oni' ? 'driftclub.oni.' + map : `driftclub.boss.${boss}.${map}`);
-const MAX_POWER = 0.2;
 
 function emptyBrain(nBins) { return { v: 1, bins: nBins, speed: new Array(nBins).fill(1), line: new Array(nBins).fill(0), power: 0, races: 0, wins: 0, losses: 0 }; }
 function validBrain(b, nBins) { return b && b.v === 1 && b.bins === nBins && Array.isArray(b.speed) && b.speed.length === nBins && Array.isArray(b.line) && b.line.length === nBins; }
@@ -8079,8 +8078,7 @@ class OniRecorder {
     }
     if (played) {
       B.races++;
-      if (oniWon) { B.wins++; B.power = Math.max(0, B.power - 0.004); }
-      else { B.losses++; B.power = Math.min(MAX_POWER, B.power + 0.02); }
+      if (oniWon) B.wins++; else B.losses++; // (no power gain: bosses only learn lines and braking points)
     }
     return { brain: B, faster, careful };
   }
@@ -8281,7 +8279,7 @@ class RaceComp extends Comp {
     // CPU racers get a random mix of road cars from the whole catalogue (never trucks, never the secret car)
     const diff = this.cfg.difficulty || 'medium';
     // harder CPUs pick from the faster cars
-    let pool = CARS.filter((c) => !['pickup', 'suv', 'creator', 'squad', 'secret'].includes(c.cat));
+    let pool = CARS.filter((c) => !['pickup', 'suv', 'creator', 'squad', 'secret', 'boss'].includes(c.cat));
     if (diff === 'hard' || diff === 'legend') pool = pool.filter((c) => c.top >= 60);
     pool = pool.map((c) => c.id);
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
@@ -8296,27 +8294,22 @@ class RaceComp extends Comp {
       const cfg = isBoss ? { id, spoiler: 0, stripes: 0, ...BI.cfg }
         : { id, paint: rv.paint, wheel: '#cccccc', rim: i % 6, spoiler: i % 4, kit: i % 2, stripes: 0, lowered: 0, underglow: '' };
       const model = buildCarModel(g.app.renderer, cfg);
-      let def = aiDef(carById(id), isBoss ? 'boss' : diff); // bosses have their own, much stronger setup
-      if (isBoss) { const k = BI.rage || 1.05; def = { ...def, accel: def.accel * k, lat: def.lat * Math.sqrt(k), grip: def.grip * Math.sqrt(k), top: def.top * (1 + (k - 1) * 0.6) }; }
+      const def = isBoss ? carById(id) : aiDef(carById(id), diff); // bosses drive their car exactly as it is in the garage
       const v = new Vehicle(def, g.world, model.meshes.dims, { style: 'race' });
       v.place(slots[i].x, slots[i].z, slots[i].h);
       const name = isBoss ? BI.name : rv.name;
       const tag = document.createElement('div'); tag.className = 'nametag cpu' + (isBoss ? ' boss' : ''); tag.textContent = isBoss ? `${BI.icon} ${BI.title.toUpperCase()}` : name; $('#tags').appendChild(tag);
       if (isBoss) { tag.style.color = BI.color; tag.style.borderColor = BI.color; tag.style.boxShadow = `0 0 12px ${BI.color}99`; }
-      // when you get ahead of the boss, he finds more power (catch-up)
-      const fast = isBoss ? { ...def, accel: def.accel * 1.28, top: def.top * 1.14, lat: def.lat * 1.08 } : null;
-      this.ai.push({ name, boss: isBoss, v, model, def, fast, drv: new AIDriver(v, this.route.path, isBoss ? 'boss' : diff, 11 + i * 7), tr: new RaceTracker(this.route, this.laps), tag, k: 0 });
+      this.ai.push({ name, boss: isBoss, v, model, def, drv: new AIDriver(v, this.route.path, isBoss ? 'boss' : diff, 11 + i * 7), tr: new RaceTracker(this.route, this.laps), tag, k: 0 });
     }
     this.boss = this.ai.find((a) => a.boss) || null;
     if (this.boss && !this.mp) { // load what Oni has learned about this track
-      const B = this.boss; B.baseDef = B.def; B.baseFast = B.fast;
+      const B = this.boss;
       this.oniRec = new OniRecorder(this.route.path, this.route.width);
       loadBrain(g.app.account, g.opts.mapId, this.oniRec.n, BI.id).then((brain) => {
         if (this.destroyed) return;
-        this.oniBrain = brain; B.drv.brain = brain;
-        const pw = 1 + brain.power, up = (d) => ({ ...d, accel: d.accel * pw, top: d.top * (1 + brain.power * 0.5), lat: d.lat * (1 + brain.power * 0.4) });
-        B.def = up(B.baseDef); B.fast = up(B.baseFast); B.v.def = B.def;
-        if (brain.races) toast(`<b style="color:${BI.color}">${BI.icon} ${esc(BI.name)}</b> has raced here ${brain.races}× (won ${brain.wins}, lost ${brain.losses})<br><small>Remembers this track: +${Math.round(brain.power * 100)}% power, ${brain.speed.filter((x) => x !== 1).length} stretches studied</small>`, 4500, 'oni');
+        this.oniBrain = brain; B.drv.brain = brain; // learned braking points and lines only — no extra power
+        if (brain.races) toast(`<b style="color:${BI.color}">${BI.icon} ${esc(BI.name)}</b> has raced here ${brain.races}× (won ${brain.wins}, lost ${brain.losses})<br><small>Remembers this track: ${brain.speed.filter((x) => x !== 1).length} stretches studied</small>`, 4500, 'oni');
       });
     }
     if (this.boss) setTimeout(() => this.taunt(this.oniBrain && this.oniBrain.races ? 'remember' : 'start'), 1600);
@@ -8333,10 +8326,6 @@ class RaceComp extends Comp {
     const racing = this.phase === 'running' || (this.phase === 'done' && !this.timeUp);
     const cars = [this.g.car, ...this.ai.map((a) => a.v)];
     for (const a of this.ai) {
-      if (a.boss) { // catch-up: more than 15 m behind the player = extra power
-        const gap = (this.tracker.progress(this.g.car.x, this.g.car.z) - a.tr.progress(a.v.x, a.v.z)) * ((this.route.length || 1000) / this.route.gates.length); // progress counts gates
-        a.v.def = gap > 8 && !this.tracker.finished ? a.fast : a.def;
-      }
       const inp = a.drv.control(dt, cars.filter((c) => c !== a.v), racing && !a.tr.finished);
       a.v.step(dt, inp);
     }
@@ -8411,7 +8400,7 @@ class RaceComp extends Comp {
       this.oniLearned = true;
       const L = this.oniRec.learn(this.oniBrain, !beatBoss, true);
       saveBrain(this.g.app.account, this.g.opts.mapId, L.brain, this.bossInfo.id);
-      this.later(4200, () => toast(`<b style="color:${this.bossInfo.color}">${this.bossInfo.icon} ${esc(this.bossInfo.name)} learned from this race</b><br><small>${L.faster ? `Faster through ${L.faster} stretch${L.faster === 1 ? '' : 'es'} where you beat him` : 'You taught him nothing new'}${L.careful ? ` · more careful in ${L.careful} where he slipped up` : ''}${beatBoss ? ' · +2% power' : ''}</small>`, 6000, 'oni'));
+      this.later(4200, () => toast(`<b style="color:${this.bossInfo.color}">${this.bossInfo.icon} ${esc(this.bossInfo.name)} learned from this race</b><br><small>${L.faster ? `Faster through ${L.faster} stretch${L.faster === 1 ? '' : 'es'} where you beat him` : 'You taught him nothing new'}${L.careful ? ` · more careful in ${L.careful} where he slipped up` : ''}</small>`, 6000, 'oni'));
     }
     if (mine.finished) this.g.app.saveRecord('race', { map: this.g.opts.mapId, laps: this.laps, time: mine.time, best: mine.best, pos: rows.indexOf(mine) + 1, field: rows.length, beatBoss, bossId: beatBoss ? this.bossInfo.id : null, bossFight: !!this.fight });
     this.showResults(this.resultsHtml(rows, true), { solo: true });
@@ -9680,7 +9669,7 @@ class App {
     } else if (type === 'race') {
       const r = ((R.race = R.race || {})[d.map] = R.race[d.map] || { total: {} });
       if (d.time && (!r.total[d.laps] || d.time < r.total[d.laps])) r.total[d.laps] = d.time;
-      if (d.beatBoss && d.bossId && unlock(d.bossId)) { const car = CARS.find((c) => c.secret === d.bossId); setTimeout(() => toast(`<b>You beat the boss!</b><br><small>Secret car unlocked: ${esc(car ? car.name : d.bossId)} (Garage › Secret)</small>`, 6000, 'good'), 800); }
+      if (d.beatBoss && d.bossId && unlock(d.bossId)) { const car = CARS.find((c) => c.secret === d.bossId); setTimeout(() => toast(`<b>You beat the boss!</b><br><small>Boss car unlocked: ${esc(car ? car.name : d.bossId)} (Garage › Boss tab)</small>`, 6000, 'good'), 800); }
       if (d.best && (!r.lap || d.best < r.lap)) r.lap = d.best;
       r.races = (r.races || 0) + 1; if (d.pos === 1 && d.field > 1) r.wins = (r.wins || 0) + 1;
     } else if (type === 'driftrace') {
