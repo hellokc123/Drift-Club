@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#111216">
+<title>Computer Remote</title>
+<style>
+  :root { --bg: #111216; --card: #1c1e24; --line: #2c2f38; --text: #f1f2f4; --muted: #9096a3; --accent: #ff6a2b; --ok: #3ccf7a; --bad: #ff4d5e; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 18px 16px calc(24px + env(safe-area-inset-bottom)); max-width: 640px; margin-inline: auto; }
+  h1 { font-size: 22px; margin: 0; }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .pill { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--bad); }
+  .dot.on { background: var(--ok); box-shadow: 0 0 10px var(--ok); }
+  h2 { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 22px 0 10px; }
+  .big { width: 100%; padding: 20px; font-size: 19px; font-weight: 700; border: 0; border-radius: 16px; background: var(--accent); color: #fff; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .btn { padding: 16px 12px; min-height: 64px; font-size: 15px; font-weight: 600; text-align: left; border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--text); overflow-wrap: anywhere; }
+  .btn:active, .big:active { transform: scale(.97); }
+  .btn.sent { border-color: var(--ok); }
+  input { width: 100%; padding: 14px; font-size: 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--text); }
+  .log { font-size: 13px; color: var(--muted); }
+  .log div { padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .log .bad { color: var(--bad); }
+  .muted { color: var(--muted); font-size: 14px; }
+  .hidden { display: none; }
+  a { color: var(--accent); }
+  .linkbtn { background: none; border: 0; color: var(--muted); font-size: 13px; text-decoration: underline; padding: 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🖥️ Computer Remote</h1>
+  <span class="pill"><span class="dot" id="dot"></span><span id="state">…</span></span>
+</header>
+
+<section id="pair" class="hidden">
+  <p>Pair this phone with your PC. On the PC, the Computer Remote window shows a <b>pairing link</b>. Open that link on this phone once, or paste the key here:</p>
+  <input id="keyIn" placeholder="Pairing key" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <p><button class="big" id="pairBtn">Pair</button></p>
+</section>
+
+<section id="main" class="hidden">
+  <button class="big" id="setupBtn">▶ Start my setup</button>
+  <h2>Apps</h2><div class="grid" id="apps"></div>
+  <h2>Games</h2>
+  <input id="search" placeholder="Search games" autocomplete="off">
+  <div class="grid" id="games" style="margin-top:10px"></div>
+  <h2>PC</h2><div class="grid" id="pc"></div>
+  <h2>Recent</h2><div class="log" id="log"></div>
+  <p><button class="linkbtn" id="unpair">Unpair this phone</button></p>
+</section>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let key = '';
+try { key = localStorage.getItem('remoteKey') || ''; } catch {}
+// pairing link puts the key after # (never sent to the server in the URL); save it and clean the address bar
+const m = /key=([A-Za-z0-9_-]{32,128})/.exec(location.hash);
+if (m) { key = m[1]; try { localStorage.setItem('remoteKey', key); } catch {} history.replaceState(null, '', location.pathname); }
+
+let status = null, lastSig = '';
+async function call(body) {
+  const r = await fetch('/remote/api/phone', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Remote-Key': key }, body: JSON.stringify(body || {}) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'Error ' + r.status);
+  return j;
+}
+function btn(a) { return `<button class="btn" data-a="${esc(a.id)}">${esc(a.name)}</button>`; }
+function render(j) {
+  $('#dot').classList.toggle('on', j.online);
+  $('#state').textContent = j.online ? (j.status && j.status.name ? j.status.name + ' online' : 'PC online') : 'PC offline';
+  const acts = (j.status && j.status.actions) || [];
+  const sig = JSON.stringify(acts);
+  if (sig !== lastSig) {
+    lastSig = sig; status = j.status;
+    $('#apps').innerHTML = acts.filter((a) => a.group === 'app').map(btn).join('') || '<span class="muted">No apps found yet.</span>';
+    $('#pc').innerHTML = acts.filter((a) => a.group === 'pc').map(btn).join('');
+    $('#setupBtn').classList.toggle('hidden', !acts.some((a) => a.id === 'setup'));
+    drawGames();
+  }
+  $('#log').innerHTML = (j.log || []).map((l) => `<div class="${l.ok ? '' : 'bad'}">${new Date(l.t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} · ${esc(l.msg)}</div>`).join('') || '<span class="muted">Nothing yet.</span>';
+}
+function drawGames() {
+  const q = $('#search').value.trim().toLowerCase();
+  const g = ((status && status.actions) || []).filter((a) => a.group === 'game' && (!q || a.name.toLowerCase().includes(q)));
+  $('#games').innerHTML = g.map(btn).join('') || '<span class="muted">No games found.</span>';
+}
+async function refresh() {
+  if (!key) return;
+  try { render(await call()); }
+  catch (e) { $('#state').textContent = e.message; $('#dot').classList.remove('on'); }
+}
+async function run(id, el) {
+  try {
+    await call({ action: id });
+    if (el) { el.classList.add('sent'); setTimeout(() => el.classList.remove('sent'), 1500); }
+    if (navigator.vibrate) navigator.vibrate(30);
+    setTimeout(refresh, 1500);
+  } catch (e) { alert(e.message); }
+}
+document.addEventListener('click', (e) => { const b = e.target.closest('[data-a]'); if (b) run(b.dataset.a, b); });
+$('#setupBtn').onclick = (e) => run('setup', e.currentTarget);
+$('#search').oninput = drawGames;
+$('#pairBtn').onclick = () => {
+  const k = $('#keyIn').value.trim().replace(/^.*key=/, '');
+  if (!/^[A-Za-z0-9_-]{32,128}$/.test(k)) return alert('That key looks wrong. Copy the whole key from the PC window.');
+  key = k; try { localStorage.setItem('remoteKey', k); } catch {} show();
+};
+$('#unpair').onclick = () => { if (!confirm('Unpair this phone?')) return; key = ''; try { localStorage.removeItem('remoteKey'); } catch {} show(); };
+function show() { $('#pair').classList.toggle('hidden', !!key); $('#main').classList.toggle('hidden', !key); if (key) refresh(); else $('#state').textContent = 'Not paired'; }
+show();
+setInterval(() => { if (!document.hidden) refresh(); }, 3000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+</script>
+</body>
+</html>

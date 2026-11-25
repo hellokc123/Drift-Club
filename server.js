@@ -9,6 +9,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { handleRemote } = require('./remote-relay');
 
 const PORT = Number(process.env.PORT) || 3000;
 const PUB = path.join(__dirname, 'public');
@@ -255,6 +256,8 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-cache' });
     return res.end(JSON.stringify(publicRecords()));
   }
+  if (url.startsWith('/remote/api/') && handleRemote(req, res, url)) return;
+  if (url === '/remote') url = '/remote.html';
   const am = /^\/api\/(signup|login|me|save|logout|oni\/get|oni\/learn)$/.exec(url);
   if (am) return handleApi(req, res, am[1]);
   if (url === '/health') {
