@@ -76,7 +76,8 @@ const GATE_SPOTS = {
   desert: [{ road: 1, f: 0.62, dir: 1 }, { road: 1, f: 0.3, dir: -1 }],
   mountain: [{ road: 0, f: 0.3, dir: 1 }, { road: 0, f: 0.72, dir: -1 }],
   forest: [{ road: 0, f: 0.3, dir: 1 }, { road: 0, f: 0.65, dir: -1 }],
-  city: [{ road: 0, f: 0.3, dir: 1 }, { road: 0, f: 0.65, dir: -1 }],
+  // city: no room between the blocks, so each gate stands in a parking-lot block, down a short side street
+  city: [{ road: 0, f: 0.3, dir: 1, spur: [[-360, 225], [-340, 225], [-320, 225], [-296, 225]] }, { road: 0, f: 0.65, dir: -1, spur: [[225, -360], [225, -340], [225, -320], [225, -296]] }],
   drift: [{ road: 0, f: 0.3, dir: 1 }, { road: 0, f: 0.65, dir: -1 }],
 };
 
@@ -117,11 +118,66 @@ export class World {
   }
 
   // ------------------------------------------------ roads
+  // Gate side roads: a short exit ramp leaves the road at each gate spot and the gate stands at its end,
+  // so the gates are off the racing line. Tries both sides of the road (and nearby spots) for clear ground.
+  planGateSpurs() {
+    const spec = this.spec, spots = GATE_SPOTS[this.id] || [], extra = [];
+    this.gateSpurs = [];
+    if (!spots.length) return extra;
+    const sampled = spec.roads.map((r) => crSample(r.pts, !!r.closed, 3));
+    const lim = spec.size / 2 - (spec.boundary || 60) - 25;
+    const water = spec.water ? spec.water.y + 1.5 : -1e9;
+    const padD = (x, z) => Math.min(1e9, ...(spec.pads || []).map((p) => p.r ? Math.hypot(x - p.x, z - p.z) - p.r : Math.hypot(x - p.x, z - p.z) - Math.max(p.w, p.d) / 2));
+    const clear = (pts, parent) => {
+      for (let k = 0; k < pts.length; k++) {
+        const [x, z] = pts[k];
+        if (Math.abs(x) > lim || Math.abs(z) > lim) return false;
+        if (spec.terrain(x, z) < water) return false;
+        if (k * 3 < 22) continue; // the first metres join the parent road
+        if (padD(x, z) < 12) return false;
+        for (let ri = 0; ri < sampled.length; ri++) {
+          if (ri === parent && k * 3 < 45) continue; // still peeling away from its own road
+          const need = (spec.roads[ri].width || 10) / 2 + 5 + (ri === parent ? 3 : 7);
+          for (let j = 0; j < sampled[ri].length; j += 2) if (Math.hypot(sampled[ri][j][0] - x, sampled[ri][j][1] - z) < need) return false;
+        }
+        for (const e of extra) for (const q of e.samples) if (Math.hypot(q[0] - x, q[1] - z) < 25) return false;
+      }
+      return true;
+    };
+    spots.forEach((sp, gi) => {
+      if (sp.spur) { extra.push({ pts: sp.spur, width: 10, flatH: 0, center: 'dash', edge: false, color: [0.16, 0.16, 0.18], gateSpur: gi, samples: crSample(sp.spur, false, 3) }); return; }
+      const rd = spec.roads[sp.road], P = sampled[sp.road]; if (!rd) return;
+      let done = false;
+      for (const df of [0, 0.03, -0.03, 0.06, -0.06, 0.09, -0.09, 0.12, -0.12]) {
+        for (const side of [1, -1]) {
+          for (const len of [110, 80]) {
+            const f = ((sp.f + df) % 1 + 1) % 1, i = Math.round(f * (P.length - 1));
+            const a = P[Math.max(0, i - 1)], b = P[Math.min(P.length - 1, i + 1)];
+            const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, tx = (b[0] - a[0]) / l * sp.dir, tz = (b[1] - a[1]) / l * sp.dir;
+            const nx = tz * side, nz = -tx * side, [x0, z0] = P[i], k = len / 110;
+            const pts = [[x0, z0], [x0 + tx * 18 + nx * 6, z0 + tz * 18 + nz * 6], [x0 + tx * 34 + nx * 26 * k, z0 + tz * 34 + nz * 26 * k],
+              [x0 + tx * 46 + nx * 58 * k, z0 + tz * 46 + nz * 58 * k], [x0 + tx * 48 + nx * (len - 32), z0 + tz * 48 + nz * (len - 32)],
+              [x0 + tx * 48 + nx * (len - 16), z0 + tz * 48 + nz * (len - 16)], [x0 + tx * 48 + nx * len, z0 + tz * 48 + nz * len]]; // straight last 30 m for the gate
+            const samples = crSample(pts, false, 3);
+            if (!clear(samples, sp.road)) continue;
+            extra.push({ pts, width: 10, center: 'dash', color: rd.color || [0.26, 0.26, 0.28], smooth: 6, maxGrade: 0.14, gateSpur: gi, samples });
+            done = true; break;
+          }
+          if (done) break;
+        }
+        if (done) break;
+      }
+      if (!done) console.warn('gate side road: no room near', this.id, sp);
+    });
+    return extra;
+  }
   processRoads() {
     const spec = this.spec;
     this.roads = [];
     const jh = new Hash(80); // segments of the roads built so far (junction blending)
-    for (const rd of spec.roads) {
+    const spurs = this.planGateSpurs();
+    for (const rd0 of [...spec.roads, ...spurs]) {
+      const rd = rd0;
       const pts = crSample(rd.pts, !!rd.closed, 3);
       const n = pts.length;
       const r = { ...rd, n, x: new Float32Array(n), z: new Float32Array(n), h: new Float32Array(n), tx: new Float32Array(n), tz: new Float32Array(n), half: rd.width / 2 };
@@ -516,8 +572,9 @@ export class World {
     if (k < 0 || !spots) return;
     const dests = [MAP_LOOP[(k + 1) % MAP_LOOP.length], MAP_LOOP[(k - 1 + MAP_LOOP.length) % MAP_LOOP.length]];
     spots.forEach((sp, gi) => {
-      const rd = this.roads[sp.road]; if (!rd) return;
-      const i = Math.round(sp.f * (rd.n - 1)), d = sp.dir;
+      const spur = this.roads.find((r) => r.gateSpur === gi); // its side road (planGateSpurs), if there was room
+      const rd = spur || this.roads[sp.road]; if (!rd) return;
+      const i = spur ? rd.n - 6 : Math.round(sp.f * (rd.n - 1)), d = spur ? 1 : sp.dir;
       const x = rd.x[i], z = rd.z[i], y = rd.h[i], ex = rd.tx[i] * d, ez = rd.tz[i] * d; // exit direction
       const half = rd.half + 1.6, yaw = Math.atan2(ex, ez);
       const to = dests[gi], info = MAP_LIST.find((m) => m.id === to);

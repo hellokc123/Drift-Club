@@ -10,7 +10,7 @@ export const AI_SKILL = {
   medium: { name: 'Medium', pace: 0.96, grip: 0.98, brake: 10, noise: 0.015, boost: true, assist: 1.02 },
   hard: { name: 'Hard', pace: 1.0, grip: 1.02, brake: 12, noise: 0.0, boost: true, assist: 1.08 },
   legend: { name: 'Legend', pace: 1.0, grip: 1.04, brake: 13, noise: 0.0, boost: true, assist: 1.15 },
-  boss: { name: 'Boss', hidden: true, pace: 1.0, grip: 1.1, brake: 15, noise: 0.0, boost: true, assist: 1.3 }, // Midnight Oni only
+  boss: { name: 'Boss', hidden: true, pace: 1.0, grip: 1.12, brake: 16, noise: 0.0, boost: true, assist: 1.45 }, // Midnight Oni only
 };
 // the car a CPU driver actually drives at this skill
 export function aiDef(def, skill) {
@@ -59,7 +59,8 @@ export class AIDriver {
       const R = this.radiusAt(this.idx + s);
       let learnF = this.brain ? this.brain.speed[Math.floor(this.at(this.idx + s) / 10)] || 1 : 1;
       if (learnF > 1) learnF = Math.min(learnF, R < 25 ? 1.06 : R < 60 ? 1.15 : 1.3); // learned speed: careful in hairpins
-      const vc = Math.sqrt(aLat * R) * (0.92 + 0.08 * sk.pace) * learnF;
+      const gF = sk.grip > 1 && R < 45 ? 1 / Math.sqrt(sk.grip) : 1; // tight hairpins: no over-confidence, even for bosses
+      const vc = Math.sqrt(aLat * gF * R) * (0.92 + 0.08 * sk.pace) * learnF;
       const dist = s * 3;
       vt = Math.min(vt, Math.sqrt(vc * vc + 2 * sk.brake * dist));
     }

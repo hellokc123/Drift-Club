@@ -204,14 +204,15 @@ class RaceComp extends Comp {
       const cfg = isBoss ? { id, spoiler: 0, stripes: 0, ...BI.cfg }
         : { id, paint: rv.paint, wheel: '#cccccc', rim: i % 6, spoiler: i % 4, kit: i % 2, stripes: 0, lowered: 0, underglow: '' };
       const model = buildCarModel(g.app.renderer, cfg);
-      const def = aiDef(carById(id), isBoss ? 'boss' : diff); // bosses have their own, much stronger setup
+      let def = aiDef(carById(id), isBoss ? 'boss' : diff); // bosses have their own, much stronger setup
+      if (isBoss) { const k = BI.rage || 1.05; def = { ...def, accel: def.accel * k, lat: def.lat * Math.sqrt(k), grip: def.grip * Math.sqrt(k), top: def.top * (1 + (k - 1) * 0.6) }; }
       const v = new Vehicle(def, g.world, model.meshes.dims, { style: 'race' });
       v.place(slots[i].x, slots[i].z, slots[i].h);
       const name = isBoss ? BI.name : rv.name;
       const tag = document.createElement('div'); tag.className = 'nametag cpu' + (isBoss ? ' boss' : ''); tag.textContent = isBoss ? `${BI.icon} ${BI.title.toUpperCase()}` : name; $('#tags').appendChild(tag);
       if (isBoss) { tag.style.color = BI.color; tag.style.borderColor = BI.color; tag.style.boxShadow = `0 0 12px ${BI.color}99`; }
       // when you get ahead of the boss, he finds more power (catch-up)
-      const fast = isBoss ? { ...def, accel: def.accel * 1.2, top: def.top * 1.1, lat: def.lat * 1.06 } : null;
+      const fast = isBoss ? { ...def, accel: def.accel * 1.28, top: def.top * 1.14, lat: def.lat * 1.08 } : null;
       this.ai.push({ name, boss: isBoss, v, model, def, fast, drv: new AIDriver(v, this.route.path, isBoss ? 'boss' : diff, 11 + i * 7), tr: new RaceTracker(this.route, this.laps), tag, k: 0 });
     }
     this.boss = this.ai.find((a) => a.boss) || null;
@@ -242,7 +243,7 @@ class RaceComp extends Comp {
     for (const a of this.ai) {
       if (a.boss) { // catch-up: more than 15 m behind the player = extra power
         const gap = (this.tracker.progress(this.g.car.x, this.g.car.z) - a.tr.progress(a.v.x, a.v.z)) * ((this.route.length || 1000) / this.route.gates.length); // progress counts gates
-        a.v.def = gap > 15 && !this.tracker.finished ? a.fast : a.def;
+        a.v.def = gap > 8 && !this.tracker.finished ? a.fast : a.def;
       }
       const inp = a.drv.control(dt, cars.filter((c) => c !== a.v), racing && !a.tr.finished);
       a.v.step(dt, inp);
