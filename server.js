@@ -90,9 +90,9 @@ const ghApi = (method, body, accept) => fetch(`${GH_API}/repos/${GH_REPO}/conten
 });
 async function ghLoad() {
   const r = await ghApi('GET');
-  if (r.status === 404) { gh.sha = null; return; }
-  if (!r.ok) throw new Error(`GitHub load ${r.status}`);
-  const j = await r.json(); gh.sha = j.sha;
+  if (r.status === 404) { gh.sha = null; gh.loaded = true; return; }
+  if (!r.ok) { gh.error = `load failed: GitHub said ${r.status}${r.status === 401 ? ' (token wrong or expired)' : r.status === 403 || r.status === 404 ? ' (token has no access to the repo)' : ''}`; throw new Error(gh.error); }
+  const j = await r.json(); gh.sha = j.sha; gh.loaded = true; gh.error = null;
   let text = j.content ? Buffer.from(j.content, 'base64').toString('utf8') : '';
   if (!text) { const raw = await ghApi('GET', null, 'application/vnd.github.raw'); text = await raw.text(); } // files over 1 MB
   const data = JSON.parse(text || '{}');
@@ -104,8 +104,9 @@ async function ghSave() {
   try {
     for (let attempt = 0; attempt < 2; attempt++) {
       const r = await ghApi('PUT', { message: 'Drift Club data', content: Buffer.from(JSON.stringify(accFile)).toString('base64'), ...(gh.sha ? { sha: gh.sha } : {}) });
-      if (r.ok) { gh.sha = (await r.json()).content.sha; break; }
+      if (r.ok) { gh.sha = (await r.json()).content.sha; gh.lastSave = new Date().toISOString(); gh.error = null; break; }
       if ((r.status === 409 || r.status === 422) && attempt === 0) { const g = await ghApi('GET'); if (g.ok) gh.sha = (await g.json()).sha; continue; }
+      gh.error = `save failed: GitHub said ${r.status}${r.status === 403 || r.status === 404 ? ' (token needs Contents: Read and write on the repo)' : ''}`;
       console.error('GitHub save failed', r.status, (await r.text()).slice(0, 200)); gh.dirty = true; break;
     }
   } catch (e) { console.error('GitHub save failed', e.message); gh.dirty = true; }
@@ -258,7 +259,7 @@ const server = http.createServer((req, res) => {
   if (am) return handleApi(req, res, am[1]);
   if (url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ ok: true, rooms: rooms.size, players: clients.size }));
+    return res.end(JSON.stringify({ ok: true, rooms: rooms.size, players: clients.size, storage: store.persistent ? 'upstash' : gh.on ? 'github' : 'disk', ...(gh.on ? { github: { loaded: gh.loaded, lastSave: gh.lastSave || null, error: gh.error || null } } : {}) }));
   }
   if (url === '/') url = '/index.html';
   const fp = path.normalize(path.join(PUB, url));
