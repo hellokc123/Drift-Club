@@ -78,13 +78,51 @@ const upstash = async (cmd) => {
   const r = await fetch(UP_URL, { method: 'POST', headers: { Authorization: `Bearer ${UP_TOK}`, 'Content-Type': 'application/json' }, body: JSON.stringify(cmd) });
   const j = await r.json(); if (j.error) throw new Error(j.error); return j.result;
 };
+// GitHub option: everything kept as one JSON file in a private repo (GITHUB_DATA_TOKEN = a fine-grained
+// token with Contents read/write on that repo only). Loaded once at start, saved a few seconds after changes.
+const GH_TOK = process.env.GITHUB_DATA_TOKEN || '', GH_REPO = process.env.GITHUB_DATA_REPO || 'hellokc123/Claude-Private-Repo';
+const GH_PATH = process.env.GITHUB_DATA_PATH || 'drift-club/data.json';
+const gh = { on: !!GH_TOK && !(UP_URL && UP_TOK), sha: null, timer: null, busy: false, dirty: false, ready: Promise.resolve() };
+const GH_API = process.env.GITHUB_API_URL || 'https://api.github.com';
+const ghApi = (method, body, accept) => fetch(`${GH_API}/repos/${GH_REPO}/contents/${GH_PATH}`, {
+  method, headers: { Authorization: `Bearer ${GH_TOK}`, Accept: accept || 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'drift-club-server', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+  body: body ? JSON.stringify(body) : undefined,
+});
+async function ghLoad() {
+  const r = await ghApi('GET');
+  if (r.status === 404) { gh.sha = null; return; }
+  if (!r.ok) throw new Error(`GitHub load ${r.status}`);
+  const j = await r.json(); gh.sha = j.sha;
+  let text = j.content ? Buffer.from(j.content, 'base64').toString('utf8') : '';
+  if (!text) { const raw = await ghApi('GET', null, 'application/vnd.github.raw'); text = await raw.text(); } // files over 1 MB
+  const data = JSON.parse(text || '{}');
+  accFile = data; // writes wait for this load, so nothing is lost
+}
+async function ghSave() {
+  if (gh.busy) { gh.dirty = true; return; }
+  gh.busy = true; gh.dirty = false;
+  try {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const r = await ghApi('PUT', { message: 'Drift Club data', content: Buffer.from(JSON.stringify(accFile)).toString('base64'), ...(gh.sha ? { sha: gh.sha } : {}) });
+      if (r.ok) { gh.sha = (await r.json()).content.sha; break; }
+      if ((r.status === 409 || r.status === 422) && attempt === 0) { const g = await ghApi('GET'); if (g.ok) gh.sha = (await g.json()).sha; continue; }
+      console.error('GitHub save failed', r.status, (await r.text()).slice(0, 200)); gh.dirty = true; break;
+    }
+  } catch (e) { console.error('GitHub save failed', e.message); gh.dirty = true; }
+  finally { gh.busy = false; }
+  if (gh.dirty) ghSaveSoon(5000);
+}
+function ghSaveSoon(ms = 6000) { if (!gh.on || gh.timer) return; gh.timer = setTimeout(() => { gh.timer = null; ghSave(); }, ms); }
+if (gh.on) gh.ready = (async () => { for (let i = 0; i < 5; i++) { try { await ghLoad(); console.log(`Accounts: GitHub ${GH_REPO}/${GH_PATH} (permanent)`); return; } catch (e) { console.error('GitHub load failed, retrying', e.message); await new Promise((r) => setTimeout(r, 2000 * (i + 1))); } } console.error('GitHub data could not be loaded: accounts paused'); throw new Error('no data'); })();
+gh.ready.catch(() => {}); // callers still see the error; this just stops Node crashing on it
 const store = {
   persistent: !!(UP_URL && UP_TOK),
-  async get(k) { if (this.persistent) { const v = await upstash(['GET', k]); return v ? JSON.parse(v) : null; } return accFile[k] ?? null; },
-  async set(k, v) { if (this.persistent) return upstash(['SET', k, JSON.stringify(v)]); accFile[k] = v; accSaveSoon(); },
-  async del(k) { if (this.persistent) return upstash(['DEL', k]); delete accFile[k]; accSaveSoon(); },
+  async get(k) { if (this.persistent) { const v = await upstash(['GET', k]); return v ? JSON.parse(v) : null; } await gh.ready; return accFile[k] ?? null; },
+  async set(k, v) { if (this.persistent) return upstash(['SET', k, JSON.stringify(v)]); await gh.ready; accFile[k] = v; accSaveSoon(); ghSaveSoon(); },
+  async del(k) { if (this.persistent) return upstash(['DEL', k]); await gh.ready; delete accFile[k]; accSaveSoon(); ghSaveSoon(); },
 };
-console.log(store.persistent ? 'Accounts: Upstash database (permanent)' : `Accounts: ${ACC_FILE} (lost if the server's disk is wiped)`);
+if (!store.persistent && !gh.on) console.log(`Accounts: ${ACC_FILE} (lost if the server's disk is wiped)`);
+else if (store.persistent) console.log('Accounts: Upstash database (permanent)');
 const NAME_RE = /^[A-Za-z0-9_\- ]{3,16}$/;
 const acctKey = (name) => 'acct:' + name.trim().toLowerCase();
 const sessKey = (token) => 'sess:' + crypto.createHash('sha256').update(String(token)).digest('hex');
@@ -1110,6 +1148,14 @@ function log(s) { console.log(`[${new Date().toISOString().slice(11, 19)}] ${s}`
 // Render (and Ctrl+C) stop the server with a signal: warn everyone first, because rooms live in memory
 function shutdown() {
   for (const c of clients.values()) send(c, { t: 'serverRestart', msg: 'The multiplayer server is restarting — rooms will be closed.' });
+  // GitHub storage: write any unsaved changes before stopping (Render allows ~30 s)
+  if (gh.on && (gh.timer || gh.dirty || gh.busy)) {
+    clearTimeout(gh.timer); gh.timer = null;
+    const done = () => process.exit(0);
+    (async () => { while (gh.busy) await new Promise((r) => setTimeout(r, 200)); await ghSave(); })().then(done, done);
+    setTimeout(done, 20000);
+    return;
+  }
   setTimeout(() => process.exit(0), 300);
 }
 if (require.main === module) {

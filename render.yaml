@@ -9,10 +9,15 @@ services:
     startCommand: node server.js
     healthCheckPath: /health
     autoDeploy: true
-    # Accounts: Render's free disk is wiped on every restart, so accounts live in a free Upstash
-    # Redis database. Create one at upstash.com, then paste its REST URL and token here (Render
-    # dashboard > Environment). Without them, accounts are kept only until the server restarts.
+    # Accounts + boss learning need storage that survives restarts (Render's free disk is wiped).
+    # Option A (used here): a private GitHub repo. Set GITHUB_DATA_TOKEN in the Render dashboard to a
+    # fine-grained token with Contents: read & write on that repo only.
+    # Option B: an Upstash Redis database (UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN).
     envVars:
+      - key: GITHUB_DATA_TOKEN
+        sync: false
+      - key: GITHUB_DATA_REPO
+        value: hellokc123/Claude-Private-Repo
       - key: UPSTASH_REDIS_REST_URL
         sync: false
       - key: UPSTASH_REDIS_REST_TOKEN
