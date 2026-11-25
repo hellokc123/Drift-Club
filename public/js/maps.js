@@ -72,7 +72,8 @@ const EMPTY = [];
 export const MAP_LOOP = ['track', 'desert', 'mountain', 'forest', 'city', 'drift'];
 // where each map's two gates stand: road index, position along it (0..1), and which way is "out"
 const GATE_SPOTS = {
-  track: [{ road: 0, f: 0.3, dir: 1 }, { road: 0, f: 0.62, dir: -1 }],
+  // track: out in the two bottom corners, on short roads off the corners of the outer service road
+  track: [{ road: 3, f: 0, dir: 1, spur: [[520, -470], [530, -480], [541, -491], [553, -503]] }, { road: 3, f: 0, dir: 1, spur: [[-520, -470], [-530, -480], [-541, -491], [-553, -503]] }],
   desert: [{ road: 1, f: 0.62, dir: 1 }, { road: 1, f: 0.3, dir: -1 }],
   mountain: [{ road: 0, f: 0.3, dir: 1 }, { road: 0, f: 0.72, dir: -1 }],
   forest: [{ road: 0, f: 0.3, dir: 1 }, { road: 0, f: 0.65, dir: -1 }],
@@ -145,7 +146,11 @@ export class World {
       return true;
     };
     spots.forEach((sp, gi) => {
-      if (sp.spur) { extra.push({ pts: sp.spur, width: 10, flatH: 0, center: 'dash', edge: false, color: [0.16, 0.16, 0.18], gateSpur: gi, samples: crSample(sp.spur, false, 3) }); return; }
+      if (sp.spur) { // hand-placed side road
+        const parent = spec.roads[sp.road] || {};
+        extra.push({ pts: sp.spur, width: 10, ...(this.id === 'city' ? { flatH: 0, edge: false } : { maxGrade: 0.14, smooth: 4 }), center: 'dash', color: parent.color || [0.16, 0.16, 0.18], gateSpur: gi, samples: crSample(sp.spur, false, 3) });
+        return;
+      }
       const rd = spec.roads[sp.road], P = sampled[sp.road]; if (!rd) return;
       let done = false;
       for (const df of [0, 0.03, -0.03, 0.06, -0.06, 0.09, -0.09, 0.12, -0.12]) {
@@ -820,6 +825,7 @@ const SPECS = {
       let h = n.fbm(x / 170, z / 170, 4) * 7 + Math.sin(x / 37 + n(x / 90, z / 90) * 3) * 1.2;
       const e = Math.max(Math.abs(x), Math.abs(z));
       h += n.fbm(x / 420, z / 420, 3) * 10; // big rolling dunes
+      h += 48 * Math.exp(-(((x + 1080) ** 2) + ((z - 960) ** 2)) / (430 * 430)); // Red Rock Ridge: the canyon road climbs over it (downhill drift run)
       h += smoothstep(1790, 1960, e) * (50 + n.ridge(x / 160, z / 160, 3) * 80);
       for (const [mx, mz, mr] of mesas) {
         const d = Math.hypot(x - mx, z - mz) + n(x / 40, z / 40) * 18;
@@ -835,7 +841,8 @@ const SPECS = {
         return mix3(sand, sand2, n(x / 25, z / 25) * 0.5 + 0.5);
       },
       shoulder: col('#c99b62'),
-      roads: GEO.desert.roads.map((r, i) => i <= 1 ? { ...r, center: 'dash', color: [0.26, 0.25, 0.25], smooth: 24 }
+      roads: GEO.desert.roads.map((r, i) => i <= 1 || i === 12 ? { ...r, center: 'dash', color: [0.26, 0.25, 0.25], smooth: 24 }
+        : i === 13 || i === 14 ? { ...r, color: [0.26, 0.25, 0.25], smooth: 4, maxGrade: 0.1 } // cloverleaf loops
         : i === 7 ? { ...r, surface: 3, color: [0.5, 0.42, 0.32], edge: false } // dusty gravel track
         : { ...r, center: i <= 6 ? 'dash' : undefined, color: [0.26, 0.25, 0.25] }),
       pads: [
@@ -935,6 +942,7 @@ const SPECS = {
       roads: GEO.mountain.roads.map((r, i) => i === 0 ? { ...r, center: 'dash', color: [0.25, 0.25, 0.27], smooth: 22, maxGrade: 0.1 }
         : i === 5 ? { ...r, surface: 3, color: [0.4, 0.36, 0.3], edge: false, maxGrade: 0.15 }
         : i === 4 ? { ...r, color: [0.25, 0.25, 0.27], maxGrade: 0.14 }
+        : i >= 6 ? { ...r, center: 'dash', centerColor: [0.98, 0.62, 0.12], guardrails: true, color: [0.24, 0.24, 0.26], smooth: 14, maxGrade: 0.14 } // mid-mountain touge roads
         : { ...r, center: 'dash', centerColor: [0.98, 0.62, 0.12], guardrails: true, color: [0.24, 0.24, 0.26], smooth: 14, maxGrade: 0.14 }),
       pads: [
         { ...GEO.mountain.pads[0], type: 2, markings: 'lot' },
@@ -1105,7 +1113,19 @@ const SPECS = {
       if (has([[1, 3], [6, 8], [8, 2]], b)) return 'park';
       return 'build';
     };
-    const roads = GEO.city.roads.map((r) => ({ ...r, flatH: 0, center: 'dash', color: [0.16, 0.16, 0.18], edge: false }));
+    const roads = GEO.city.roads.map((r) => ({ ...r, flatH: 0, center: 'dash', color: [0.16, 0.16, 0.18], edge: !!r.curvy, ...(r.curvy ? { smooth: 10 } : {}) }));
+    // distance (m) from any point to the nearest curvy road's centre line, on a 5 m grid
+    const CG = 5, CN = Math.ceil(1100 / CG) + 1, cdist = new Float32Array(CN * CN).fill(1e9);
+    for (const r of GEO.city.roads.filter((x) => x.curvy)) for (const [px, pz] of crSample(r.pts, !!r.closed, 3)) {
+      const i0 = Math.floor((px + 550) / CG), j0 = Math.floor((pz + 550) / CG);
+      for (let i = i0 - 10; i <= i0 + 10; i++) for (let j = j0 - 10; j <= j0 + 10; j++) {
+        if (i < 0 || j < 0 || i >= CN || j >= CN) continue;
+        const d = Math.hypot(i * CG - 550 - px, j * CG - 550 - pz); if (d < cdist[i * CN + j]) cdist[i * CN + j] = d;
+      }
+    }
+    const curvyD = (x, z) => { const i = Math.round((x + 550) / CG), j = Math.round((z + 550) / CG); return i < 0 || j < 0 || i >= CN || j >= CN ? 1e9 : cdist[i * CN + j]; };
+    const CH = ST / 2; // curvy road half width
+    const cutBlock = (b) => curvyD(b.x, b.z) < (B - ST) / 2 * 1.42 + CH; // a curvy road passes through this block
     const half = K * B, inner = (B - ST) / 2, DG = 11 * Math.SQRT2; // diagonal parks keep 11 m clear of the boulevard centre
     return {
       seed: 505, size: 1100, natural: 'asphalt', boundary: 550 - half - 8, blend: 4,
@@ -1114,6 +1134,8 @@ const SPECS = {
         const bi = Math.floor(x / B + K), bj = Math.floor(z / B + K);
         const b = { i: bi, j: bj }, k = bi >= 0 && bj >= 0 && bi < 2 * K && bj < 2 * K ? kind(b) : '';
         const lx = x - (bi - K + 0.5) * B, lz = z - (bj - K + 0.5) * B;
+        if (curvyD(x, z) < CH + 1) return 'asphalt'; // on a curvy road
+        if (k && k !== 'plaza' && cutBlock({ x: (bi - K + 0.5) * B, z: (bj - K + 0.5) * B }) && Math.abs(lx) < inner - 4 && Math.abs(lz) < inner - 4 && curvyD(x, z) > CH + 3) return 'grass'; // park left either side of a curvy road
         if (k === 'park' && Math.abs(lx) < inner - 4 && Math.abs(lz) < inner - 4) return 'grass';
         if (k === 'diag' && Math.abs(lx) < inner - 4 && Math.abs(lz) < inner - 4 && Math.abs(lx - lz) > DG + 4) return 'grass';
         return 'asphalt';
@@ -1140,7 +1162,17 @@ const SPECS = {
         const signs = [[0.92, 0.9, 0.84], [0.95, 0.82, 0.6], [0.72, 0.22, 0.18], [0.18, 0.42, 0.3], [0.22, 0.3, 0.5]];
         const triUp = (g, A, Bp, C, col) => { const cy = (Bp[2] - A[2]) * (C[0] - A[0]) - (Bp[0] - A[0]) * (C[2] - A[2]); if (cy > 0) g.tri(A, Bp, C, col); else g.tri(A, C, Bp, col); };
         for (const b of blocks) {
-          const k = kind(b), g = c.geo(b.x, b.z);
+          let k = kind(b); const g = c.geo(b.x, b.z);
+          if (k !== 'plaza' && cutBlock(b)) { // a curvy road crosses this block: pocket park either side of it
+            g.box(b.x, 0.012, b.z, inner * 2 + 0.01, 0.024, inner * 2 + 0.01, { top: [0.36, 0.36, 0.38], side: [0.5, 0.5, 0.5] });
+            for (let t = 0; t < 30; t++) {
+              const x = b.x + (r() - 0.5) * (inner * 2 - 10), z = b.z + (r() - 0.5) * (inner * 2 - 10);
+              if (curvyD(x, z) < CH + 6) continue;
+              leafy(g, x, 0, z, 0.9 + r() * 0.5, r, [0.12, 0.3, 0.15]); c.circle(x, z, 0.5);
+            }
+            for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const lx = b.x + sx * (inner - 1), lz = b.z + sz * (inner - 1); if (curvyD(lx, lz) > CH + 3) lamp(c, lx, lz, Math.atan2(sx, sz), true, [1, 0.86, 0.6]); }
+            continue;
+          }
           if (k === 'diag') {
             // two triangular pocket parks either side of the boulevard: sidewalk rim + grass + trees
             for (const sg of [1, -1]) {
@@ -1201,6 +1233,15 @@ const SPECS = {
             c.glow(x, 0.08, z, 16, [0.16, 0.13, 0.09, 1]); // warm floodlight pool
           }
         }
+        // street lights along the curvy roads
+        for (const rd of c.roads) {
+          if (!rd.curvy) continue;
+          for (let i = 6; i < rd.n - 2; i += 12) {
+            const x = rd.x[i] + rd.tz[i] * (rd.half + 2), z = rd.z[i] - rd.tx[i] * (rd.half + 2);
+            if (Math.abs(x) > half - 4 || Math.abs(z) > half - 4 || c.sd(x, z) < 1.2) continue;
+            lamp(c, x, z, Math.atan2(-rd.tz[i], rd.tx[i]), true, [1, 0.84, 0.58]);
+          }
+        }
         // crosswalks & intersections
         for (const xv of lines) for (const zv of lines) {
           const g = c.geo(xv, zv);
@@ -1236,14 +1277,14 @@ const SPECS = {
     const terrain = (x, z) => {
       let h = 1.6 + n.fbm(x / 230, z / 230, 3) * 1.4;
       const e = Math.max(Math.abs(x), -z);
-      h += smoothstep(600, 690, e) * (28 + n.ridge(x / 110, z / 110, 3) * 42);
+      h += smoothstep(1050, 1140, e) * (28 + n.ridge(x / 110, z / 110, 3) * 42);
       return lerp(h, -7, smoothstep(QUAY - 2, QUAY + 30, z)); // harbour basin
     };
     const grassA = col('#5f7f45'), grassB = col('#6f8a4c'), dry = col('#8f8a68'), rockC = col('#7a756c'), conc = col('#8d8b85'), conc2 = col('#7d7c77'), shoreC = col('#6d6a60');
     const yard = GEO.drift.pads[3];
     const inYard = (x, z, m = 0) => Math.abs(x - yard.x) < yard.w / 2 + m && Math.abs(z - yard.z) < yard.d / 2 + m;
     return {
-      seed: 606, size: 1400, natural: 'grass', boundary: 60, blend: 24,
+      seed: 606, size: 2400, natural: 'grass', boundary: 60, blend: 24,
       terrain,
       water: { y: -1.2, color: [0.2, 0.34, 0.4] },
       color: (x, z, h, slope, sd) => {
@@ -1254,13 +1295,15 @@ const SPECS = {
         return mix3(c, rockC, smoothstep(0.45, 0.85, slope));
       },
       shoulder: col('#8a8676'),
-      roads: GEO.drift.roads.map((r, i) => i === 0 ? { ...r, kerbs: true, color: [0.21, 0.21, 0.22], startLine: 40, smooth: 20 }
-        : { ...r, color: [0.25, 0.25, 0.26] }),
+      roads: GEO.drift.roads.map((r, i) => i === 0 || i === 7 ? { ...r, kerbs: true, color: [0.21, 0.21, 0.22], ...(i === 0 ? { startLine: 40 } : {}), smooth: 20 }
+        : i === 10 || i === 11 ? { ...r, kerbs: true, color: [0.22, 0.22, 0.23], smooth: 12 }
+        : { ...r, width: Math.max(r.width, 14), color: [0.25, 0.25, 0.26] }),
       pads: [
         { ...GEO.drift.pads[0], type: 2, markings: 'lot' },
         { ...GEO.drift.pads[1], type: 2, color: [0.24, 0.24, 0.25], markings: 'grid' },
         { ...GEO.drift.pads[2], type: 2, markings: 'donut' },
         { ...yard, type: 2, color: [0.4, 0.4, 0.39] },
+        { ...GEO.drift.pads[4], type: 2, markings: 'donut' },
       ],
       spawns: (W) => W.roadSpawns(0, 40, 12, 1),
       challenges: [
@@ -1269,21 +1312,25 @@ const SPECS = {
         { name: 'Figure-Eight', x: 0, z: -120, r: 80, target: 14000, time: 25 },
         { name: 'Harbour Hairpin', x: 300, z: 120, r: 70, target: 11000, time: 25 },
         { name: 'S-Bends', x: 415, z: -140, r: 80, target: 13000, time: 25 },
+        { name: 'Sweeper Valley', x: 100, z: -700, r: 110, target: 16000, time: 30 },
+        { name: 'Manji Snake', x: 760, z: -320, r: 110, target: 14000, time: 25 },
+        { name: 'Big Skidpad', x: 1000, z: -120, r: 100, target: 20000, time: 30 },
+        { name: 'West Snake', x: -900, z: -150, r: 120, target: 14000, time: 30 },
       ],
       env: {
         sky: { top: col('#56789e'), horizon: col('#e3cfb2'), bottom: col('#8f8a7c') },
         sunDir: norm([-0.45, 0.4, 0.8]), sunCol: [1.08, 0.92, 0.74], sunGlow: [1.15, 0.78, 0.48], ambSky: [0.5, 0.54, 0.62], ambGround: [0.32, 0.3, 0.26],
-        fogCol: col('#cbbfa9'), fogNear: 240, fogFar: 1000, night: false, music: 'bright',
+        fogCol: col('#cbbfa9'), fogNear: 300, fogFar: 1300, night: false, music: 'bright',
       },
       scenery(c) {
         const r = c.rand;
         // --- harbour wall: concrete quay edge with bollards (collides — no driving into the sea)
-        for (let x = -660; x < 660; x += 20) {
+        for (let x = -1160; x < 1160; x += 20) {
           const g = c.geo(x + 10, QUAY);
           g.box(x + 10, c.h(x + 10, QUAY - 3) + 0.35, QUAY - 1, 20, 0.9, 2, { top: [0.66, 0.65, 0.62], side: [0.55, 0.54, 0.5] });
           if ((x / 20) % 3 === 0) g.cylinder(x + 10, c.h(x + 10, QUAY - 3) + 1.1, QUAY - 1, 0.35, 0.7, 8, [0.2, 0.2, 0.22]);
         }
-        c.seg(-700, QUAY - 2, 700, QUAY - 2);
+        c.seg(-1200, QUAY - 2, 1200, QUAY - 2);
         // --- container stacks in rows across the yard, alleys left open between them
         const pal = [[0.55, 0.24, 0.17], [0.22, 0.3, 0.42], [0.36, 0.42, 0.3], [0.6, 0.58, 0.52], [0.66, 0.5, 0.3], [0.32, 0.33, 0.35], [0.45, 0.2, 0.2]];
         const x0 = yard.x - yard.w / 2;

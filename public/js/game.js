@@ -228,14 +228,33 @@ export class Game {
   // drifting alongside another drifting player, both going the same way
   tandemCheck() {
     const c = this.car;
+    this.tandemD = undefined;
     if (!this.mp || c.mode === 'grip' || c.speed < 8) return false;
     const ux = c.vx / c.speed, uz = c.vz / c.speed;
+    let found = false;
     for (const r of this.remotes.values()) {
       if (!r.seen || !(r.flags & 1) || !r.speed || r.speed < 8) continue;
-      if (Math.hypot(r.x - c.x, r.z - c.z) > 15) continue;
-      if ((r.vx / r.speed) * ux + (r.vz / r.speed) * uz > 0.7) return true;
+      const d = Math.hypot(r.x - c.x, r.z - c.z);
+      if (d > 15) continue;
+      if ((r.vx / r.speed) * ux + (r.vz / r.speed) * uz > 0.7) { found = true; if (this.tandemD === undefined || d < this.tandemD) this.tandemD = d; }
     }
-    return false;
+    return found;
+  }
+  // what the trick detector needs: rear wheels off the road? how close is the rear to a wall?
+  trickCtx() {
+    const c = this.car, W = this.world, fx = Math.sin(c.h), fz = Math.cos(c.h);
+    const rx = c.x - fx * 1.7, rz = c.z - fz * 1.7, fxp = c.x + fx * 1.5, fzp = c.z + fz * 1.5;
+    const out = { tandem: this.tandemCheck(), tandemD: this.tandemD, impact: !!this.impactFlag };
+    if (W.sdAt && !W.spec.surfaceFn) { out.rearOff = W.sdAt(rx, rz) > 0.5; out.frontOn = W.sdAt(fxp, fzp) < 0; }
+    if (c.mode !== 'grip' && c.speed > 9) { // nearest wall/rail/post to the rear bumper (cheap: only while sliding)
+      let best = 99;
+      for (const it of W.query(rx, rz)) {
+        if (it.c) best = Math.min(best, Math.hypot(rx - it.c[0], rz - it.c[1]) - it.c[2]);
+        else if (it.s) { const [ax, az, bx, bz] = it.s, vx = bx - ax, vz = bz - az, L = vx * vx + vz * vz || 1; const t = Math.max(0, Math.min(1, ((rx - ax) * vx + (rz - az) * vz) / L)); best = Math.min(best, Math.hypot(rx - ax - vx * t, rz - az - vz * t)); }
+      }
+      out.wallD = best - 1.0; // ~1 m from the bumper point to the car's side
+    }
+    return out;
   }
 
   // ------------------------------------------------------------- rounds (competitive)
@@ -385,7 +404,7 @@ export class Game {
           if (this.mode.crashPenalty && !(this.comp && this.comp.ownsScoring)) this.scorer.crash();
         }
       }
-      if (!(this.comp && this.comp.ownsScoring)) this.scorer.update(dt, this.car, { tandem: this.tandemCheck() });
+      if (!(this.comp && this.comp.ownsScoring)) this.scorer.update(dt, this.car, this.trickCtx());
       // competitive modes: official 20 Hz samples (identical to what the server receives)
       if (this.comp && !this.spectator) {
         this.sampleAcc += Math.min(dt, 0.1);
@@ -568,7 +587,7 @@ export class Game {
       d.classList.toggle('live', sc.chain > 0);
       $('#drift-score').textContent = sc.chain > 0 ? fmt(Math.round(sc.chain)) : '';
       $('#drift-mult').textContent = sc.chain > 0 ? `×${sc.mult.toFixed(1)}` : '';
-      $('#drift-angle').textContent = sc.chain > 0 && c.mode !== 'grip' ? `${c.mode === 'reverse' ? 'REVERSE ' : c.mode === 'spin' ? 'SPIN ' : ''}${Math.round(sc.angle)}°${sc.tandem ? ' · TANDEM ×1.5' : ''}` : '';
+      $('#drift-angle').textContent = sc.chain > 0 && c.mode !== 'grip' ? `${c.mode === 'reverse' ? 'REVERSE ' : c.mode === 'spin' ? 'SPIN ' : ''}${Math.round(sc.angle)}°${sc.tandem ? (this.tandemD !== undefined && this.tandemD < 8 ? ' · CLOSE TANDEM ×2' : ' · TANDEM ×1.5') : ''}` : '';
       $('#drift-grace').style.transform = `scaleX(${sc.chain > 0 ? (sc.active ? 1 : Math.max(0, sc.grace / CHAIN_GRACE)) : 0})`;
       $('#score-total').textContent = fmt(sc.total + (live && this.mode.rounds ? 0 : 0));
       $('#score-best').textContent = fmt(sc.best);

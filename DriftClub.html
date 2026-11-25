@@ -675,6 +675,8 @@ body.touch-on .controls-help { font-size: 13px; }
   #scr-main .nav-btn b { font-size: 17px; }
   #scr-main .nav-btn small { font-size: 12px; }
 }
+/* Free Tandem: finish-lead button (handy on touch screens) */
+.tandem-fin { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); z-index: 30; }
 
 </style>
 </head>
@@ -1944,6 +1946,12 @@ function cityRoads() {
     roads.push({ pts: [[-e, v], [0, v], [e, v]], width: CITY_ST });
   }
   roads.push({ pts: [[-e, -e], [0, 0], [e, e]], width: CITY_ST, diagonal: true }); // the diagonal boulevard
+  // curvy roads cut through the blocks so the city isn't just a grid (blocks they cross become parks)
+  roads.push({ pts: [[-450, -130], [-330, -40], [-200, -140], [-60, -60], [60, -150], [200, -60], [330, -150], [450, -60]], width: CITY_ST, curvy: true }); // Serpentine (west-east)
+  roads.push({ pts: [[150, 450], [90, 340], [200, 230], [130, 120], [220, 10], [150, -100], [235, -220], [140, -330], [180, 450 * -1]], width: CITY_ST, curvy: true }); // Riverside Curve (north-south)
+  roads.push({ pts: [[-450, 300], [-330, 370], [-200, 270], [-80, 360], [20, 450]], width: CITY_ST, curvy: true }); // Old Town Bend (north-west)
+  const ring = []; for (let k = 0; k < 16; k++) { const a = (k / 16) * Math.PI * 2; ring.push([Math.round(Math.cos(a) * 300), Math.round(Math.sin(a) * 300)]); }
+  roads.push({ pts: ring, closed: true, width: CITY_ST, curvy: true }); // Ring Boulevard round downtown
   return roads;
 }
 const CITY = { B: CITY_B, ST: CITY_ST, K: CITY_K };
@@ -1953,6 +1961,15 @@ const sc = (k, pts) => pts.map(([x, z]) => [Math.round(x * k), Math.round(z * k)
 // Every map is a road NETWORK: road 0 is the main loop (the Speed Race circuit on most maps);
 // the other roads are connectors, cut-throughs and side roads whose ends sit on another road
 // (a junction) or inside a pad (car parks, skidpads, plazas).
+// a parallel carriageway `d` metres to the side of a road; first and last points stay put so it merges
+function twinOf(pts, d) {
+  return pts.map((p, i) => {
+    if (i === 0 || i === pts.length - 1) return p;
+    const a = pts[i - 1], b = pts[i + 1], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    const k = i === 1 || i === pts.length - 2 ? 0.7 : 1; // ease in/out of the merge
+    return [Math.round(p[0] + ((b[1] - a[1]) / l) * d * k), Math.round(p[1] - ((b[0] - a[0]) / l) * d * k)];
+  });
+}
 // A ladder of switchbacks (Japanese touge hairpins): `legs` traverses of length `len`, the first one
 // starting at (x0, z0) heading +x (dir 1) or -x (dir -1), each hairpin stepping `gap` metres in z
 // (sign of gap = which way up the ladder goes). Legs get a slight S-bend so they flow.
@@ -2030,6 +2047,11 @@ const GEO = {
       { pts: [[1650, 400], [1560, 425], [1490, 440]], width: 12 },
       // 11: dry lake access (north-east highway)
       { pts: [[1350, 800], [1180, 870], [1060, 930]], width: 12 },
+      // 12: the interstate's second carriageway (divided highway: 22 m apart, merging at both ends)
+      { pts: twinOf([[-1720, 200], [-1100, 270], [-600, 340], [0, 400], [600, 340], [1100, 230], [1700, -200]], 22), width: 16 },
+      // 13-14: cloverleaf loops where the north highway crosses the interstate (long 270-degree drift loops)
+      { pts: [[160, 398], [205, 425], [222, 480], [197, 532], [140, 550], [85, 532], [45, 560], [10, 600]], width: 12 },
+      { pts: [[-160, 398], [-205, 425], [-222, 480], [-197, 532], [-140, 550], [-85, 532], [-45, 560], [10, 600]], width: 12 },
     ],
     pads: [
       { x: 0, z: 0, r: 210 }, // salt flat
@@ -2057,13 +2079,22 @@ const GEO = {
       { pts: [[-950, 980], [-830, 900], [-720, 860]], width: 10 },
       // 5: gravel forestry road -> clearing (west ring)
       { pts: [[-1330, 0], [-1180, 40], [-1050, -20]], width: 9.5 },
+      // 6-9: the mid-mountain touge roads, one on each face, mostly following the slope across
+      // 6: north-east face: ridge run -> across the slope -> Irohazaka esses
+      { pts: [[900, 120], [870, 360], [770, 560], [600, 700], [420, 790], [230, 860], [40, 1020]], width: 10 },
+      // 7: north-west face: Irohazaka esses -> across the slope -> down to the west ring
+      { pts: [[-70, 900], [-250, 830], [-450, 720], [-620, 570], [-760, 400], [-900, 320], [-1060, 380], [-1250, 520]], width: 10 },
+      // 8: south-east face: ridge run -> across the slope -> down to the south ring
+      { pts: [[900, 120], [880, -180], [790, -440], [650, -640], [570, -850], [600, -1050], [600, -1250]], width: 10 },
+      // 9: south-west face: forestry clearing -> across the slope -> the uphill's start
+      { pts: [[-990, -20], [-930, -240], [-820, -460], [-660, -640], [-480, -770], [-330, -880], [-226, -915]], width: 10 },
     ],
     pads: [{ x: -75, z: -1262, w: 110, d: 70 }, { x: 0, z: 60, w: 130, d: 90 }, { x: -700, z: 840, w: 80, d: 50 }, { x: -990, z: -20, r: 55 }],
   },
   forest: {
     roads: [
       // 0: the main forest loop
-      { pts: sc(1.3, [[-380, -320], [-150, -400], [120, -380], [330, -300], [430, -120], [390, 40], [420, 200], [360, 380], [160, 430], [-40, 380], [-120, 240], [-260, 200], [-400, 260], [-470, 80], [-430, -60], [-450, -200]]), closed: true, width: 12 },
+      { pts: sc(1.3, [[-380, -320], [-150, -400], [120, -380], [330, -300], [430, -120], [390, 40], [420, 200], [360, 380], [160, 430], [-40, 380], [-115, 296], [-231, 258], [-350, 254], [-440, 192], [-470, 80], [-430, -60], [-450, -200]]), closed: true, width: 12 },
       // 1: west spur into the gravel clearing
       { pts: [[-572, -169], [-442, -188], [-320, -195]], width: 10 },
       // 2: lakeside road along the south and west shore
@@ -2071,7 +2102,7 @@ const GEO = {
       // 3: north shore road
       { pts: [[-22, 325], [120, 352], [300, 330], [420, 400], [466, 490]], width: 11 },
       // 4: gravel logging trail: clearing -> north-west loop
-      { pts: [[-228, -110], [-250, 40], [-300, 170], [-336, 262]], width: 9 },
+      { pts: [[-228, -110], [-250, 40], [-290, 190], [-301, 335]], width: 9 },
       // 5: forest road through the middle: south loop -> cabin car park -> lakeside
       { pts: [[156, -490], [158, -440], [156, -400], [160, -300], [175, -160], [180, -50]], width: 10 },
       // 6: quarry track (outside the loop, south-west)
@@ -2086,7 +2117,7 @@ const GEO = {
     roads: [
       // 0: the drift course — main straight, fast right-hander, S-bends, hairpin, a figure-eight
       // crossover in the middle, the long west sweeper and a final hairpin onto the straight
-      { pts: [[-250, -480], [0, -480], [200, -478], [330, -450], [425, -350], [440, -230], [380, -140], [450, -40], [410, 60], [345, 140], [280, 160], [225, 110], [150, 25], [0, -120], [-150, -265], [-270, -320], [-380, -260], [-420, -120], [-370, 10], [-250, 60], [-150, 30], [0, -120], [150, -270], [210, -340], [150, -395], [0, -405], [-250, -400], [-370, -420], [-380, -460]], closed: true, width: 18 },
+      { pts: [[-250, -480], [0, -480], [200, -478], [330, -450], [425, -350], [440, -230], [380, -140], [450, -40], [410, 60], [345, 140], [280, 160], [225, 110], [150, 25], [0, -120], [-150, -265], [-270, -320], [-380, -260], [-420, -120], [-370, 10], [-250, 60], [-150, 30], [0, -120], [150, -270], [210, -340], [150, -395], [0, -405], [-250, -400], [-370, -420], [-380, -460]], closed: true, width: 20 },
       // 1: paddock road along the south of the main straight -> west service road
       { pts: [[-250, -480], [-420, -520], [-540, -420], [-560, -150], [-540, 120], [-500, 210]], width: 12 },
       // 2: hairpin -> harbour container yard (north access)
@@ -2098,12 +2129,24 @@ const GEO = {
       { pts: [[-300, 46], [-330, 140], [-360, 175]], width: 12 },
       // 6: east service road: S-bends -> container yard east end
       { pts: [[449, -40], [520, 40], [545, 160], [540, 300]], width: 11 },
+      // --- the bigger park (2.4 km): three new drift areas
+      // 7: Sweeper Valley — wide, fast loop of long sweepers and S-bends across the south (tandem heaven)
+      { pts: [[-700, -700], [-300, -660], [100, -700], [500, -660], [850, -760], [960, -930], [800, -1020], [400, -990], [0, -1035], [-400, -990], [-800, -1020], [-980, -930], [-900, -780]], closed: true, width: 20 },
+      // 8: link: drift course (S-bends exit) -> Sweeper Valley
+      { pts: [[330, -450], [380, -560], [440, -640], [500, -660]], width: 14 },
+      // 9: link: paddock road -> Sweeper Valley
+      { pts: [[-540, -420], [-600, -560], [-700, -700]], width: 14 },
+      // 10: Manji Snake — straight-ish road that wiggles every 100 m (sway drifts), ends on the big skidpad
+      { pts: [[425, -350], [560, -330], [660, -280], [760, -350], [860, -280], [960, -350], [1000, -240]], width: 16 },
+      // 11: West Snake — tight technical road through the west (paddock road -> Sweeper Valley link)
+      { pts: [[-560, -150], [-700, -120], [-800, -40], [-760, 60], [-870, 140], [-990, 80], [-1040, -80], [-960, -220], [-1040, -380], [-920, -470], [-760, -520], [-620, -560]], width: 14 },
     ],
     pads: [
       { x: -40, z: -506, w: 300, d: 60 }, // paddock
       { x: -410, z: 240, w: 230, d: 150 }, // practice pad
       { x: -110, z: 205, r: 42 }, // donut circle
       { x: 240, z: 357, w: 720, d: 150 }, // harbour container yard (alleys between the stacks)
+      { x: 1000, z: -120, r: 110 }, // the big skidpad (end of the Manji Snake)
     ],
   },
 };
@@ -4703,7 +4746,8 @@ const EMPTY = [];
 const MAP_LOOP = ['track', 'desert', 'mountain', 'forest', 'city', 'drift'];
 // where each map's two gates stand: road index, position along it (0..1), and which way is "out"
 const GATE_SPOTS = {
-  track: [{ road: 0, f: 0.3, dir: 1 }, { road: 0, f: 0.62, dir: -1 }],
+  // track: out in the two bottom corners, on short roads off the corners of the outer service road
+  track: [{ road: 3, f: 0, dir: 1, spur: [[520, -470], [530, -480], [541, -491], [553, -503]] }, { road: 3, f: 0, dir: 1, spur: [[-520, -470], [-530, -480], [-541, -491], [-553, -503]] }],
   desert: [{ road: 1, f: 0.62, dir: 1 }, { road: 1, f: 0.3, dir: -1 }],
   mountain: [{ road: 0, f: 0.3, dir: 1 }, { road: 0, f: 0.72, dir: -1 }],
   forest: [{ road: 0, f: 0.3, dir: 1 }, { road: 0, f: 0.65, dir: -1 }],
@@ -4776,7 +4820,11 @@ class World {
       return true;
     };
     spots.forEach((sp, gi) => {
-      if (sp.spur) { extra.push({ pts: sp.spur, width: 10, flatH: 0, center: 'dash', edge: false, color: [0.16, 0.16, 0.18], gateSpur: gi, samples: crSample(sp.spur, false, 3) }); return; }
+      if (sp.spur) { // hand-placed side road
+        const parent = spec.roads[sp.road] || {};
+        extra.push({ pts: sp.spur, width: 10, ...(this.id === 'city' ? { flatH: 0, edge: false } : { maxGrade: 0.14, smooth: 4 }), center: 'dash', color: parent.color || [0.16, 0.16, 0.18], gateSpur: gi, samples: crSample(sp.spur, false, 3) });
+        return;
+      }
       const rd = spec.roads[sp.road], P = sampled[sp.road]; if (!rd) return;
       let done = false;
       for (const df of [0, 0.03, -0.03, 0.06, -0.06, 0.09, -0.09, 0.12, -0.12]) {
@@ -5451,6 +5499,7 @@ const SPECS = {
       let h = n.fbm(x / 170, z / 170, 4) * 7 + Math.sin(x / 37 + n(x / 90, z / 90) * 3) * 1.2;
       const e = Math.max(Math.abs(x), Math.abs(z));
       h += n.fbm(x / 420, z / 420, 3) * 10; // big rolling dunes
+      h += 48 * Math.exp(-(((x + 1080) ** 2) + ((z - 960) ** 2)) / (430 * 430)); // Red Rock Ridge: the canyon road climbs over it (downhill drift run)
       h += smoothstep(1790, 1960, e) * (50 + n.ridge(x / 160, z / 160, 3) * 80);
       for (const [mx, mz, mr] of mesas) {
         const d = Math.hypot(x - mx, z - mz) + n(x / 40, z / 40) * 18;
@@ -5466,7 +5515,8 @@ const SPECS = {
         return mix3(sand, sand2, n(x / 25, z / 25) * 0.5 + 0.5);
       },
       shoulder: col('#c99b62'),
-      roads: GEO.desert.roads.map((r, i) => i <= 1 ? { ...r, center: 'dash', color: [0.26, 0.25, 0.25], smooth: 24 }
+      roads: GEO.desert.roads.map((r, i) => i <= 1 || i === 12 ? { ...r, center: 'dash', color: [0.26, 0.25, 0.25], smooth: 24 }
+        : i === 13 || i === 14 ? { ...r, color: [0.26, 0.25, 0.25], smooth: 4, maxGrade: 0.1 } // cloverleaf loops
         : i === 7 ? { ...r, surface: 3, color: [0.5, 0.42, 0.32], edge: false } // dusty gravel track
         : { ...r, center: i <= 6 ? 'dash' : undefined, color: [0.26, 0.25, 0.25] }),
       pads: [
@@ -5566,6 +5616,7 @@ const SPECS = {
       roads: GEO.mountain.roads.map((r, i) => i === 0 ? { ...r, center: 'dash', color: [0.25, 0.25, 0.27], smooth: 22, maxGrade: 0.1 }
         : i === 5 ? { ...r, surface: 3, color: [0.4, 0.36, 0.3], edge: false, maxGrade: 0.15 }
         : i === 4 ? { ...r, color: [0.25, 0.25, 0.27], maxGrade: 0.14 }
+        : i >= 6 ? { ...r, center: 'dash', centerColor: [0.98, 0.62, 0.12], guardrails: true, color: [0.24, 0.24, 0.26], smooth: 14, maxGrade: 0.14 } // mid-mountain touge roads
         : { ...r, center: 'dash', centerColor: [0.98, 0.62, 0.12], guardrails: true, color: [0.24, 0.24, 0.26], smooth: 14, maxGrade: 0.14 }),
       pads: [
         { ...GEO.mountain.pads[0], type: 2, markings: 'lot' },
@@ -5736,7 +5787,19 @@ const SPECS = {
       if (has([[1, 3], [6, 8], [8, 2]], b)) return 'park';
       return 'build';
     };
-    const roads = GEO.city.roads.map((r) => ({ ...r, flatH: 0, center: 'dash', color: [0.16, 0.16, 0.18], edge: false }));
+    const roads = GEO.city.roads.map((r) => ({ ...r, flatH: 0, center: 'dash', color: [0.16, 0.16, 0.18], edge: !!r.curvy, ...(r.curvy ? { smooth: 10 } : {}) }));
+    // distance (m) from any point to the nearest curvy road's centre line, on a 5 m grid
+    const CG = 5, CN = Math.ceil(1100 / CG) + 1, cdist = new Float32Array(CN * CN).fill(1e9);
+    for (const r of GEO.city.roads.filter((x) => x.curvy)) for (const [px, pz] of crSample(r.pts, !!r.closed, 3)) {
+      const i0 = Math.floor((px + 550) / CG), j0 = Math.floor((pz + 550) / CG);
+      for (let i = i0 - 10; i <= i0 + 10; i++) for (let j = j0 - 10; j <= j0 + 10; j++) {
+        if (i < 0 || j < 0 || i >= CN || j >= CN) continue;
+        const d = Math.hypot(i * CG - 550 - px, j * CG - 550 - pz); if (d < cdist[i * CN + j]) cdist[i * CN + j] = d;
+      }
+    }
+    const curvyD = (x, z) => { const i = Math.round((x + 550) / CG), j = Math.round((z + 550) / CG); return i < 0 || j < 0 || i >= CN || j >= CN ? 1e9 : cdist[i * CN + j]; };
+    const CH = ST / 2; // curvy road half width
+    const cutBlock = (b) => curvyD(b.x, b.z) < (B - ST) / 2 * 1.42 + CH; // a curvy road passes through this block
     const half = K * B, inner = (B - ST) / 2, DG = 11 * Math.SQRT2; // diagonal parks keep 11 m clear of the boulevard centre
     return {
       seed: 505, size: 1100, natural: 'asphalt', boundary: 550 - half - 8, blend: 4,
@@ -5745,6 +5808,8 @@ const SPECS = {
         const bi = Math.floor(x / B + K), bj = Math.floor(z / B + K);
         const b = { i: bi, j: bj }, k = bi >= 0 && bj >= 0 && bi < 2 * K && bj < 2 * K ? kind(b) : '';
         const lx = x - (bi - K + 0.5) * B, lz = z - (bj - K + 0.5) * B;
+        if (curvyD(x, z) < CH + 1) return 'asphalt'; // on a curvy road
+        if (k && k !== 'plaza' && cutBlock({ x: (bi - K + 0.5) * B, z: (bj - K + 0.5) * B }) && Math.abs(lx) < inner - 4 && Math.abs(lz) < inner - 4 && curvyD(x, z) > CH + 3) return 'grass'; // park left either side of a curvy road
         if (k === 'park' && Math.abs(lx) < inner - 4 && Math.abs(lz) < inner - 4) return 'grass';
         if (k === 'diag' && Math.abs(lx) < inner - 4 && Math.abs(lz) < inner - 4 && Math.abs(lx - lz) > DG + 4) return 'grass';
         return 'asphalt';
@@ -5771,7 +5836,17 @@ const SPECS = {
         const signs = [[0.92, 0.9, 0.84], [0.95, 0.82, 0.6], [0.72, 0.22, 0.18], [0.18, 0.42, 0.3], [0.22, 0.3, 0.5]];
         const triUp = (g, A, Bp, C, col) => { const cy = (Bp[2] - A[2]) * (C[0] - A[0]) - (Bp[0] - A[0]) * (C[2] - A[2]); if (cy > 0) g.tri(A, Bp, C, col); else g.tri(A, C, Bp, col); };
         for (const b of blocks) {
-          const k = kind(b), g = c.geo(b.x, b.z);
+          let k = kind(b); const g = c.geo(b.x, b.z);
+          if (k !== 'plaza' && cutBlock(b)) { // a curvy road crosses this block: pocket park either side of it
+            g.box(b.x, 0.012, b.z, inner * 2 + 0.01, 0.024, inner * 2 + 0.01, { top: [0.36, 0.36, 0.38], side: [0.5, 0.5, 0.5] });
+            for (let t = 0; t < 30; t++) {
+              const x = b.x + (r() - 0.5) * (inner * 2 - 10), z = b.z + (r() - 0.5) * (inner * 2 - 10);
+              if (curvyD(x, z) < CH + 6) continue;
+              leafy(g, x, 0, z, 0.9 + r() * 0.5, r, [0.12, 0.3, 0.15]); c.circle(x, z, 0.5);
+            }
+            for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const lx = b.x + sx * (inner - 1), lz = b.z + sz * (inner - 1); if (curvyD(lx, lz) > CH + 3) lamp(c, lx, lz, Math.atan2(sx, sz), true, [1, 0.86, 0.6]); }
+            continue;
+          }
           if (k === 'diag') {
             // two triangular pocket parks either side of the boulevard: sidewalk rim + grass + trees
             for (const sg of [1, -1]) {
@@ -5832,6 +5907,15 @@ const SPECS = {
             c.glow(x, 0.08, z, 16, [0.16, 0.13, 0.09, 1]); // warm floodlight pool
           }
         }
+        // street lights along the curvy roads
+        for (const rd of c.roads) {
+          if (!rd.curvy) continue;
+          for (let i = 6; i < rd.n - 2; i += 12) {
+            const x = rd.x[i] + rd.tz[i] * (rd.half + 2), z = rd.z[i] - rd.tx[i] * (rd.half + 2);
+            if (Math.abs(x) > half - 4 || Math.abs(z) > half - 4 || c.sd(x, z) < 1.2) continue;
+            lamp(c, x, z, Math.atan2(-rd.tz[i], rd.tx[i]), true, [1, 0.84, 0.58]);
+          }
+        }
         // crosswalks & intersections
         for (const xv of lines) for (const zv of lines) {
           const g = c.geo(xv, zv);
@@ -5867,14 +5951,14 @@ const SPECS = {
     const terrain = (x, z) => {
       let h = 1.6 + n.fbm(x / 230, z / 230, 3) * 1.4;
       const e = Math.max(Math.abs(x), -z);
-      h += smoothstep(600, 690, e) * (28 + n.ridge(x / 110, z / 110, 3) * 42);
+      h += smoothstep(1050, 1140, e) * (28 + n.ridge(x / 110, z / 110, 3) * 42);
       return lerp(h, -7, smoothstep(QUAY - 2, QUAY + 30, z)); // harbour basin
     };
     const grassA = col('#5f7f45'), grassB = col('#6f8a4c'), dry = col('#8f8a68'), rockC = col('#7a756c'), conc = col('#8d8b85'), conc2 = col('#7d7c77'), shoreC = col('#6d6a60');
     const yard = GEO.drift.pads[3];
     const inYard = (x, z, m = 0) => Math.abs(x - yard.x) < yard.w / 2 + m && Math.abs(z - yard.z) < yard.d / 2 + m;
     return {
-      seed: 606, size: 1400, natural: 'grass', boundary: 60, blend: 24,
+      seed: 606, size: 2400, natural: 'grass', boundary: 60, blend: 24,
       terrain,
       water: { y: -1.2, color: [0.2, 0.34, 0.4] },
       color: (x, z, h, slope, sd) => {
@@ -5885,13 +5969,15 @@ const SPECS = {
         return mix3(c, rockC, smoothstep(0.45, 0.85, slope));
       },
       shoulder: col('#8a8676'),
-      roads: GEO.drift.roads.map((r, i) => i === 0 ? { ...r, kerbs: true, color: [0.21, 0.21, 0.22], startLine: 40, smooth: 20 }
-        : { ...r, color: [0.25, 0.25, 0.26] }),
+      roads: GEO.drift.roads.map((r, i) => i === 0 || i === 7 ? { ...r, kerbs: true, color: [0.21, 0.21, 0.22], ...(i === 0 ? { startLine: 40 } : {}), smooth: 20 }
+        : i === 10 || i === 11 ? { ...r, kerbs: true, color: [0.22, 0.22, 0.23], smooth: 12 }
+        : { ...r, width: Math.max(r.width, 14), color: [0.25, 0.25, 0.26] }),
       pads: [
         { ...GEO.drift.pads[0], type: 2, markings: 'lot' },
         { ...GEO.drift.pads[1], type: 2, color: [0.24, 0.24, 0.25], markings: 'grid' },
         { ...GEO.drift.pads[2], type: 2, markings: 'donut' },
         { ...yard, type: 2, color: [0.4, 0.4, 0.39] },
+        { ...GEO.drift.pads[4], type: 2, markings: 'donut' },
       ],
       spawns: (W) => W.roadSpawns(0, 40, 12, 1),
       challenges: [
@@ -5900,21 +5986,25 @@ const SPECS = {
         { name: 'Figure-Eight', x: 0, z: -120, r: 80, target: 14000, time: 25 },
         { name: 'Harbour Hairpin', x: 300, z: 120, r: 70, target: 11000, time: 25 },
         { name: 'S-Bends', x: 415, z: -140, r: 80, target: 13000, time: 25 },
+        { name: 'Sweeper Valley', x: 100, z: -700, r: 110, target: 16000, time: 30 },
+        { name: 'Manji Snake', x: 760, z: -320, r: 110, target: 14000, time: 25 },
+        { name: 'Big Skidpad', x: 1000, z: -120, r: 100, target: 20000, time: 30 },
+        { name: 'West Snake', x: -900, z: -150, r: 120, target: 14000, time: 30 },
       ],
       env: {
         sky: { top: col('#56789e'), horizon: col('#e3cfb2'), bottom: col('#8f8a7c') },
         sunDir: norm([-0.45, 0.4, 0.8]), sunCol: [1.08, 0.92, 0.74], sunGlow: [1.15, 0.78, 0.48], ambSky: [0.5, 0.54, 0.62], ambGround: [0.32, 0.3, 0.26],
-        fogCol: col('#cbbfa9'), fogNear: 240, fogFar: 1000, night: false, music: 'bright',
+        fogCol: col('#cbbfa9'), fogNear: 300, fogFar: 1300, night: false, music: 'bright',
       },
       scenery(c) {
         const r = c.rand;
         // --- harbour wall: concrete quay edge with bollards (collides — no driving into the sea)
-        for (let x = -660; x < 660; x += 20) {
+        for (let x = -1160; x < 1160; x += 20) {
           const g = c.geo(x + 10, QUAY);
           g.box(x + 10, c.h(x + 10, QUAY - 3) + 0.35, QUAY - 1, 20, 0.9, 2, { top: [0.66, 0.65, 0.62], side: [0.55, 0.54, 0.5] });
           if ((x / 20) % 3 === 0) g.cylinder(x + 10, c.h(x + 10, QUAY - 3) + 1.1, QUAY - 1, 0.35, 0.7, 8, [0.2, 0.2, 0.22]);
         }
-        c.seg(-700, QUAY - 2, 700, QUAY - 2);
+        c.seg(-1200, QUAY - 2, 1200, QUAY - 2);
         // --- container stacks in rows across the yard, alleys left open between them
         const pal = [[0.55, 0.24, 0.17], [0.22, 0.3, 0.42], [0.36, 0.42, 0.3], [0.6, 0.58, 0.52], [0.66, 0.5, 0.3], [0.32, 0.33, 0.35], [0.45, 0.2, 0.2]];
         const x0 = yard.x - yard.w / 2;
@@ -6089,6 +6179,16 @@ __mod["js/scoring.js"] = (function () {
 //   TRANSITION switching drift direction without straightening
 //   TANDEM    drifting alongside another drifting player (points ×1.5)
 //   CHAIN     consecutive drifts linked within the grace window
+// Technique tricks (names from real drifting):
+//   MANJI          3+ quick side-to-side transitions on a straight
+//   FEINT ENTRY    small slide the wrong way, then flick into the drift (Scandinavian flick)
+//   HANDBRAKE ENTRY  drift started with a handbrake pull at speed
+//   STRAIGHT DRIFT holding big angle down a straight (choku-dori)
+//   LONG / ENDLESS DRIFT  one drift held 8 s / 15 s
+//   HIGH SPEED DRIFT  big angle above ~140 km/h
+//   DIRT DROP      rear wheels dropped off the road and back while drifting
+//   WALL TAP / KISS  rear end within 1.2 m / 0.6 m of a wall or rail without hitting it
+//   DOOR TO DOOR   tandem with another driver within 5.5 m for a second
 // Spinning out (losing all speed mid-spin) or crashing loses the unbanked chain.
 const CHAIN_GRACE = 2.0;
 const MAX_MULT = 8;
@@ -6107,15 +6207,24 @@ class DriftScorer {
     this.driftCount = 0; this.controlled = false;
     this.rot = 0; this.circ = 0; this.donutStreak = 0; this.donutIdle = 0; this.gripT = 0;
     this.revT = 0; this.tandemT = 0; this.tandem = false; this.prevMode = 'grip'; this.side = 0; this.sideT = 0;
-    this.stats = { spins360: 0, donuts: 0, transitions: 0, reverse: 0, tandem: 0 };
+    this.stats = { spins360: 0, donuts: 0, transitions: 0, reverse: 0, tandem: 0, manji: 0, feint: 0, wall: 0, dirtDrop: 0, doorToDoor: 0 };
+    this.clk = 0; this.manjiT = []; this.lastSmall = null; this.lastHB = -9; this.seg = {}; this.cool = {}; this.dropT = 0; this.doorT = 0;
   }
   get liveScore() { return this.chain * this.mult; }
   bonus(points, combo, type, data) { this.chain += points; if (combo) this.combo++; this.onEvent(type, { ...data, points: Math.round(points), combo: this.combo }); }
 
   // car: Vehicle; ctx: { tandem: bool }
+  trick(name, pts, key, cool = 0) { // one-off technique bonus with an optional cooldown
+    if (key && (this.cool[key] || -99) > this.clk - cool) return false;
+    if (key) this.cool[key] = this.clk;
+    this.bonus(pts, true, 'trick', { name }); return true;
+  }
   update(dt, car, ctx = {}) {
     if (!this.enabled) return;
     const speed = car.speed, mode = car.mode, rel = car.rel || 0;
+    this.clk += dt;
+    if (car.handbrake) this.lastHB = this.clk;
+    if (mode !== 'reverse' && Math.abs(rel) > 0.05 && Math.abs(rel) < 0.35 && speed > 12) this.lastSmall = { t: this.clk, sign: Math.sign(rel) };
     const revAng = Math.abs(((rel - Math.PI * Math.sign(rel || 1)) + 3 * Math.PI) % TAU - Math.PI);
     const ang = (mode === 'reverse' ? revAng : Math.abs(rel)) * 57.3;
     this.angle = ang;
@@ -6168,16 +6277,32 @@ class DriftScorer {
       if (this.side && side !== this.side && this.sideT > 0.35 && speed > 8) {
         this.stats.transitions++; this.segTime = 0; this.lastDir = side;
         this.bonus(300 + speed * 15, true, 'transition', {});
+        // manji: quick side-to-side on a straight
+        if (Math.abs(car.velRate || 0) < 0.14) {
+          this.manjiT = this.manjiT.filter((x) => this.clk - x < 4); this.manjiT.push(this.clk);
+          if (this.manjiT.length >= 3) { this.stats.manji++; this.trick(`MANJI ×${this.manjiT.length - 1}`, 500 + 250 * this.manjiT.length, null); }
+        }
       }
       if (side !== this.side) this.sideT = 0;
       this.side = side; this.sideT += dt;
     } else if (!sliding && this.gripT > 0.5) { this.side = 0; this.sideT = 0; }
 
+    // ---------- dirt drop: rear wheels off the road and back on, still drifting
+    if (sliding && speed > 9 && ctx.rearOff && ctx.frontOn) this.dropT += dt;
+    else if (this.dropT > 0) { if (sliding && this.dropT > 0.15 && this.dropT < 1.6 && !ctx.rearOff) { this.stats.dirtDrop++; this.trick('DIRT DROP', 700, 'drop', 3); } this.dropT = 0; }
+    // ---------- wall tap: rear end skimming a wall/rail without touching
+    if (sliding && speed > 9 && ctx.wallD !== undefined && ctx.wallD < 1.2 && !ctx.impact) {
+      if (this.trick(ctx.wallD < 0.6 ? 'WALL KISS' : 'WALL TAP', ctx.wallD < 0.6 ? 1400 : 900, 'wall', 2.5)) this.stats.wall++;
+    }
+    // ---------- door to door: really close tandem
+    if (this.tandem && ctx.tandemD !== undefined && ctx.tandemD < 5.5) { this.doorT += dt; if (this.doorT > 1) { this.doorT = 0; this.stats.doorToDoor++; this.trick('DOOR TO DOOR!', 1200, 'door', 4); } }
+    else this.doorT = 0;
+
     // ---------- base points from controlled sliding
     let scoring = false, rateMul = 1;
     if (mode === 'drift' && ang > 12 && speed > 7 && controlled && car.forwardSpeed > 1) scoring = true;
     if (mode === 'reverse' && ang < 55 && speed > 5 && controlled) { scoring = true; rateMul = 1.6; }
-    if (this.tandem) rateMul *= 1.5;
+    if (this.tandem) rateMul *= ctx.tandemD !== undefined && ctx.tandemD < 8 ? 2 : 1.5; // close tandems pay double
     const donutting = mode === 'drift' && ang > 30 && speed > 2.5 && radius < 14 && !car.handbrake;
     const keepAlive = scoring || donutting || mode === 'spin' || (mode === 'reverse' && speed > 4) || (sliding && car.handbrake && speed > 5) || (mode === 'drift' && this.sideT < 0.6 && speed > 8);
 
@@ -6189,6 +6314,10 @@ class DriftScorer {
         const newDrift = (this.gapT || 0) >= 0.35 && (this.lastSeg || 0) >= 0.6;
         if (this.chain > 0) { if (newDrift) { this.combo++; this.segTime = 0; this.driftCount++; this.onEvent('combo', { combo: this.combo }); } }
         else { this.combo = 0; this.chainTime = 0; this.segTime = 0; this.driftCount++; }
+        // how the drift was started
+        if (this.lastSmall && this.clk - this.lastSmall.t < 1.2 && dir && this.lastSmall.sign === -dir && speed > 12) { this.stats.feint++; this.trick('FEINT ENTRY', 900, 'feint', 2); }
+        else if (this.clk - this.lastHB < 0.6 && speed > 14) this.trick('HANDBRAKE ENTRY', 300, 'hbentry', 3);
+        this.seg = {};
       }
       if (dir) this.lastDir = dir;
       this.segTime += dt; this.chainTime += dt;
@@ -6197,6 +6326,14 @@ class DriftScorer {
       const durF = 1 + Math.min(this.segTime, 6) * 0.18;
       this.chain += 110 * angleF * speedF * durF * rateMul * dt;
       if (ang > 55 && this.segTime > 0.5 && !this._bigAngle) { this._bigAngle = true; this.onEvent('label', { text: 'BIG ANGLE!' }); }
+      // held-drift tricks (once per drift)
+      const S = this.seg;
+      S.straight = Math.abs(car.velRate || 0) < 0.08 && ang > 25 ? (S.straight || 0) + dt : 0;
+      if (S.straight > 2 && !S.st) { S.st = true; this.trick('STRAIGHT DRIFT', 900); }
+      if (this.segTime > 8 && !S.long) { S.long = true; this.trick('LONG DRIFT', 1200); }
+      if (this.segTime > 15 && !S.endless) { S.endless = true; this.trick('ENDLESS DRIFT', 2500); }
+      S.hs = speed > 38 && ang > 25 ? (S.hs || 0) + dt : 0;
+      if (S.hs > 1 && !S.hsd) { S.hsd = true; this.trick('HIGH SPEED DRIFT', 1000); }
     } else if (this.active) { this.active = false; this._bigAngle = false; this.lastSeg = this.segTime; this.gapT = 0; }
     if (!this.active) this.gapT = (this.gapT || 0) + dt;
     if (keepAlive) { if (this.chain > 0 || scoring) this.grace = CHAIN_GRACE; }
@@ -6248,6 +6385,7 @@ MODES.push(
   { id: 'challenge', comp: 'challenge', name: 'Drift Challenge', icon: '★', desc: 'Score Attack or Timed Challenge. Angle, speed, distance, smoothness and combos count; crashes and leaving the track cost you.', score: true, timer: true, challenges: false, crashPenalty: true, board: true },
   { id: 'race', comp: 'race', name: 'Speed Race', icon: '⚑', desc: 'Circuit racing: starting grid, countdown, laps, checkpoints, positions and best laps. Race CPU drivers solo or friends online.', score: false, timer: true, challenges: false, crashPenalty: false, board: true },
   { id: 'driftrace', comp: 'driftrace', name: 'Drift Race', icon: '≋', desc: 'A race where style pays: drift points earned on the way plus a bonus for where you finish. Out-drift the field or out-run it.', score: true, timer: true, challenges: false, crashPenalty: false, board: true },
+  { id: 'tandem', comp: 'tandem', soloOnly: true, name: 'Free Tandem', icon: '⇉', desc: 'Tandem anywhere: drive a lead run on any roads of any map, then chase your own ghost through it. Judged on proximity, angle match and line.', score: false, timer: false, challenges: false, crashPenalty: false, board: false },
   { id: 'battle', comp: 'battle', name: 'Drift Battle', icon: '⇄', desc: 'Head-to-head tandem: lead one run, chase the other. Judged on angle, line and proximity. Solo: chase your own ghost.', score: false, timer: true, challenges: false, crashPenalty: false, board: false },
 );
 const FREE_MODES = MODES.filter((m) => !m.comp);
@@ -7157,8 +7295,8 @@ class UI {
   // ------------------------------------------------------------- PLAY
   renderPlay() {
     const S = this.S;
-    const art = { challenge: 'track', race: 'city', driftrace: 'forest', battle: 'mountain' };
-    $('#comp-cards').innerHTML = COMP_MODES.map((m) => `<button class="card compcard" data-comp="${m.id}"><div class="map-thumb t-${art[m.id]}"><span class="comp-icon">${m.icon}</span></div><b>${m.name}</b><span>${m.desc}</span><em>Solo · Online</em></button>`).join('');
+    const art = { challenge: 'track', race: 'city', driftrace: 'forest', battle: 'mountain', tandem: 'desert' };
+    $('#comp-cards').innerHTML = COMP_MODES.map((m) => `<button class="card compcard" data-comp="${m.id}"><div class="map-thumb t-${art[m.id]}"><span class="comp-icon">${m.icon}</span></div><b>${m.name}</b><span>${m.desc}</span><em>${m.soloOnly ? 'Solo · any map, any road' : 'Solo · Online'}</em></button>`).join('');
     $$('#comp-cards .card').forEach((b) => (b.onclick = () => { this.click(); this.compSel.mode = b.dataset.comp; this.show('comp'); }));
     if (!FREE_MODES.find((m) => m.id === this.playSel.mode)) this.playSel.mode = 'endless';
     $('#mode-cards').innerHTML = FREE_MODES.map((m) => `<button class="card mode ${m.id === this.playSel.mode ? 'sel' : ''}" data-mode="${m.id}"><i>${m.icon}</i><b>${m.name}</b><span>${m.desc}</span></button>`).join('');
@@ -7202,6 +7340,8 @@ class UI {
           : C.difficulty === 'hard' || C.difficulty === 'legend' ? '<p class="muted boss-note">👹 <b>Midnight Oni</b> starts on pole. Beat him to win his car — or pick <b>Boss</b> for a 1v1 with each map\'s boss.</p>' : ''}
         ${mode === 'driftrace' ? `<p class="setup-note"><b>Score = (drift points × position factor + position bonus) × gap factor.</b> Position factor P1 ×1.0, P2 ×0.9, P3 ×0.8, P4 ×0.68 …; the gap factor drops 1/60 for every second you finish behind the winner (min ${DRIFT_RACE.minGap}, also for a DNF). Drift points count from GO until you cross the finish line (and stop ${DRIFT_RACE.lateWindow} s after the winner finishes); your combo banks at every lap line (max ×${DRIFT_RACE.judge.maxMult}), faster drifts pay more and slow drifting earns almost nothing. Bonus per lap: ${DRIFT_RACE.bonusPerLap.slice(0, 4).map((b, i) => `P${i + 1} +${fmt(b)}`).join(', ')}… — no bonus if you don't finish. Crashes and leaving the track cost your live combo.</p>` : ''}
         <p class="setup-note">Pass every checkpoint in order. Resets never count as checkpoints. Solo races start you at the back of the grid. CPU drivers are clearly labelled and only appear in solo races.</p>`;
+    } else if (mode === 'tandem') {
+      h += `<p class="setup-note"><b>Free Tandem works on every map and every road.</b> 1) Drive a <b>lead run</b> wherever you like — highways, hairpins, the city — and press <b>T</b> (or FINISH) when you're done (max 90 s). 2) <b>Chase your ghost</b> through exactly that line. The chase is judged like real tandem competitions: <b>proximity</b> (2–8 m is perfect), <b>angle match</b>, <b>line</b>, speed match and control, minus penalties for contact and spins. Hit "Chase again" to beat your score.<br><b>With friends:</b> drift together in the Public Room — drifting close behind another driver scores tandem bonuses (×2 when really close, plus DOOR TO DOOR!).</p>`;
     } else {
       h += `<p class="setup-note"><b>Online (2 players):</b> round 1, one of you leads and the other chases; round 2 the roles swap. Lead runs are judged on angle, speed, line, consistency and transitions; chase runs on proximity, speed and angle matching, line and control. Penalties for leaving the course, spinning and contact.<br><b>Solo:</b> drive a judged lead run, then chase a ghost replay of it.</p>`;
     }
@@ -7216,6 +7356,7 @@ class UI {
     slider('c-time', 'time', (v) => `${Math.floor(v / 60)}:${String(v % 60).padStart(2, '0')}`); slider('c-laps', 'laps'); slider('c-ai', 'ai');
     $('#comp-solo').onclick = () => { this.click(); this.app.startGame({ mapId: C.map, modeId: mode, mp: false, comp: this.compOpts(mode) }); };
     $('#comp-online').onclick = () => { this.click(); this.showCreate({ mode, map: C.map, ...this.compOpts(mode) }); };
+    $('#comp-online').style.display = mode === 'tandem' ? 'none' : '';
   }
   personalBest(mode, map, C) {
     const R = this.S.records || {};
@@ -7554,7 +7695,7 @@ class UI {
     return ids.map((id) => { const m = MAP_LIST.find((x) => x.id === id); const sub = isRaceMode(mode) ? RACE[id].name : mode === 'battle' ? BATTLE[id].name : m.type; return `<option value="${id}" ${id === cur ? 'selected' : ''}>${m.name} — ${sub}</option>`; }).join('');
   }
   modeOptions(cur) {
-    return `<optgroup label="Competitive">${COMP_MODES.map((m) => `<option value="${m.id}" ${m.id === cur ? 'selected' : ''}>${m.name}</option>`).join('')}</optgroup><optgroup label="Free play">${FREE_MODES.map((m) => `<option value="${m.id}" ${m.id === cur ? 'selected' : ''}>${m.name}</option>`).join('')}</optgroup>`;
+    return `<optgroup label="Competitive">${COMP_MODES.filter((m) => !m.soloOnly).map((m) => `<option value="${m.id}" ${m.id === cur ? 'selected' : ''}>${m.name}</option>`).join('')}</optgroup><optgroup label="Free play">${FREE_MODES.map((m) => `<option value="${m.id}" ${m.id === cur ? 'selected' : ''}>${m.name}</option>`).join('')}</optgroup>`;
   }
   // mode-specific room fields; `v` = current values, `dis` = disabled attr
   modeFields(mode, v, dis = '', pre = 'cr') {
@@ -8111,6 +8252,7 @@ function createComp(game) {
   if (k === 'race') return new RaceComp(game);
   if (k === 'driftrace') return new DriftRaceComp(game);
   if (k === 'battle') return new BattleComp(game);
+  if (k === 'tandem') return new TandemComp(game);
   return null;
 }
 
@@ -8763,6 +8905,131 @@ class BattleComp extends Comp {
   destroy() { super.destroy(); if (this.ghostCar) this.ghostCar.tag.remove(); }
 }
 
+// ======================================================================= FREE TANDEM
+// Tandem anywhere: drive a lead run on ANY roads of ANY map (press T to finish, max 90 s), then chase a
+// ghost of it through exactly that line. Judged like a tandem battle (proximity, angle match, line,
+// speed match, control) with the course made from your own lead line.
+const TANDEM_MAX = 90;
+function courseFromRun(rec, width = 14) {
+  const pts = [];
+  for (const { s } of rec) { const l = pts[pts.length - 1]; if (!l || Math.hypot(s.x - l[0], s.z - l[1]) >= 3) pts.push([s.x, s.z]); }
+  const n = Math.max(2, pts.length), x = new Float64Array(n), z = new Float64Array(n), tx = new Float64Array(n), tz = new Float64Array(n);
+  for (let k = 0; k < n; k++) { const p = pts[Math.min(k, pts.length - 1)]; x[k] = p[0]; z[k] = p[1]; }
+  for (let k = 0; k < n; k++) { const a = Math.max(0, k - 1), b = Math.min(n - 1, k + 1); const dx = x[b] - x[a], dz = z[b] - z[a], l = Math.hypot(dx, dz) || 1; tx[k] = dx / l; tz[k] = dz / l; }
+  const path = { n, x, z, tx, tz, closed: false };
+  const mk = (k) => ({ x: x[k], z: z[k], tx: tx[k], tz: tz[k], hw: width / 2 + 10 });
+  const s0 = rec[0].s;
+  return { name: 'Your line', path, width, start: mk(Math.min(6, n - 1)), end: mk(n - 1), length: n * 3,
+    leadSlot: { x: s0.x, z: s0.z, h: s0.h }, chaseSlot: { x: x[0] - tx[0] * 11, z: z[0] - tz[0] * 11, h: Math.atan2(tx[0], tz[0]) } };
+}
+class TandemComp extends Comp {
+  load() {
+    this.stage = 'lead'; this.rec = []; this.recT0 = null; this.ghost = []; this.gi = 0;
+    this.readyUp();
+    toast('<b>LEAD RUN</b>: drift any roads you like. Press <b>T</b> (or FINISH) when you are done — max 90 s.', 5000);
+    this.onKey = (e) => { if (e.code === 'KeyT' && !e.repeat) this.finishLead(); };
+    window.addEventListener('keydown', this.onKey);
+    const b = document.createElement('button'); b.className = 'btn primary tandem-fin'; b.textContent = 'FINISH LEAD RUN'; b.onclick = () => this.finishLead();
+    document.body.appendChild(b); this.finBtn = b;
+  }
+  onSample(s) {
+    if (this.phase !== 'running') return;
+    const t = this.t;
+    if (this.stage === 'lead') {
+      if (this.recT0 === null) { if (Math.hypot(s.vx, s.vz) < 6) return; this.recT0 = t; } // recording starts once you get going
+      this.rec.push({ t: t - this.recT0, s });
+      if (t - this.recT0 > TANDEM_MAX) this.finishLead();
+    } else if (this.stage === 'chase') {
+      this.live.pushChase(s, t);
+      const gs = this.ghostAt(t); if (gs) this.live.pushLead(gs, t);
+      if (t > this.leadDur + 1 || this.live.done) this.endChase();
+    }
+  }
+  finishLead() {
+    if (this.stage !== 'lead') return;
+    if (this.rec.length < 80) { toast('Drive a bit longer first (at least 4 seconds)', 2000); return; }
+    this.stage = 'between'; this.phase = 'between';
+    this.finBtn.style.display = 'none';
+    this.ghost = this.rec; this.leadDur = this.rec[this.rec.length - 1].t;
+    this.course = courseFromRun(this.rec);
+    const judge = new BattleRun(this.course); judge.maxT = this.leadDur + 5;
+    for (const { t, s } of this.rec) judge.pushLead(s, t);
+    judge.finish(this.leadDur);
+    this.leadRes = judge.result().lead;
+    this.g.bigText('LEAD DONE', 1300);
+    this.showCard(this.leadRes, 'Your lead run', 'Next: chase your ghost through the same line. Stay close, match its angle.');
+    this.later(4500, () => this.startChase());
+  }
+  startChase() {
+    $('#results').classList.add('hidden'); this.resultShown = false;
+    this.stage = 'chase'; this.gi = 0;
+    const s = this.course.chaseSlot; this.g.car.place(s.x, s.z, s.h); this.g.cam.snap(); this.g.teleportFlag = true;
+    this.ghostCar = this.ghostCar || this.makeGhost();
+    this.live = new BattleRun(this.course); this.live.maxT = this.leadDur + 5;
+    this.startCountdown();
+    toast('<b>CHASE</b>: follow your ghost. Close + same angle = big score. Don\'t pass it!', 3500);
+  }
+  endChase() {
+    if (this.stage !== 'chase') return;
+    this.stage = 'done'; this.phase = 'done';
+    const chase = this.live.result().chase, lead = this.leadRes;
+    const total = Math.round((lead.score + chase.score) * 10) / 10;
+    this.g.app.saveRecord('battle', { solo: true, map: this.g.opts.mapId, total, lead: lead.score, chase: chase.score });
+    const grade = (v) => (v >= 90 ? 'S' : v >= 80 ? 'A' : v >= 65 ? 'B' : v >= 50 ? 'C' : 'D');
+    this.resultShown = true;
+    const el = $('#results'); el.classList.remove('hidden');
+    el.innerHTML = `<div class="res-card wide-res"><div class="res-kicker">Free Tandem · ${esc((this.g.mapInfo || {}).name || '')}</div>
+      <h2>Tandem score ${total} <small>(lead ${grade(lead.score)} · chase ${grade(chase.score)})</small></h2>
+      <div class="battle-cols"><div><h3>Your lead run</h3><h2>${lead.score}</h2>${partsHtml(lead)}</div><div><h3>Chasing your ghost</h3><h2>${chase.score}</h2>${partsHtml(chase)}</div></div>
+      <div class="row res-actions"><button class="btn primary" data-act="again">Chase again</button><button class="btn" data-act="new">New lead run</button><button class="btn" data-act="menu">Main menu</button></div></div>`;
+    el.querySelector('[data-act=again]').onclick = () => { this.stage = 'between'; this.startChase(); };
+    el.querySelector('[data-act=new]').onclick = () => this.g.app.restartGame();
+    el.querySelector('[data-act=menu]').onclick = () => this.g.app.quitToMenu();
+  }
+  ghostAt(t) {
+    const G = this.ghost; if (!G.length) return null;
+    if (t < (G[this.gi] ? G[this.gi].t : 0)) this.gi = 0;
+    let i = this.gi; while (i < G.length - 1 && G[i + 1].t <= t) i++; this.gi = i;
+    return G[i].s;
+  }
+  makeGhost() {
+    const cfg = { ...this.g.app.settings.car, paint: '#d6d8db', underglow: '#7fd4ff', livery: 0, stripes: 0 };
+    const model = buildCarModel(this.g.app.renderer, cfg);
+    const tag = document.createElement('div'); tag.className = 'nametag ghost'; tag.textContent = 'GHOST · your lead run'; $('#tags').appendChild(tag);
+    return { model, tag };
+  }
+  showCard(side, title, sub) {
+    const el = $('#results'); el.classList.remove('hidden');
+    el.innerHTML = `<div class="res-card"><div class="res-kicker">${title}</div><h2>${side.score} pts</h2>${partsHtml(side)}<p class="muted">${sub}</p></div>`;
+  }
+  draw(items, dt) {
+    const g = this.g;
+    if (this.stage !== 'chase' || !this.ghostCar) { if (this.ghostCar) this.ghostCar.tag.style.display = 'none'; return; }
+    const gs = this.ghostAt(Math.max(0, this.t)) || this.ghost[0].s;
+    const y = g.world.heightAt(gs.x, gs.z);
+    carDrawItems(this.ghostCar.model, { x: gs.x, y, z: gs.z, yaw: gs.h, spin: this.t * 20, steer: 0, lights: true }, items);
+    g.carFx({ x: gs.x, y, z: gs.z, h: gs.h, vx: gs.vx, vz: gs.vz, speed: Math.hypot(gs.vx, gs.vz), rel: gs.sl, mode: gs.f & 1 ? 'drift' : 'grip', drifting: !!(gs.f & 1) }, this.ghostCar.model, this.ghostCar.model.meshes.dims, 'ghost', dt, false);
+    const p = g.app.renderer.project(gs.x, y + 2.4, gs.z);
+    if (p) { this.ghostCar.tag.style.display = 'block'; this.ghostCar.tag.style.transform = `translate(${p[0]}px, ${p[1]}px) translate(-50%, -100%)`; } else this.ghostCar.tag.style.display = 'none';
+  }
+  hud() {
+    let html = '<div class="ctag">Free Tandem</div>';
+    if (this.stage === 'lead') {
+      const t = this.recT0 === null ? 0 : Math.max(0, this.t - this.recT0);
+      html += `<div class="role role-lead">LEAD RUN</div><div class="cstats"><span>${this.recT0 === null ? 'Get going to start recording' : `Recording <b>${Math.floor(t)} s</b> / ${TANDEM_MAX} s`}</span><span>Press <b>T</b> to finish</span></div>`;
+    } else if (this.stage === 'chase') {
+      const c = this.g.car, gs = this.ghostAt(Math.max(0, this.t));
+      html += '<div class="role role-chase">CHASE</div>';
+      if (gs && this.phase === 'running') {
+        const d = Math.hypot(c.x - gs.x, c.z - gs.z), q = d < 2.4 ? 'TOO CLOSE' : d <= 8 ? 'PERFECT' : d < 15 ? 'GOOD' : 'TOO FAR';
+        html += `<div class="prox"><span>Gap <b>${d.toFixed(1)} m</b></span><span class="q q-${q.split(' ').join('')}">${q}</span></div><div class="cpbar prox-bar"><i style="width:${Math.max(0, 100 - d * 4)}%"></i></div>`;
+      }
+    } else html += '<div class="role">…</div>';
+    this.hudBox(html);
+  }
+  destroy() { super.destroy(); if (this.ghostCar) this.ghostCar.tag.remove(); if (this.finBtn) this.finBtn.remove(); window.removeEventListener('keydown', this.onKey); }
+}
+
 function partsHtml(side) {
   const labels = { angle: 'Angle', speed: 'Speed', line: 'Line', consistency: 'Consistency', transitions: 'Transitions', proximity: 'Proximity', speedMatch: 'Speed match', angleMatch: 'Angle match', control: 'Control' };
   return `<table class="res-table small">${Object.entries(side.parts).map(([k, v]) => `<tr><td>${labels[k] || k}</td><td>${v}</td></tr>`).join('')}${side.penaltyTotal ? `<tr class="bad"><td>Penalties</td><td>−${side.penaltyTotal}</td></tr>` : ''}</table>${penList(side)}`;
@@ -9009,14 +9276,33 @@ class Game {
   // drifting alongside another drifting player, both going the same way
   tandemCheck() {
     const c = this.car;
+    this.tandemD = undefined;
     if (!this.mp || c.mode === 'grip' || c.speed < 8) return false;
     const ux = c.vx / c.speed, uz = c.vz / c.speed;
+    let found = false;
     for (const r of this.remotes.values()) {
       if (!r.seen || !(r.flags & 1) || !r.speed || r.speed < 8) continue;
-      if (Math.hypot(r.x - c.x, r.z - c.z) > 15) continue;
-      if ((r.vx / r.speed) * ux + (r.vz / r.speed) * uz > 0.7) return true;
+      const d = Math.hypot(r.x - c.x, r.z - c.z);
+      if (d > 15) continue;
+      if ((r.vx / r.speed) * ux + (r.vz / r.speed) * uz > 0.7) { found = true; if (this.tandemD === undefined || d < this.tandemD) this.tandemD = d; }
     }
-    return false;
+    return found;
+  }
+  // what the trick detector needs: rear wheels off the road? how close is the rear to a wall?
+  trickCtx() {
+    const c = this.car, W = this.world, fx = Math.sin(c.h), fz = Math.cos(c.h);
+    const rx = c.x - fx * 1.7, rz = c.z - fz * 1.7, fxp = c.x + fx * 1.5, fzp = c.z + fz * 1.5;
+    const out = { tandem: this.tandemCheck(), tandemD: this.tandemD, impact: !!this.impactFlag };
+    if (W.sdAt && !W.spec.surfaceFn) { out.rearOff = W.sdAt(rx, rz) > 0.5; out.frontOn = W.sdAt(fxp, fzp) < 0; }
+    if (c.mode !== 'grip' && c.speed > 9) { // nearest wall/rail/post to the rear bumper (cheap: only while sliding)
+      let best = 99;
+      for (const it of W.query(rx, rz)) {
+        if (it.c) best = Math.min(best, Math.hypot(rx - it.c[0], rz - it.c[1]) - it.c[2]);
+        else if (it.s) { const [ax, az, bx, bz] = it.s, vx = bx - ax, vz = bz - az, L = vx * vx + vz * vz || 1; const t = Math.max(0, Math.min(1, ((rx - ax) * vx + (rz - az) * vz) / L)); best = Math.min(best, Math.hypot(rx - ax - vx * t, rz - az - vz * t)); }
+      }
+      out.wallD = best - 1.0; // ~1 m from the bumper point to the car's side
+    }
+    return out;
   }
 
   // ------------------------------------------------------------- rounds (competitive)
@@ -9166,7 +9452,7 @@ class Game {
           if (this.mode.crashPenalty && !(this.comp && this.comp.ownsScoring)) this.scorer.crash();
         }
       }
-      if (!(this.comp && this.comp.ownsScoring)) this.scorer.update(dt, this.car, { tandem: this.tandemCheck() });
+      if (!(this.comp && this.comp.ownsScoring)) this.scorer.update(dt, this.car, this.trickCtx());
       // competitive modes: official 20 Hz samples (identical to what the server receives)
       if (this.comp && !this.spectator) {
         this.sampleAcc += Math.min(dt, 0.1);
@@ -9349,7 +9635,7 @@ class Game {
       d.classList.toggle('live', sc.chain > 0);
       $('#drift-score').textContent = sc.chain > 0 ? fmt(Math.round(sc.chain)) : '';
       $('#drift-mult').textContent = sc.chain > 0 ? `×${sc.mult.toFixed(1)}` : '';
-      $('#drift-angle').textContent = sc.chain > 0 && c.mode !== 'grip' ? `${c.mode === 'reverse' ? 'REVERSE ' : c.mode === 'spin' ? 'SPIN ' : ''}${Math.round(sc.angle)}°${sc.tandem ? ' · TANDEM ×1.5' : ''}` : '';
+      $('#drift-angle').textContent = sc.chain > 0 && c.mode !== 'grip' ? `${c.mode === 'reverse' ? 'REVERSE ' : c.mode === 'spin' ? 'SPIN ' : ''}${Math.round(sc.angle)}°${sc.tandem ? (this.tandemD !== undefined && this.tandemD < 8 ? ' · CLOSE TANDEM ×2' : ' · TANDEM ×1.5') : ''}` : '';
       $('#drift-grace').style.transform = `scaleX(${sc.chain > 0 ? (sc.active ? 1 : Math.max(0, sc.grace / CHAIN_GRACE)) : 0})`;
       $('#score-total').textContent = fmt(sc.total + (live && this.mode.rounds ? 0 : 0));
       $('#score-best').textContent = fmt(sc.best);

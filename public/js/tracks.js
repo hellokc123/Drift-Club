@@ -85,6 +85,12 @@ function cityRoads() {
     roads.push({ pts: [[-e, v], [0, v], [e, v]], width: CITY_ST });
   }
   roads.push({ pts: [[-e, -e], [0, 0], [e, e]], width: CITY_ST, diagonal: true }); // the diagonal boulevard
+  // curvy roads cut through the blocks so the city isn't just a grid (blocks they cross become parks)
+  roads.push({ pts: [[-450, -130], [-330, -40], [-200, -140], [-60, -60], [60, -150], [200, -60], [330, -150], [450, -60]], width: CITY_ST, curvy: true }); // Serpentine (west-east)
+  roads.push({ pts: [[150, 450], [90, 340], [200, 230], [130, 120], [220, 10], [150, -100], [235, -220], [140, -330], [180, 450 * -1]], width: CITY_ST, curvy: true }); // Riverside Curve (north-south)
+  roads.push({ pts: [[-450, 300], [-330, 370], [-200, 270], [-80, 360], [20, 450]], width: CITY_ST, curvy: true }); // Old Town Bend (north-west)
+  const ring = []; for (let k = 0; k < 16; k++) { const a = (k / 16) * Math.PI * 2; ring.push([Math.round(Math.cos(a) * 300), Math.round(Math.sin(a) * 300)]); }
+  roads.push({ pts: ring, closed: true, width: CITY_ST, curvy: true }); // Ring Boulevard round downtown
   return roads;
 }
 export const CITY = { B: CITY_B, ST: CITY_ST, K: CITY_K };
@@ -94,6 +100,15 @@ const sc = (k, pts) => pts.map(([x, z]) => [Math.round(x * k), Math.round(z * k)
 // Every map is a road NETWORK: road 0 is the main loop (the Speed Race circuit on most maps);
 // the other roads are connectors, cut-throughs and side roads whose ends sit on another road
 // (a junction) or inside a pad (car parks, skidpads, plazas).
+// a parallel carriageway `d` metres to the side of a road; first and last points stay put so it merges
+function twinOf(pts, d) {
+  return pts.map((p, i) => {
+    if (i === 0 || i === pts.length - 1) return p;
+    const a = pts[i - 1], b = pts[i + 1], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    const k = i === 1 || i === pts.length - 2 ? 0.7 : 1; // ease in/out of the merge
+    return [Math.round(p[0] + ((b[1] - a[1]) / l) * d * k), Math.round(p[1] - ((b[0] - a[0]) / l) * d * k)];
+  });
+}
 // A ladder of switchbacks (Japanese touge hairpins): `legs` traverses of length `len`, the first one
 // starting at (x0, z0) heading +x (dir 1) or -x (dir -1), each hairpin stepping `gap` metres in z
 // (sign of gap = which way up the ladder goes). Legs get a slight S-bend so they flow.
@@ -171,6 +186,11 @@ export const GEO = {
       { pts: [[1650, 400], [1560, 425], [1490, 440]], width: 12 },
       // 11: dry lake access (north-east highway)
       { pts: [[1350, 800], [1180, 870], [1060, 930]], width: 12 },
+      // 12: the interstate's second carriageway (divided highway: 22 m apart, merging at both ends)
+      { pts: twinOf([[-1720, 200], [-1100, 270], [-600, 340], [0, 400], [600, 340], [1100, 230], [1700, -200]], 22), width: 16 },
+      // 13-14: cloverleaf loops where the north highway crosses the interstate (long 270-degree drift loops)
+      { pts: [[160, 398], [205, 425], [222, 480], [197, 532], [140, 550], [85, 532], [45, 560], [10, 600]], width: 12 },
+      { pts: [[-160, 398], [-205, 425], [-222, 480], [-197, 532], [-140, 550], [-85, 532], [-45, 560], [10, 600]], width: 12 },
     ],
     pads: [
       { x: 0, z: 0, r: 210 }, // salt flat
@@ -198,13 +218,22 @@ export const GEO = {
       { pts: [[-950, 980], [-830, 900], [-720, 860]], width: 10 },
       // 5: gravel forestry road -> clearing (west ring)
       { pts: [[-1330, 0], [-1180, 40], [-1050, -20]], width: 9.5 },
+      // 6-9: the mid-mountain touge roads, one on each face, mostly following the slope across
+      // 6: north-east face: ridge run -> across the slope -> Irohazaka esses
+      { pts: [[900, 120], [870, 360], [770, 560], [600, 700], [420, 790], [230, 860], [40, 1020]], width: 10 },
+      // 7: north-west face: Irohazaka esses -> across the slope -> down to the west ring
+      { pts: [[-70, 900], [-250, 830], [-450, 720], [-620, 570], [-760, 400], [-900, 320], [-1060, 380], [-1250, 520]], width: 10 },
+      // 8: south-east face: ridge run -> across the slope -> down to the south ring
+      { pts: [[900, 120], [880, -180], [790, -440], [650, -640], [570, -850], [600, -1050], [600, -1250]], width: 10 },
+      // 9: south-west face: forestry clearing -> across the slope -> the uphill's start
+      { pts: [[-990, -20], [-930, -240], [-820, -460], [-660, -640], [-480, -770], [-330, -880], [-226, -915]], width: 10 },
     ],
     pads: [{ x: -75, z: -1262, w: 110, d: 70 }, { x: 0, z: 60, w: 130, d: 90 }, { x: -700, z: 840, w: 80, d: 50 }, { x: -990, z: -20, r: 55 }],
   },
   forest: {
     roads: [
       // 0: the main forest loop
-      { pts: sc(1.3, [[-380, -320], [-150, -400], [120, -380], [330, -300], [430, -120], [390, 40], [420, 200], [360, 380], [160, 430], [-40, 380], [-120, 240], [-260, 200], [-400, 260], [-470, 80], [-430, -60], [-450, -200]]), closed: true, width: 12 },
+      { pts: sc(1.3, [[-380, -320], [-150, -400], [120, -380], [330, -300], [430, -120], [390, 40], [420, 200], [360, 380], [160, 430], [-40, 380], [-115, 296], [-231, 258], [-350, 254], [-440, 192], [-470, 80], [-430, -60], [-450, -200]]), closed: true, width: 12 },
       // 1: west spur into the gravel clearing
       { pts: [[-572, -169], [-442, -188], [-320, -195]], width: 10 },
       // 2: lakeside road along the south and west shore
@@ -212,7 +241,7 @@ export const GEO = {
       // 3: north shore road
       { pts: [[-22, 325], [120, 352], [300, 330], [420, 400], [466, 490]], width: 11 },
       // 4: gravel logging trail: clearing -> north-west loop
-      { pts: [[-228, -110], [-250, 40], [-300, 170], [-336, 262]], width: 9 },
+      { pts: [[-228, -110], [-250, 40], [-290, 190], [-301, 335]], width: 9 },
       // 5: forest road through the middle: south loop -> cabin car park -> lakeside
       { pts: [[156, -490], [158, -440], [156, -400], [160, -300], [175, -160], [180, -50]], width: 10 },
       // 6: quarry track (outside the loop, south-west)
@@ -227,7 +256,7 @@ export const GEO = {
     roads: [
       // 0: the drift course — main straight, fast right-hander, S-bends, hairpin, a figure-eight
       // crossover in the middle, the long west sweeper and a final hairpin onto the straight
-      { pts: [[-250, -480], [0, -480], [200, -478], [330, -450], [425, -350], [440, -230], [380, -140], [450, -40], [410, 60], [345, 140], [280, 160], [225, 110], [150, 25], [0, -120], [-150, -265], [-270, -320], [-380, -260], [-420, -120], [-370, 10], [-250, 60], [-150, 30], [0, -120], [150, -270], [210, -340], [150, -395], [0, -405], [-250, -400], [-370, -420], [-380, -460]], closed: true, width: 18 },
+      { pts: [[-250, -480], [0, -480], [200, -478], [330, -450], [425, -350], [440, -230], [380, -140], [450, -40], [410, 60], [345, 140], [280, 160], [225, 110], [150, 25], [0, -120], [-150, -265], [-270, -320], [-380, -260], [-420, -120], [-370, 10], [-250, 60], [-150, 30], [0, -120], [150, -270], [210, -340], [150, -395], [0, -405], [-250, -400], [-370, -420], [-380, -460]], closed: true, width: 20 },
       // 1: paddock road along the south of the main straight -> west service road
       { pts: [[-250, -480], [-420, -520], [-540, -420], [-560, -150], [-540, 120], [-500, 210]], width: 12 },
       // 2: hairpin -> harbour container yard (north access)
@@ -239,12 +268,24 @@ export const GEO = {
       { pts: [[-300, 46], [-330, 140], [-360, 175]], width: 12 },
       // 6: east service road: S-bends -> container yard east end
       { pts: [[449, -40], [520, 40], [545, 160], [540, 300]], width: 11 },
+      // --- the bigger park (2.4 km): three new drift areas
+      // 7: Sweeper Valley — wide, fast loop of long sweepers and S-bends across the south (tandem heaven)
+      { pts: [[-700, -700], [-300, -660], [100, -700], [500, -660], [850, -760], [960, -930], [800, -1020], [400, -990], [0, -1035], [-400, -990], [-800, -1020], [-980, -930], [-900, -780]], closed: true, width: 20 },
+      // 8: link: drift course (S-bends exit) -> Sweeper Valley
+      { pts: [[330, -450], [380, -560], [440, -640], [500, -660]], width: 14 },
+      // 9: link: paddock road -> Sweeper Valley
+      { pts: [[-540, -420], [-600, -560], [-700, -700]], width: 14 },
+      // 10: Manji Snake — straight-ish road that wiggles every 100 m (sway drifts), ends on the big skidpad
+      { pts: [[425, -350], [560, -330], [660, -280], [760, -350], [860, -280], [960, -350], [1000, -240]], width: 16 },
+      // 11: West Snake — tight technical road through the west (paddock road -> Sweeper Valley link)
+      { pts: [[-560, -150], [-700, -120], [-800, -40], [-760, 60], [-870, 140], [-990, 80], [-1040, -80], [-960, -220], [-1040, -380], [-920, -470], [-760, -520], [-620, -560]], width: 14 },
     ],
     pads: [
       { x: -40, z: -506, w: 300, d: 60 }, // paddock
       { x: -410, z: 240, w: 230, d: 150 }, // practice pad
       { x: -110, z: 205, r: 42 }, // donut circle
       { x: 240, z: 357, w: 720, d: 150 }, // harbour container yard (alleys between the stacks)
+      { x: 1000, z: -120, r: 110 }, // the big skidpad (end of the Manji Snake)
     ],
   },
 };

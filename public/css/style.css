@@ -662,3 +662,5 @@ body.touch-on .controls-help { font-size: 13px; }
   #scr-main .nav-btn b { font-size: 17px; }
   #scr-main .nav-btn small { font-size: 12px; }
 }
+/* Free Tandem: finish-lead button (handy on touch screens) */
+.tandem-fin { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); z-index: 30; }

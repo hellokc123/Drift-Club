@@ -20,6 +20,7 @@ export function createComp(game) {
   if (k === 'race') return new RaceComp(game);
   if (k === 'driftrace') return new DriftRaceComp(game);
   if (k === 'battle') return new BattleComp(game);
+  if (k === 'tandem') return new TandemComp(game);
   return null;
 }
 
@@ -670,6 +671,131 @@ class BattleComp extends Comp {
       <div class="cstats"><span>Run <b>${fmtTime(t).slice(0, -3)}</b></span><span>${esc(this.course.name)}</span></div>${extra}`);
   }
   destroy() { super.destroy(); if (this.ghostCar) this.ghostCar.tag.remove(); }
+}
+
+// ======================================================================= FREE TANDEM
+// Tandem anywhere: drive a lead run on ANY roads of ANY map (press T to finish, max 90 s), then chase a
+// ghost of it through exactly that line. Judged like a tandem battle (proximity, angle match, line,
+// speed match, control) with the course made from your own lead line.
+const TANDEM_MAX = 90;
+function courseFromRun(rec, width = 14) {
+  const pts = [];
+  for (const { s } of rec) { const l = pts[pts.length - 1]; if (!l || Math.hypot(s.x - l[0], s.z - l[1]) >= 3) pts.push([s.x, s.z]); }
+  const n = Math.max(2, pts.length), x = new Float64Array(n), z = new Float64Array(n), tx = new Float64Array(n), tz = new Float64Array(n);
+  for (let k = 0; k < n; k++) { const p = pts[Math.min(k, pts.length - 1)]; x[k] = p[0]; z[k] = p[1]; }
+  for (let k = 0; k < n; k++) { const a = Math.max(0, k - 1), b = Math.min(n - 1, k + 1); const dx = x[b] - x[a], dz = z[b] - z[a], l = Math.hypot(dx, dz) || 1; tx[k] = dx / l; tz[k] = dz / l; }
+  const path = { n, x, z, tx, tz, closed: false };
+  const mk = (k) => ({ x: x[k], z: z[k], tx: tx[k], tz: tz[k], hw: width / 2 + 10 });
+  const s0 = rec[0].s;
+  return { name: 'Your line', path, width, start: mk(Math.min(6, n - 1)), end: mk(n - 1), length: n * 3,
+    leadSlot: { x: s0.x, z: s0.z, h: s0.h }, chaseSlot: { x: x[0] - tx[0] * 11, z: z[0] - tz[0] * 11, h: Math.atan2(tx[0], tz[0]) } };
+}
+class TandemComp extends Comp {
+  load() {
+    this.stage = 'lead'; this.rec = []; this.recT0 = null; this.ghost = []; this.gi = 0;
+    this.readyUp();
+    toast('<b>LEAD RUN</b>: drift any roads you like. Press <b>T</b> (or FINISH) when you are done — max 90 s.', 5000);
+    this.onKey = (e) => { if (e.code === 'KeyT' && !e.repeat) this.finishLead(); };
+    window.addEventListener('keydown', this.onKey);
+    const b = document.createElement('button'); b.className = 'btn primary tandem-fin'; b.textContent = 'FINISH LEAD RUN'; b.onclick = () => this.finishLead();
+    document.body.appendChild(b); this.finBtn = b;
+  }
+  onSample(s) {
+    if (this.phase !== 'running') return;
+    const t = this.t;
+    if (this.stage === 'lead') {
+      if (this.recT0 === null) { if (Math.hypot(s.vx, s.vz) < 6) return; this.recT0 = t; } // recording starts once you get going
+      this.rec.push({ t: t - this.recT0, s });
+      if (t - this.recT0 > TANDEM_MAX) this.finishLead();
+    } else if (this.stage === 'chase') {
+      this.live.pushChase(s, t);
+      const gs = this.ghostAt(t); if (gs) this.live.pushLead(gs, t);
+      if (t > this.leadDur + 1 || this.live.done) this.endChase();
+    }
+  }
+  finishLead() {
+    if (this.stage !== 'lead') return;
+    if (this.rec.length < 80) { toast('Drive a bit longer first (at least 4 seconds)', 2000); return; }
+    this.stage = 'between'; this.phase = 'between';
+    this.finBtn.style.display = 'none';
+    this.ghost = this.rec; this.leadDur = this.rec[this.rec.length - 1].t;
+    this.course = courseFromRun(this.rec);
+    const judge = new BattleRun(this.course); judge.maxT = this.leadDur + 5;
+    for (const { t, s } of this.rec) judge.pushLead(s, t);
+    judge.finish(this.leadDur);
+    this.leadRes = judge.result().lead;
+    this.g.bigText('LEAD DONE', 1300);
+    this.showCard(this.leadRes, 'Your lead run', 'Next: chase your ghost through the same line. Stay close, match its angle.');
+    this.later(4500, () => this.startChase());
+  }
+  startChase() {
+    $('#results').classList.add('hidden'); this.resultShown = false;
+    this.stage = 'chase'; this.gi = 0;
+    const s = this.course.chaseSlot; this.g.car.place(s.x, s.z, s.h); this.g.cam.snap(); this.g.teleportFlag = true;
+    this.ghostCar = this.ghostCar || this.makeGhost();
+    this.live = new BattleRun(this.course); this.live.maxT = this.leadDur + 5;
+    this.startCountdown();
+    toast('<b>CHASE</b>: follow your ghost. Close + same angle = big score. Don\'t pass it!', 3500);
+  }
+  endChase() {
+    if (this.stage !== 'chase') return;
+    this.stage = 'done'; this.phase = 'done';
+    const chase = this.live.result().chase, lead = this.leadRes;
+    const total = Math.round((lead.score + chase.score) * 10) / 10;
+    this.g.app.saveRecord('battle', { solo: true, map: this.g.opts.mapId, total, lead: lead.score, chase: chase.score });
+    const grade = (v) => (v >= 90 ? 'S' : v >= 80 ? 'A' : v >= 65 ? 'B' : v >= 50 ? 'C' : 'D');
+    this.resultShown = true;
+    const el = $('#results'); el.classList.remove('hidden');
+    el.innerHTML = `<div class="res-card wide-res"><div class="res-kicker">Free Tandem · ${esc((this.g.mapInfo || {}).name || '')}</div>
+      <h2>Tandem score ${total} <small>(lead ${grade(lead.score)} · chase ${grade(chase.score)})</small></h2>
+      <div class="battle-cols"><div><h3>Your lead run</h3><h2>${lead.score}</h2>${partsHtml(lead)}</div><div><h3>Chasing your ghost</h3><h2>${chase.score}</h2>${partsHtml(chase)}</div></div>
+      <div class="row res-actions"><button class="btn primary" data-act="again">Chase again</button><button class="btn" data-act="new">New lead run</button><button class="btn" data-act="menu">Main menu</button></div></div>`;
+    el.querySelector('[data-act=again]').onclick = () => { this.stage = 'between'; this.startChase(); };
+    el.querySelector('[data-act=new]').onclick = () => this.g.app.restartGame();
+    el.querySelector('[data-act=menu]').onclick = () => this.g.app.quitToMenu();
+  }
+  ghostAt(t) {
+    const G = this.ghost; if (!G.length) return null;
+    if (t < (G[this.gi] ? G[this.gi].t : 0)) this.gi = 0;
+    let i = this.gi; while (i < G.length - 1 && G[i + 1].t <= t) i++; this.gi = i;
+    return G[i].s;
+  }
+  makeGhost() {
+    const cfg = { ...this.g.app.settings.car, paint: '#d6d8db', underglow: '#7fd4ff', livery: 0, stripes: 0 };
+    const model = buildCarModel(this.g.app.renderer, cfg);
+    const tag = document.createElement('div'); tag.className = 'nametag ghost'; tag.textContent = 'GHOST · your lead run'; $('#tags').appendChild(tag);
+    return { model, tag };
+  }
+  showCard(side, title, sub) {
+    const el = $('#results'); el.classList.remove('hidden');
+    el.innerHTML = `<div class="res-card"><div class="res-kicker">${title}</div><h2>${side.score} pts</h2>${partsHtml(side)}<p class="muted">${sub}</p></div>`;
+  }
+  draw(items, dt) {
+    const g = this.g;
+    if (this.stage !== 'chase' || !this.ghostCar) { if (this.ghostCar) this.ghostCar.tag.style.display = 'none'; return; }
+    const gs = this.ghostAt(Math.max(0, this.t)) || this.ghost[0].s;
+    const y = g.world.heightAt(gs.x, gs.z);
+    carDrawItems(this.ghostCar.model, { x: gs.x, y, z: gs.z, yaw: gs.h, spin: this.t * 20, steer: 0, lights: true }, items);
+    g.carFx({ x: gs.x, y, z: gs.z, h: gs.h, vx: gs.vx, vz: gs.vz, speed: Math.hypot(gs.vx, gs.vz), rel: gs.sl, mode: gs.f & 1 ? 'drift' : 'grip', drifting: !!(gs.f & 1) }, this.ghostCar.model, this.ghostCar.model.meshes.dims, 'ghost', dt, false);
+    const p = g.app.renderer.project(gs.x, y + 2.4, gs.z);
+    if (p) { this.ghostCar.tag.style.display = 'block'; this.ghostCar.tag.style.transform = `translate(${p[0]}px, ${p[1]}px) translate(-50%, -100%)`; } else this.ghostCar.tag.style.display = 'none';
+  }
+  hud() {
+    let html = '<div class="ctag">Free Tandem</div>';
+    if (this.stage === 'lead') {
+      const t = this.recT0 === null ? 0 : Math.max(0, this.t - this.recT0);
+      html += `<div class="role role-lead">LEAD RUN</div><div class="cstats"><span>${this.recT0 === null ? 'Get going to start recording' : `Recording <b>${Math.floor(t)} s</b> / ${TANDEM_MAX} s`}</span><span>Press <b>T</b> to finish</span></div>`;
+    } else if (this.stage === 'chase') {
+      const c = this.g.car, gs = this.ghostAt(Math.max(0, this.t));
+      html += '<div class="role role-chase">CHASE</div>';
+      if (gs && this.phase === 'running') {
+        const d = Math.hypot(c.x - gs.x, c.z - gs.z), q = d < 2.4 ? 'TOO CLOSE' : d <= 8 ? 'PERFECT' : d < 15 ? 'GOOD' : 'TOO FAR';
+        html += `<div class="prox"><span>Gap <b>${d.toFixed(1)} m</b></span><span class="q q-${q.split(' ').join('')}">${q}</span></div><div class="cpbar prox-bar"><i style="width:${Math.max(0, 100 - d * 4)}%"></i></div>`;
+      }
+    } else html += '<div class="role">…</div>';
+    this.hudBox(html);
+  }
+  destroy() { super.destroy(); if (this.ghostCar) this.ghostCar.tag.remove(); if (this.finBtn) this.finBtn.remove(); window.removeEventListener('keydown', this.onKey); }
 }
 
 function partsHtml(side) {

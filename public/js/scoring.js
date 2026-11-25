@@ -9,6 +9,16 @@
 //   TRANSITION switching drift direction without straightening
 //   TANDEM    drifting alongside another drifting player (points ×1.5)
 //   CHAIN     consecutive drifts linked within the grace window
+// Technique tricks (names from real drifting):
+//   MANJI          3+ quick side-to-side transitions on a straight
+//   FEINT ENTRY    small slide the wrong way, then flick into the drift (Scandinavian flick)
+//   HANDBRAKE ENTRY  drift started with a handbrake pull at speed
+//   STRAIGHT DRIFT holding big angle down a straight (choku-dori)
+//   LONG / ENDLESS DRIFT  one drift held 8 s / 15 s
+//   HIGH SPEED DRIFT  big angle above ~140 km/h
+//   DIRT DROP      rear wheels dropped off the road and back while drifting
+//   WALL TAP / KISS  rear end within 1.2 m / 0.6 m of a wall or rail without hitting it
+//   DOOR TO DOOR   tandem with another driver within 5.5 m for a second
 // Spinning out (losing all speed mid-spin) or crashing loses the unbanked chain.
 export const CHAIN_GRACE = 2.0;
 const MAX_MULT = 8;
@@ -27,15 +37,24 @@ export class DriftScorer {
     this.driftCount = 0; this.controlled = false;
     this.rot = 0; this.circ = 0; this.donutStreak = 0; this.donutIdle = 0; this.gripT = 0;
     this.revT = 0; this.tandemT = 0; this.tandem = false; this.prevMode = 'grip'; this.side = 0; this.sideT = 0;
-    this.stats = { spins360: 0, donuts: 0, transitions: 0, reverse: 0, tandem: 0 };
+    this.stats = { spins360: 0, donuts: 0, transitions: 0, reverse: 0, tandem: 0, manji: 0, feint: 0, wall: 0, dirtDrop: 0, doorToDoor: 0 };
+    this.clk = 0; this.manjiT = []; this.lastSmall = null; this.lastHB = -9; this.seg = {}; this.cool = {}; this.dropT = 0; this.doorT = 0;
   }
   get liveScore() { return this.chain * this.mult; }
   bonus(points, combo, type, data) { this.chain += points; if (combo) this.combo++; this.onEvent(type, { ...data, points: Math.round(points), combo: this.combo }); }
 
   // car: Vehicle; ctx: { tandem: bool }
+  trick(name, pts, key, cool = 0) { // one-off technique bonus with an optional cooldown
+    if (key && (this.cool[key] || -99) > this.clk - cool) return false;
+    if (key) this.cool[key] = this.clk;
+    this.bonus(pts, true, 'trick', { name }); return true;
+  }
   update(dt, car, ctx = {}) {
     if (!this.enabled) return;
     const speed = car.speed, mode = car.mode, rel = car.rel || 0;
+    this.clk += dt;
+    if (car.handbrake) this.lastHB = this.clk;
+    if (mode !== 'reverse' && Math.abs(rel) > 0.05 && Math.abs(rel) < 0.35 && speed > 12) this.lastSmall = { t: this.clk, sign: Math.sign(rel) };
     const revAng = Math.abs(((rel - Math.PI * Math.sign(rel || 1)) + 3 * Math.PI) % TAU - Math.PI);
     const ang = (mode === 'reverse' ? revAng : Math.abs(rel)) * 57.3;
     this.angle = ang;
@@ -88,16 +107,32 @@ export class DriftScorer {
       if (this.side && side !== this.side && this.sideT > 0.35 && speed > 8) {
         this.stats.transitions++; this.segTime = 0; this.lastDir = side;
         this.bonus(300 + speed * 15, true, 'transition', {});
+        // manji: quick side-to-side on a straight
+        if (Math.abs(car.velRate || 0) < 0.14) {
+          this.manjiT = this.manjiT.filter((x) => this.clk - x < 4); this.manjiT.push(this.clk);
+          if (this.manjiT.length >= 3) { this.stats.manji++; this.trick(`MANJI ×${this.manjiT.length - 1}`, 500 + 250 * this.manjiT.length, null); }
+        }
       }
       if (side !== this.side) this.sideT = 0;
       this.side = side; this.sideT += dt;
     } else if (!sliding && this.gripT > 0.5) { this.side = 0; this.sideT = 0; }
 
+    // ---------- dirt drop: rear wheels off the road and back on, still drifting
+    if (sliding && speed > 9 && ctx.rearOff && ctx.frontOn) this.dropT += dt;
+    else if (this.dropT > 0) { if (sliding && this.dropT > 0.15 && this.dropT < 1.6 && !ctx.rearOff) { this.stats.dirtDrop++; this.trick('DIRT DROP', 700, 'drop', 3); } this.dropT = 0; }
+    // ---------- wall tap: rear end skimming a wall/rail without touching
+    if (sliding && speed > 9 && ctx.wallD !== undefined && ctx.wallD < 1.2 && !ctx.impact) {
+      if (this.trick(ctx.wallD < 0.6 ? 'WALL KISS' : 'WALL TAP', ctx.wallD < 0.6 ? 1400 : 900, 'wall', 2.5)) this.stats.wall++;
+    }
+    // ---------- door to door: really close tandem
+    if (this.tandem && ctx.tandemD !== undefined && ctx.tandemD < 5.5) { this.doorT += dt; if (this.doorT > 1) { this.doorT = 0; this.stats.doorToDoor++; this.trick('DOOR TO DOOR!', 1200, 'door', 4); } }
+    else this.doorT = 0;
+
     // ---------- base points from controlled sliding
     let scoring = false, rateMul = 1;
     if (mode === 'drift' && ang > 12 && speed > 7 && controlled && car.forwardSpeed > 1) scoring = true;
     if (mode === 'reverse' && ang < 55 && speed > 5 && controlled) { scoring = true; rateMul = 1.6; }
-    if (this.tandem) rateMul *= 1.5;
+    if (this.tandem) rateMul *= ctx.tandemD !== undefined && ctx.tandemD < 8 ? 2 : 1.5; // close tandems pay double
     const donutting = mode === 'drift' && ang > 30 && speed > 2.5 && radius < 14 && !car.handbrake;
     const keepAlive = scoring || donutting || mode === 'spin' || (mode === 'reverse' && speed > 4) || (sliding && car.handbrake && speed > 5) || (mode === 'drift' && this.sideT < 0.6 && speed > 8);
 
@@ -109,6 +144,10 @@ export class DriftScorer {
         const newDrift = (this.gapT || 0) >= 0.35 && (this.lastSeg || 0) >= 0.6;
         if (this.chain > 0) { if (newDrift) { this.combo++; this.segTime = 0; this.driftCount++; this.onEvent('combo', { combo: this.combo }); } }
         else { this.combo = 0; this.chainTime = 0; this.segTime = 0; this.driftCount++; }
+        // how the drift was started
+        if (this.lastSmall && this.clk - this.lastSmall.t < 1.2 && dir && this.lastSmall.sign === -dir && speed > 12) { this.stats.feint++; this.trick('FEINT ENTRY', 900, 'feint', 2); }
+        else if (this.clk - this.lastHB < 0.6 && speed > 14) this.trick('HANDBRAKE ENTRY', 300, 'hbentry', 3);
+        this.seg = {};
       }
       if (dir) this.lastDir = dir;
       this.segTime += dt; this.chainTime += dt;
@@ -117,6 +156,14 @@ export class DriftScorer {
       const durF = 1 + Math.min(this.segTime, 6) * 0.18;
       this.chain += 110 * angleF * speedF * durF * rateMul * dt;
       if (ang > 55 && this.segTime > 0.5 && !this._bigAngle) { this._bigAngle = true; this.onEvent('label', { text: 'BIG ANGLE!' }); }
+      // held-drift tricks (once per drift)
+      const S = this.seg;
+      S.straight = Math.abs(car.velRate || 0) < 0.08 && ang > 25 ? (S.straight || 0) + dt : 0;
+      if (S.straight > 2 && !S.st) { S.st = true; this.trick('STRAIGHT DRIFT', 900); }
+      if (this.segTime > 8 && !S.long) { S.long = true; this.trick('LONG DRIFT', 1200); }
+      if (this.segTime > 15 && !S.endless) { S.endless = true; this.trick('ENDLESS DRIFT', 2500); }
+      S.hs = speed > 38 && ang > 25 ? (S.hs || 0) + dt : 0;
+      if (S.hs > 1 && !S.hsd) { S.hsd = true; this.trick('HIGH SPEED DRIFT', 1000); }
     } else if (this.active) { this.active = false; this._bigAngle = false; this.lastSeg = this.segTime; this.gapT = 0; }
     if (!this.active) this.gapT = (this.gapT || 0) + dt;
     if (keepAlive) { if (this.chain > 0 || scoring) this.grace = CHAIN_GRACE; }
@@ -168,6 +215,7 @@ MODES.push(
   { id: 'challenge', comp: 'challenge', name: 'Drift Challenge', icon: '★', desc: 'Score Attack or Timed Challenge. Angle, speed, distance, smoothness and combos count; crashes and leaving the track cost you.', score: true, timer: true, challenges: false, crashPenalty: true, board: true },
   { id: 'race', comp: 'race', name: 'Speed Race', icon: '⚑', desc: 'Circuit racing: starting grid, countdown, laps, checkpoints, positions and best laps. Race CPU drivers solo or friends online.', score: false, timer: true, challenges: false, crashPenalty: false, board: true },
   { id: 'driftrace', comp: 'driftrace', name: 'Drift Race', icon: '≋', desc: 'A race where style pays: drift points earned on the way plus a bonus for where you finish. Out-drift the field or out-run it.', score: true, timer: true, challenges: false, crashPenalty: false, board: true },
+  { id: 'tandem', comp: 'tandem', soloOnly: true, name: 'Free Tandem', icon: '⇉', desc: 'Tandem anywhere: drive a lead run on any roads of any map, then chase your own ghost through it. Judged on proximity, angle match and line.', score: false, timer: false, challenges: false, crashPenalty: false, board: false },
   { id: 'battle', comp: 'battle', name: 'Drift Battle', icon: '⇄', desc: 'Head-to-head tandem: lead one run, chase the other. Judged on angle, line and proximity. Solo: chase your own ghost.', score: false, timer: true, challenges: false, crashPenalty: false, board: false },
 );
 export const FREE_MODES = MODES.filter((m) => !m.comp);

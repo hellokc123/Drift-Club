@@ -72,8 +72,8 @@ export class UI {
   // ------------------------------------------------------------- PLAY
   renderPlay() {
     const S = this.S;
-    const art = { challenge: 'track', race: 'city', driftrace: 'forest', battle: 'mountain' };
-    $('#comp-cards').innerHTML = COMP_MODES.map((m) => `<button class="card compcard" data-comp="${m.id}"><div class="map-thumb t-${art[m.id]}"><span class="comp-icon">${m.icon}</span></div><b>${m.name}</b><span>${m.desc}</span><em>Solo · Online</em></button>`).join('');
+    const art = { challenge: 'track', race: 'city', driftrace: 'forest', battle: 'mountain', tandem: 'desert' };
+    $('#comp-cards').innerHTML = COMP_MODES.map((m) => `<button class="card compcard" data-comp="${m.id}"><div class="map-thumb t-${art[m.id]}"><span class="comp-icon">${m.icon}</span></div><b>${m.name}</b><span>${m.desc}</span><em>${m.soloOnly ? 'Solo · any map, any road' : 'Solo · Online'}</em></button>`).join('');
     $$('#comp-cards .card').forEach((b) => (b.onclick = () => { this.click(); this.compSel.mode = b.dataset.comp; this.show('comp'); }));
     if (!FREE_MODES.find((m) => m.id === this.playSel.mode)) this.playSel.mode = 'endless';
     $('#mode-cards').innerHTML = FREE_MODES.map((m) => `<button class="card mode ${m.id === this.playSel.mode ? 'sel' : ''}" data-mode="${m.id}"><i>${m.icon}</i><b>${m.name}</b><span>${m.desc}</span></button>`).join('');
@@ -117,6 +117,8 @@ export class UI {
           : C.difficulty === 'hard' || C.difficulty === 'legend' ? '<p class="muted boss-note">👹 <b>Midnight Oni</b> starts on pole. Beat him to win his car — or pick <b>Boss</b> for a 1v1 with each map\'s boss.</p>' : ''}
         ${mode === 'driftrace' ? `<p class="setup-note"><b>Score = (drift points × position factor + position bonus) × gap factor.</b> Position factor P1 ×1.0, P2 ×0.9, P3 ×0.8, P4 ×0.68 …; the gap factor drops 1/60 for every second you finish behind the winner (min ${DRIFT_RACE.minGap}, also for a DNF). Drift points count from GO until you cross the finish line (and stop ${DRIFT_RACE.lateWindow} s after the winner finishes); your combo banks at every lap line (max ×${DRIFT_RACE.judge.maxMult}), faster drifts pay more and slow drifting earns almost nothing. Bonus per lap: ${DRIFT_RACE.bonusPerLap.slice(0, 4).map((b, i) => `P${i + 1} +${fmt(b)}`).join(', ')}… — no bonus if you don't finish. Crashes and leaving the track cost your live combo.</p>` : ''}
         <p class="setup-note">Pass every checkpoint in order. Resets never count as checkpoints. Solo races start you at the back of the grid. CPU drivers are clearly labelled and only appear in solo races.</p>`;
+    } else if (mode === 'tandem') {
+      h += `<p class="setup-note"><b>Free Tandem works on every map and every road.</b> 1) Drive a <b>lead run</b> wherever you like — highways, hairpins, the city — and press <b>T</b> (or FINISH) when you're done (max 90 s). 2) <b>Chase your ghost</b> through exactly that line. The chase is judged like real tandem competitions: <b>proximity</b> (2–8 m is perfect), <b>angle match</b>, <b>line</b>, speed match and control, minus penalties for contact and spins. Hit "Chase again" to beat your score.<br><b>With friends:</b> drift together in the Public Room — drifting close behind another driver scores tandem bonuses (×2 when really close, plus DOOR TO DOOR!).</p>`;
     } else {
       h += `<p class="setup-note"><b>Online (2 players):</b> round 1, one of you leads and the other chases; round 2 the roles swap. Lead runs are judged on angle, speed, line, consistency and transitions; chase runs on proximity, speed and angle matching, line and control. Penalties for leaving the course, spinning and contact.<br><b>Solo:</b> drive a judged lead run, then chase a ghost replay of it.</p>`;
     }
@@ -131,6 +133,7 @@ export class UI {
     slider('c-time', 'time', (v) => `${Math.floor(v / 60)}:${String(v % 60).padStart(2, '0')}`); slider('c-laps', 'laps'); slider('c-ai', 'ai');
     $('#comp-solo').onclick = () => { this.click(); this.app.startGame({ mapId: C.map, modeId: mode, mp: false, comp: this.compOpts(mode) }); };
     $('#comp-online').onclick = () => { this.click(); this.showCreate({ mode, map: C.map, ...this.compOpts(mode) }); };
+    $('#comp-online').style.display = mode === 'tandem' ? 'none' : '';
   }
   personalBest(mode, map, C) {
     const R = this.S.records || {};
@@ -469,7 +472,7 @@ export class UI {
     return ids.map((id) => { const m = MAP_LIST.find((x) => x.id === id); const sub = isRaceMode(mode) ? RACE[id].name : mode === 'battle' ? BATTLE[id].name : m.type; return `<option value="${id}" ${id === cur ? 'selected' : ''}>${m.name} — ${sub}</option>`; }).join('');
   }
   modeOptions(cur) {
-    return `<optgroup label="Competitive">${COMP_MODES.map((m) => `<option value="${m.id}" ${m.id === cur ? 'selected' : ''}>${m.name}</option>`).join('')}</optgroup><optgroup label="Free play">${FREE_MODES.map((m) => `<option value="${m.id}" ${m.id === cur ? 'selected' : ''}>${m.name}</option>`).join('')}</optgroup>`;
+    return `<optgroup label="Competitive">${COMP_MODES.filter((m) => !m.soloOnly).map((m) => `<option value="${m.id}" ${m.id === cur ? 'selected' : ''}>${m.name}</option>`).join('')}</optgroup><optgroup label="Free play">${FREE_MODES.map((m) => `<option value="${m.id}" ${m.id === cur ? 'selected' : ''}>${m.name}</option>`).join('')}</optgroup>`;
   }
   // mode-specific room fields; `v` = current values, `dis` = disabled attr
   modeFields(mode, v, dis = '', pre = 'cr') {
