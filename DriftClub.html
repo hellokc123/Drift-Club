@@ -2836,7 +2836,7 @@ const CARS = [
   // boss cars: the bosses' strength is all in these cars (no hidden AI buffs). Beat a boss 1v1 to unlock theirs (Boss tab). The Aurum R stays above them all.
   { id: 'valkyrie', name: 'Valkyrie RS', cat: 'boss', secret: 'valkyrie', style: 'wedge', paint: '#c9ced6', wheel: '#1d3c78', livery: 1, liveryColor: '#1d3c78', accel: 17.5, top: 118, grip: 20.5, lat: 21.5, steer: 0.58, wb: 2.6, driftGrip: 1.8, driftPower: 1.2, driftSteer: 2.1, momentum: 0.5, powerOver: 0.2, mass: 1.05, engine: { pitch: 1.55, cyl: 10, grit: 0.4 } },
   { id: 'mirage', name: 'Mirage V8', cat: 'boss', secret: 'sandstorm', style: 'muscle', paint: '#c8a46a', wheel: '#151515', livery: 1, liveryColor: '#151515', accel: 18, top: 122, grip: 19, lat: 20.5, steer: 0.55, wb: 2.8, driftGrip: 1.4, driftPower: 1.55, driftSteer: 2.1, momentum: 0.55, powerOver: 0.5, mass: 1.2, engine: { pitch: 0.85, cyl: 8, grit: 0.85 } },
-  { id: 'timber', name: 'Timber Rally', cat: 'boss', secret: 'grizzly', style: 'hatch', paint: '#2f5d3a', wheel: '#e8e8e8', livery: 1, liveryColor: '#f2f2f2', accel: 18, top: 115, grip: 21, lat: 22.5, steer: 0.72, wb: 2.5, driftGrip: 1.5, driftPower: 1.35, driftSteer: 2.4, momentum: 0.56, powerOver: 0.35, mass: 0.95, engine: { pitch: 1.5, cyl: 4, grit: 0.7 } },
+  { id: 'timber', name: 'Timber Rally', cat: 'boss', secret: 'grizzly', style: 'coupe', paint: '#2f5d3a', wheel: '#e8e8e8', livery: 1, liveryColor: '#f2f2f2', accel: 18, top: 115, grip: 21, lat: 22.5, steer: 0.72, wb: 2.5, driftGrip: 1.5, driftPower: 1.35, driftSteer: 2.4, momentum: 0.56, powerOver: 0.35, mass: 0.95, engine: { pitch: 1.5, cyl: 4, grit: 0.7 } },
   { id: 'phantom', name: 'Phantom GT', cat: 'boss', secret: 'phantom', style: 'coupe', paint: '#2a1740', wheel: '#1ee3ff', livery: 2, liveryColor: '#1ee3ff', accel: 17.5, top: 117, grip: 20.3, lat: 21.4, steer: 0.6, wb: 2.7, driftGrip: 1.5, driftPower: 1.35, driftSteer: 2.3, momentum: 0.56, powerOver: 0.35, mass: 1.05, engine: { pitch: 1.35, cyl: 6, grit: 0.45 } },
   { id: 'ironjaw', name: 'Ironjaw 440', cat: 'boss', secret: 'ironjaw', style: 'muscle', paint: '#151515', wheel: '#ffd23a', livery: 1, liveryColor: '#ffd23a', accel: 17.2, top: 115, grip: 19.5, lat: 21, steer: 0.62, wb: 2.7, driftGrip: 1.2, driftPower: 1.6, driftSteer: 2.6, momentum: 0.62, powerOver: 0.6, mass: 1.15, engine: { pitch: 0.8, cyl: 8, grit: 0.9 } },
   { id: 'vanta', name: 'Vanta GT', cat: 'squad', style: 'wedge', paint: '#1f3f7a', wheel: '#2b2d31', livery: 1, liveryColor: '#e8eaee', accel: 11.4, top: 86, grip: 14.0, lat: 14.8, steer: 0.62, wb: 2.7, driftGrip: 1.95, driftPower: 1.1, driftSteer: 2.0, momentum: 0.5, powerOver: 0.12, mass: 1.1, noSpin: true, engine: { pitch: 1.5, cyl: 8, grit: 0.35 } },
@@ -3125,8 +3125,9 @@ const LOOKS = {
   },
 };
 
-// boss cars borrow a body from a sibling car, with their own accents
-for (const [id, from, accent] of [['valkyrie', 'strale', [0.29, 0.55, 1]], ['mirage', 'behemoth', [0.08, 0.08, 0.08]], ['timber', 'kaze', [0.95, 0.95, 0.95]], ['phantom', 'halcyon', [0.12, 0.89, 1]], ['ironjaw', 'jackal', [1, 0.82, 0.23]]]) {
+// boss cars borrow a body from a car of their class, with their own accents:
+// Valkyrie RS + Phantom GT = supercars, Mirage V8 + Ironjaw 440 = muscle, Timber Rally = sports car, Oni Kuro = drift car
+for (const [id, from, accent] of [['valkyrie', 'strale', [0.29, 0.55, 1]], ['mirage', 'behemoth', [0.08, 0.08, 0.08]], ['timber', 'zephyr', [0.95, 0.95, 0.95]], ['phantom', 'halcyon', [0.12, 0.89, 1]], ['ironjaw', 'jackal', [1, 0.82, 0.23]]]) {
   const base = LOOKS[from] || {};
   LOOKS[id] = { ...base, extras: [...new Set([...(base.extras || []), 'splitter', 'goldAccent'])], accent };
 }
