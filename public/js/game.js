@@ -245,7 +245,7 @@ export class Game {
     const c = this.car, W = this.world, fx = Math.sin(c.h), fz = Math.cos(c.h);
     const rx = c.x - fx * 1.7, rz = c.z - fz * 1.7, fxp = c.x + fx * 1.5, fzp = c.z + fz * 1.5;
     const out = { tandem: this.tandemCheck(), tandemD: this.tandemD, impact: !!this.impactFlag };
-    if (W.sdAt && !W.spec.surfaceFn) { out.rearOff = W.sdAt(rx, rz) > 0.5; out.frontOn = W.sdAt(fxp, fzp) < 0; }
+    if (W.sdAt && !W.spec.surfaceFn && W.spec.natural !== 'asphalt') { out.rearOff = W.sdAt(rx, rz) > 0.5; out.frontOn = W.sdAt(fxp, fzp) < 0; }
     if (c.mode !== 'grip' && c.speed > 9) { // nearest wall/rail/post to the rear bumper (cheap: only while sliding)
       let best = 99;
       for (const it of W.query(rx, rz)) {

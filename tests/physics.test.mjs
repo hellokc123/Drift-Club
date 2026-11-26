@@ -43,7 +43,7 @@ test('top speeds are sane and follow the car stats', () => {
   for (const def of CARS) {
     const v = makeCar(def.id, 'race'); run(v, 60, { ...N, throttle: 1 });
     const kmh = v.speed * 3.6; tops[def.id] = kmh;
-    assert.ok(kmh > 100 && kmh < 360, `${def.id} top speed ${kmh.toFixed(0)} km/h`); // boss cars and the Aurum R run 315-350
+    assert.ok(kmh > 100 && kmh < 440, `${def.id} top speed ${kmh.toFixed(0)} km/h`); // creator cars and drift bosses run 350-410
     assert.ok(v.speed <= def.top * 1.02, `${def.id} exceeds its top speed stat`);
   }
   assert.ok(tops.aurora > tops.hatch + 60, 'hypercar should be much faster than the hatchback');

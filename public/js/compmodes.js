@@ -8,7 +8,7 @@ import { raceRoute, gridSlots, RaceTracker, battleCourse, RACE } from './tracks.
 import { CompDriftJudge, round2, BattleRun, battleTotals, challengeScore, CHALLENGE_VARIANTS, DRIFT_RACE, AI_DRIFT, AI_JUDGE, aiDriftSample, driftRaceRank, driftRaceBonus, posFactor } from './judge.js';
 import { AIDriver, AI_SKILL, aiDef } from './ai.js';
 import { OniRecorder, loadBrain, saveBrain } from './oni.js';
-import { BOSSES, bossFor } from './bosses.js';
+import { BOSSES, bossFor, bossMode, BOSS_DRIFT } from './bosses.js';
 import { $, fmt, esc, toast } from './ui.js';
 
 export const fmtTime = (t) => (t == null || !Number.isFinite(t) ? '—' : `${Math.floor(t / 60)}:${(t % 60).toFixed(2).padStart(5, '0')}`);
@@ -180,7 +180,9 @@ class RaceComp extends Comp {
     this.laps = this.cfg.laps || 3;
     this.tracker = new RaceTracker(this.route, this.laps);
     this.ai = [];
-    const fight = !this.mp && this.cfg.difficulty === 'bossfight'; // 1v1 against this map's boss
+    // 1v1 against this map's boss, in the mode that boss fights in (drift masters only fight in Drift Race)
+    const fight = !this.mp && this.cfg.difficulty === 'bossfight' && bossMode(g.opts.mapId) === this.kind;
+    if (!this.mp && this.cfg.difficulty === 'bossfight' && !fight) this.cfg = { ...this.cfg, difficulty: 'legend' };
     const nAI = this.mp ? 0 : fight ? 1 : Math.max(0, Math.min(7, this.cfg.ai ?? 5));
     const slots = gridSlots(this.route, Math.max(nAI + 1, 12));
     // solo: the player starts at the back of the grid; online: the server assigns grid slots
@@ -336,8 +338,11 @@ class RaceComp extends Comp {
     const g = this.g, R = g.app.renderer;
     for (const a of this.ai) {
       const v = a.v;
-      carDrawItems(a.model, { x: v.x, y: v.y, z: v.z, yaw: v.h, pitch: v.pitch, roll: v.roll, wheelOffset: v.wheelOffset, steer: v.wheelAngle, spin: v.spin, brake: v.brakeOn, reverse: v.reversing, lights: g.env.night }, items);
-      g.carFx({ x: v.x, y: v.y, z: v.z, h: v.h, vx: v.vx, vz: v.vz, speed: v.speed, rel: v.rel, mode: v.mode, drifting: v.drifting, handbrake: v.handbrake, braking: v.brakeOn, boosting: v.boosting }, a.model, a.model.meshes.dims, 'ai' + a.name, dt, false);
+      const master = a.boss && this.fight && this.bossInfo.drift;
+      if (master) a.vis = (a.vis || 0) + ((a.slide || 0) * 1.15 - (a.vis || 0)) * Math.min(1, dt * 6);
+      const yaw = master ? v.h + a.vis : v.h, sliding = master && Math.abs(a.vis) > 0.18;
+      carDrawItems(a.model, { x: v.x, y: v.y, z: v.z, yaw, pitch: v.pitch, roll: v.roll, wheelOffset: v.wheelOffset, steer: v.wheelAngle, spin: v.spin, brake: v.brakeOn, reverse: v.reversing, lights: g.env.night }, items);
+      g.carFx({ x: v.x, y: v.y, z: v.z, h: yaw, vx: v.vx, vz: v.vz, speed: v.speed, rel: master ? a.vis : v.rel, mode: sliding ? 'drift' : v.mode, drifting: v.drifting || sliding, handbrake: v.handbrake, braking: v.brakeOn, boosting: v.boosting }, a.model, a.model.meshes.dims, 'ai' + a.name, dt, false);
       const p = R.project(v.x, v.y + a.model.meshes.dims.roofY + 1, v.z), dist = Math.hypot(v.x - g.cam.eye[0], v.z - g.cam.eye[2]);
       if (p && dist < 200) { a.tag.style.display = 'block'; a.tag.style.transform = `translate(${p[0]}px, ${p[1]}px) translate(-50%, -100%) scale(${Math.min(1.1, Math.max(0.55, 30 / dist))})`; } else a.tag.style.display = 'none';
     }
@@ -391,7 +396,7 @@ class DriftRaceComp extends RaceComp {
     g.scorer = this.dj.scorer; g.scorer.enabled = true;
     $('#hud-drift').classList.remove('hidden'); $('#hud-score').classList.remove('hidden');
     super.load();
-    this.aiF = AI_DRIFT[this.cfg.difficulty || 'medium'] || AI_DRIFT.medium;
+    this.aiF = this.fight ? BOSS_DRIFT : AI_DRIFT[this.cfg.difficulty || 'medium'] || AI_DRIFT.medium;
     for (const a of this.ai) { a.dj = new CompDriftJudge(g.opts.mapId, () => {}, AI_JUDGE); a.vy = null; a.sk = 0; a.lastLap = 0; }
     this.cutT = 0;
   }
@@ -427,6 +432,7 @@ class DriftRaceComp extends RaceComp {
     const s = { k: ++a.sk, x: round2(v.x), z: round2(v.z), h: round2(v.h), vx: round2(v.vx), vz: round2(v.vz), f: (v.drifting ? 1 : 0) | (jump ? 256 : 0), sl: round2(v.rel) };
     const o = aiDriftSample(s, jump ? null : a.vy, 0.05);
     a.vy = o.velYaw; a.dj.push(o.s);
+    a.slide = o.s.f & 1 ? o.s.sl : 0; // drift masters show the slide they're scored on
   }
   onEvent(ev) {
     if (ev.type === 'lap' || ev.type === 'finish') this.dj.scorer.bank();
@@ -451,7 +457,17 @@ class DriftRaceComp extends RaceComp {
       ...this.ai.map((a) => ({ name: a.name, cpu: true, tr: a.tr, x: a.v.x, z: a.v.z, drift: this.aiDrift(a) }))];
     const rows = driftRaceRank(all.map((r) => ({ name: r.name, me: r.me, cpu: r.cpu, finished: r.tr.finished, time: r.tr.finishTime, best: r.tr.best, laps: r.tr.lap, prog: r.tr.progress(r.x, r.z), drift: r.drift })), this.laps);
     const mine = rows.find((r) => r.me);
-    this.g.app.saveRecord('driftrace', { map: this.g.opts.mapId, laps: this.laps, score: mine.total, drift: mine.drift, bonus: mine.bonus, racePos: mine.racePos, pos: mine.pos, field: rows.length, finished: mine.finished });
+    // boss fight: beat the drift master on TOTAL (drift points + finish bonus), and you must finish
+    const bossRow = this.boss ? rows.find((r) => r.cpu && r.name === this.bossInfo.name) : null;
+    const beatBoss = !!(bossRow && mine.finished && mine.total > bossRow.total);
+    if (this.boss) this.taunt(beatBoss ? 'lose' : 'win');
+    if (this.oniRec && this.oniBrain && !this.oniLearned && this.tracker.started) {
+      this.oniLearned = true;
+      const L = this.oniRec.learn(this.oniBrain, !beatBoss, true);
+      saveBrain(this.g.app.account, this.g.opts.mapId, L.brain, this.bossInfo.id);
+      this.later(4200, () => toast(`<b style="color:${this.bossInfo.color}">${this.bossInfo.icon} ${esc(this.bossInfo.name)} learned from this race</b>`, 5000, 'oni'));
+    }
+    this.g.app.saveRecord('driftrace', { map: this.g.opts.mapId, laps: this.laps, score: mine.total, drift: mine.drift, bonus: mine.bonus, racePos: mine.racePos, pos: mine.pos, field: rows.length, finished: mine.finished, beatBoss, bossId: beatBoss ? this.bossInfo.id : null, bossFight: !!this.fight });
     this.showResults(this.resultsHtml(rows, true), { solo: true });
   }
   onServerResult(m) {
@@ -464,7 +480,7 @@ class DriftRaceComp extends RaceComp {
   }
   resultsHtml(rows, solo) {
     const w = rows[0], mi = rows.findIndex((r) => r.me);
-    return `<div class="res-kicker">Drift Race · ${esc(this.route.name)} · ${this.laps} lap${this.laps === 1 ? '' : 's'}${solo ? ` · ${AI_SKILL[this.cfg.difficulty || 'medium'].name} CPU` : ''}</div>
+    return `<div class="res-kicker">Drift Race · ${esc(this.route.name)} · ${this.laps} lap${this.laps === 1 ? '' : 's'}${solo ? (this.fight ? ` · 👑 Boss 1v1 vs ${esc(this.bossInfo.title)}` : ` · ${(AI_SKILL[this.cfg.difficulty] || AI_SKILL.medium).name} CPU`) : ''}</div>
       <h2>${w && w.total > 0 ? `🏆 ${esc(w.name)} wins with ${fmt(w.total)}` : 'No score'}${mi >= 0 ? ` · you placed #${mi + 1}` : ''}</h2>
       <table class="res-table dr-res"><tr><th>#</th><th>Driver</th><th>Race</th><th>Drift pts</th><th></th><th>Pos.</th><th></th><th>Bonus</th><th></th><th>Gap</th><th></th><th>Total</th></tr>
       ${rows.map((r, i) => `<tr class="${r.me ? 'me' : ''} ${i === 0 && r.total > 0 ? 'win' : ''}"><td>${i + 1}</td><td>${esc(r.name)}${r.cpu ? ' <i class="cpu-tag">CPU</i>' : ''}${r.left ? ' <i class="cpu-tag">left</i>' : ''}</td>

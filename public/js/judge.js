@@ -149,7 +149,7 @@ export function driftRaceRank(rows, laps) {
 // CPU drivers race on grip, so their drift points are ESTIMATED from how hard they corner: the same judge
 // is fed a virtual slip angle that grows with lateral acceleration (skill sets how bold they are).
 // The estimate is then scaled by skill (AI_DRIFT) so CPUs are beatable but never score zero.
-export const AI_DRIFT = { easy: 0.3, medium: 0.47, hard: 0.62, legend: 0.75 };
+export const AI_DRIFT = { easy: 0.3, medium: 0.47, hard: 0.62, legend: 0.75 }; // drift-master bosses: BOSS_DRIFT (bosses.js)
 export const AI_JUDGE = { ...DRIFT_RACE.judge, pace: false, noDecelCrash: true };
 export function aiDriftSample(s, prevVelYaw, dt) {
   const speed = Math.hypot(s.vx, s.vz); if (speed < 1.2) return { s, velYaw: prevVelYaw };

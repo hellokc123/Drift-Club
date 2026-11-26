@@ -76,24 +76,27 @@ export function samplePath(pts, closed, { linear = false } = {}) {
 }
 
 // ------------------------------------------------------------------ map geometry (rendered by maps.js)
-const CITY_B = 90, CITY_ST = 20, CITY_K = 5;
+// City Nights: a real street network (no grid). Road 0 is the Downtown Street Circuit; avenues, an
+// old-town zig-zag, harbour hairpins, a roundabout and a riverside drive branch off it.
+export const CITY_PARK = { x: 170, z: 290, r: 80 };
+export const CITY_PADS = [{ x: -20, z: 40, r: 58 }, { x: -205, z: -215, r: 46 }];
 function cityRoads() {
-  const roads = [], e = CITY_K * CITY_B;
-  for (let i = -CITY_K; i <= CITY_K; i++) {
-    const v = i * CITY_B;
-    roads.push({ pts: [[v, -e], [v, 0], [v, e]], width: CITY_ST });
-    roads.push({ pts: [[-e, v], [0, v], [e, v]], width: CITY_ST });
-  }
-  roads.push({ pts: [[-e, -e], [0, 0], [e, e]], width: CITY_ST, diagonal: true }); // the diagonal boulevard
-  // curvy roads cut through the blocks so the city isn't just a grid (blocks they cross become parks)
-  roads.push({ pts: [[-450, -130], [-330, -40], [-200, -140], [-60, -60], [60, -150], [200, -60], [330, -150], [450, -60]], width: CITY_ST, curvy: true }); // Serpentine (west-east)
-  roads.push({ pts: [[150, 450], [90, 340], [200, 230], [130, 120], [220, 10], [150, -100], [235, -220], [140, -330], [180, 450 * -1]], width: CITY_ST, curvy: true }); // Riverside Curve (north-south)
-  roads.push({ pts: [[-450, 300], [-330, 370], [-200, 270], [-80, 360], [20, 450]], width: CITY_ST, curvy: true }); // Old Town Bend (north-west)
-  const ring = []; for (let k = 0; k < 16; k++) { const a = (k / 16) * Math.PI * 2; ring.push([Math.round(Math.cos(a) * 300), Math.round(Math.sin(a) * 300)]); }
-  roads.push({ pts: ring, closed: true, width: CITY_ST, curvy: true }); // Ring Boulevard round downtown
-  return roads;
+  const ring = []; for (let k = 0; k < 14; k++) { const a = (k / 14) * Math.PI * 2; ring.push([Math.round(330 + Math.cos(a) * 42), Math.round(-260 + Math.sin(a) * 42)]); }
+  return [
+    { name: 'Downtown Street Circuit', closed: true, width: 20, pts: [[-500, -520], [-200, -545], [100, -530], [380, -500], [540, -400], [580, -200], [540, -60], [470, 20], [520, 150], [580, 300], [540, 470], [400, 560], [220, 560], [110, 500], [20, 380], [-90, 420], [-200, 480], [-330, 545], [-480, 500], [-560, 360], [-520, 230], [-430, 120], [-480, 0], [-560, -120], [-580, -300], [-560, -440]] },
+    { name: 'Grand Avenue', width: 20, boulevard: true, pts: [[100, -530], [60, -380], [90, -220], [30, -60], [-20, 40], [10, 200], [-10, 300], [20, 380]] },
+    { name: 'Midtown Boulevard', width: 20, boulevard: true, pts: [[-480, 0], [-330, -20], [-170, 50], [-20, 40], [140, -10], [300, 50], [470, 20]] },
+    { name: 'Old Town Zig-Zag', width: 15, pts: [[-430, 120], [-400, 240], [-320, 190], [-270, 310], [-190, 250], [-150, 350], [-90, 420]] },
+    { name: 'Harbour Hairpins', width: 15, pts: [[-560, -440], [-440, -380], [-470, -280], [-360, -240], [-400, -140], [-330, -20]] },
+    { name: 'Roundabout', closed: true, width: 16, pts: ring },
+    { name: 'Dock Road', width: 16, pts: [[380, -500], [350, -390], [330, -302]] },
+    { name: 'Westway', width: 16, pts: [[288, -260], [180, -250], [90, -220]] },
+    { name: 'Eastway', width: 16, pts: [[372, -260], [470, -230], [580, -200]] },
+    { name: 'Riverside Drive', width: 18, pts: [[300, 50], [340, 200], [300, 330], [400, 420], [540, 470]] },
+    { name: 'Park Lane', width: 15, pts: [[10, 200], [90, 150], [200, 140], [338, 195]] },
+    { name: 'Lot Lane', width: 15, pts: [[-170, 50], [-215, -80], [-205, -170]] },
+  ];
 }
-export const CITY = { B: CITY_B, ST: CITY_ST, K: CITY_K };
 
 const sc = (k, pts) => pts.map(([x, z]) => [Math.round(x * k), Math.round(z * k)]);
 
@@ -251,7 +254,7 @@ export const GEO = {
     ],
     pads: [{ x: -228, z: -195, r: 100 }, { x: 156, z: -380, w: 70, d: 40 }, { x: -435, z: -630, r: 62 }],
   },
-  city: { roads: cityRoads(), pads: [], openArea: true },
+  city: { roads: cityRoads(), pads: CITY_PADS },
   drift: {
     roads: [
       // 0: the drift course — main straight, fast right-hander, S-bends, hairpin, a figure-eight
@@ -335,21 +338,18 @@ function streetLoop(wp, r = 10) {
   }
   return pts;
 }
-// Downtown: the long south avenue, up the east side, a jog round the plaza, back down the west and
-// the diagonal boulevard into a hairpin at the south-west corner
-const CITY_LOOP = [[-180, -360], [270, -360], [270, 180], [90, 180], [90, 360], [-90, 360], [-90, -90], [-360, -360]];
 export const RACE = {
   track: { name: 'Apex Circuit', road: 0, start: 30, width: 16, margin: 14 },
   desert: { name: 'Dune Valley Highway', road: 0, start: 70, width: 14, margin: 16 },
   mountain: { name: 'Kurogane Pass Loop', legs: [[1, [0, -1350], [0, 50], 1], [2, [0, 50], [0, 1320], 1], [0, [0, 1320], [0, -1350], 1]], start: 20, width: 10, margin: 12 },
   forest: { name: 'Pinewood Loop', road: 0, start: 40, width: 12, margin: 12 },
   drift: { name: 'Ironbay Figure-Eight', road: 0, start: 40, width: 18, margin: 12 },
-  city: { name: 'Downtown Street Circuit', pts: streetLoop(CITY_LOOP, 12), linear: true, start: 0, width: 16, margin: 6 },
+  city: { name: 'Downtown Street Circuit', road: 0, start: 30, width: 20, margin: 10 },
 };
 // Wider roads everywhere (room for tandems and side-by-side racing). City streets are set by CITY_ST.
 export const ROAD_SCALE = 1.3;
 for (const [id, g] of Object.entries(GEO)) if (id !== 'city') for (const r of g.roads) r.width = Math.round(r.width * ROAD_SCALE * 10) / 10;
-for (const [id, R] of Object.entries(RACE)) R.width = id === 'city' ? CITY_ST : Math.round(R.width * ROAD_SCALE * 10) / 10;
+for (const [id, R] of Object.entries(RACE)) R.width = id === 'city' ? R.width : Math.round(R.width * ROAD_SCALE * 10) / 10;
 export const RACE_MAPS = Object.keys(RACE);
 
 // A circuit made of pieces of several roads of the network: legs = [[road, [fromX, fromZ], [toX, toZ], dir]]
@@ -470,6 +470,7 @@ export const BATTLE = {
   mountain: { name: 'Irohazaka Downhill', road: 2, from: 0.05, to: 0.5, dir: 1, width: 10 },
   forest: { name: 'Lakeside Esses', road: 0, from: 0.607, to: 0.878, dir: 1, width: 12 },
   drift: { name: 'Ironbay S-Bends', road: 0, from: 0.13, to: 0.36, dir: 1, width: 18 },
+  city: { name: 'Old Town Zig-Zag', road: 3, from: 0.02, to: 0.97, dir: 1, width: 15 },
 };
 export const BATTLE_MAPS = Object.keys(BATTLE);
 const courseCache = new Map();

@@ -4,14 +4,14 @@
 import { Geo, ChunkBatcher } from './engine/geometry.js';
 import { FxBuffer } from './engine/renderer.js';
 import { makeNoise, rng, smoothstep, clamp, lerp } from './engine/math.js';
-import { crSample, segDist, GEO, CITY } from './tracks.js';
+import { crSample, segDist, GEO, CITY_PARK, CITY_PADS } from './tracks.js';
 
 export const MAP_LIST = [
   { id: 'track', name: 'Apex Circuit', type: 'Race Track', desc: 'A proper racing circuit with a National cut-through, service roads, an infield skidpad, an autocross pad and car parks.', accent: '#8fb3d1' },
   { id: 'desert', name: 'Dune Valley', type: 'Desert', desc: 'Huge open desert, 4 km wide. A 12 km winding highway, an interstate, a canyon road, salt flat, dry lake, airstrip and a ghost town.', accent: '#d9a46a' },
   { id: 'mountain', name: 'Kurogane Pass', type: 'Mountains', desc: 'Big Japanese touge at dusk: a five-hairpin uphill, a nine-switchback Irohazaka descent, ridge esses and a valley ring road.', accent: '#d48d6e' },
   { id: 'forest', name: 'Pinewood Trails', type: 'Forest', desc: 'Misty forest roads round a lake, gravel logging trails, a big clearing and a quarry.', accent: '#86b77a' },
-  { id: 'city', name: 'City Nights', type: 'City', desc: 'Night-time grid of streets cut by a diagonal boulevard, a central plaza and open parking lots.', accent: '#d8b25c' },
+  { id: 'city', name: 'City Nights', type: 'City', desc: 'Night-time downtown street circuit with curving avenues, an old-town zig-zag, harbour hairpins, a roundabout and a riverside drive. Was: grid of streets cut by a diagonal boulevard, a central plaza and open parking lots.', accent: '#d8b25c' },
   { id: 'drift', name: 'Ironbay Drift Park', type: 'Drift Park', desc: 'A harbourside drift venue: figure-eight course, hairpins, a huge practice pad, a donut circle and container alleys.', accent: '#7fa8a3' },
 ];
 
@@ -78,7 +78,7 @@ const GATE_SPOTS = {
   mountain: [{ road: 0, f: 0.3, dir: 1 }, { road: 0, f: 0.72, dir: -1 }],
   forest: [{ road: 0, f: 0.3, dir: 1 }, { road: 0, f: 0.65, dir: -1 }],
   // city: no room between the blocks, so each gate stands in a parking-lot block, down a short side street
-  city: [{ road: 0, f: 0.3, dir: 1, spur: [[-360, 225], [-340, 225], [-320, 225], [-296, 225]] }, { road: 0, f: 0.65, dir: -1, spur: [[225, -360], [225, -340], [225, -320], [225, -296]] }],
+  city: [{ road: 1, f: 0.22, dir: 1 }, { road: 2, f: 0.8, dir: -1 }],
   drift: [{ road: 0, f: 0.3, dir: 1 }, { road: 0, f: 0.65, dir: -1 }],
 };
 
@@ -688,6 +688,7 @@ function vending(ctx, x, z, yaw) { // glowing roadside vending machine
   ctx.box(x, z, 1.0, 0.8, yaw); ctx.glow(x, y + 0.08, z, 3, [0.25, 0.32, 0.38, 1]);
 }
 function lamp(ctx, x, z, yaw, night, colr = [1, 0.85, 0.55]) {
+  if (ctx.sd(x, z) < 0.8) return; // never a pole on the road surface (e.g. where a diagonal crosses a block corner)
   const y = ctx.h(x, z), g = ctx.geo(x, z);
   g.cylinder(x, y + 3.5, z, 0.12, 7, 6, [0.25, 0.25, 0.28]);
   const ax = Math.sin(yaw) * 1.4, az = Math.cos(yaw) * 1.4;
@@ -708,8 +709,10 @@ function billboard(g, x, y, z, yaw, c1, c2) {
   g.box(-1.5, 6.3, 0.17, 4, 0.8, 0.05, [1, 1, 1]);
   g.reset();
 }
-function building(ctx, x, z, w, d, h, c, night, r) {
-  const y = ctx.h(x, z) - 0.2, g = ctx.geo(x, z);
+function building(ctx, x, z, w, d, h, c, night, r, yaw = 0) {
+  const g = ctx.geo(x, z);
+  if (yaw) { g.at(x, ctx.h(x, z) - 0.2, z, yaw); x = 0; z = 0; }
+  const y = yaw ? 0 : ctx.h(x, z) - 0.2;
   g.box(x, y + h / 2, z, w, h, d, { top: shade(c, 0.8), side: c, noBottom: true });
   // windows: rows of lit/unlit bands
   const rows = Math.floor((h - 4) / 3.4);
@@ -729,6 +732,7 @@ function building(ctx, x, z, w, d, h, c, night, r) {
   // roof stuff
   if (r() < 0.7) g.box(x + (r() - 0.5) * w * 0.4, y + h + 1, z + (r() - 0.5) * d * 0.4, 3, 2, 3, [0.4, 0.4, 0.42]);
   if (night && r() < 0.35) g.box(x, y + h + 2, z, 0.2, 4, 0.2, [1, 0.1, 0.1, 1]);
+  if (yaw) g.reset();
 }
 
 // ================================================================ MAP SPECS
@@ -1101,169 +1105,109 @@ const SPECS = {
 
   // ------------------------------------------------------------- CITY
   city(q) {
-    const { B, ST, K } = CITY; // block pitch, street width, half count
-    const lines = []; for (let i = -K; i <= K; i++) lines.push(i * B);
-    const blocks = [];
-    for (let i = 0; i < 2 * K; i++) for (let j = 0; j < 2 * K; j++) blocks.push({ i, j, x: (i - K + 0.5) * B, z: (j - K + 0.5) * B });
-    const has = (list, b) => list.some(([i, j]) => b.i === i && b.j === j);
-    const kind = (b) => {
-      if ((b.i === K - 1 || b.i === K) && (b.j === K - 1 || b.j === K)) return 'plaza';
-      if (b.i === b.j) return 'diag'; // the diagonal boulevard cuts these blocks into two small parks
-      if (has([[1, 7], [7, 1], [7, 8], [2, 3], [8, 5]], b)) return 'lot';
-      if (has([[1, 3], [6, 8], [8, 2]], b)) return 'park';
-      return 'build';
-    };
-    const roads = GEO.city.roads.map((r) => ({ ...r, flatH: 0, center: 'dash', color: [0.16, 0.16, 0.18], edge: !!r.curvy, ...(r.curvy ? { smooth: 10 } : {}) }));
-    // distance (m) from any point to the nearest curvy road's centre line, on a 5 m grid
-    const CG = 5, CN = Math.ceil(1100 / CG) + 1, cdist = new Float32Array(CN * CN).fill(1e9);
-    for (const r of GEO.city.roads.filter((x) => x.curvy)) for (const [px, pz] of crSample(r.pts, !!r.closed, 3)) {
-      const i0 = Math.floor((px + 550) / CG), j0 = Math.floor((pz + 550) / CG);
-      for (let i = i0 - 10; i <= i0 + 10; i++) for (let j = j0 - 10; j <= j0 + 10; j++) {
-        if (i < 0 || j < 0 || i >= CN || j >= CN) continue;
-        const d = Math.hypot(i * CG - 550 - px, j * CG - 550 - pz); if (d < cdist[i * CN + j]) cdist[i * CN + j] = d;
-      }
-    }
-    const curvyD = (x, z) => { const i = Math.round((x + 550) / CG), j = Math.round((z + 550) / CG); return i < 0 || j < 0 || i >= CN || j >= CN ? 1e9 : cdist[i * CN + j]; };
-    const CH = ST / 2; // curvy road half width
-    const cutBlock = (b) => curvyD(b.x, b.z) < (B - ST) / 2 * 1.42 + CH; // a curvy road passes through this block
-    const half = K * B, inner = (B - ST) / 2, DG = 11 * Math.SQRT2; // diagonal parks keep 11 m clear of the boulevard centre
+    // A real downtown street network (tracks.js cityRoads): no grid. Buildings line every street,
+    // turned to face the road they sit on, taller towards downtown; lamps line both kerbs.
+    const PARK = CITY_PARK, E = 625; // E: perimeter barrier
+    const n = makeNoise(505);
+    const inPark = (x, z, m = 0) => Math.hypot(x - PARK.x, z - PARK.z) < PARK.r + m;
+    const padD = (x, z) => Math.min(...CITY_PADS.map((p) => Math.hypot(x - p.x, z - p.z) - p.r));
+    const side = col('#5b5b60'), lot = col('#2c2d31'), lot2 = col('#25262a'), grassA = col('#1f3a22'), grassB = col('#28452a');
+    const ROADS = GEO.city.roads;
     return {
-      seed: 505, size: 1100, natural: 'asphalt', boundary: 550 - half - 8, blend: 4,
+      seed: 505, size: 1400, natural: 'asphalt', boundary: 1400 / 2 - E, blend: 4,
       terrain: () => 0,
-      surfaceFn: (x, z) => {
-        const bi = Math.floor(x / B + K), bj = Math.floor(z / B + K);
-        const b = { i: bi, j: bj }, k = bi >= 0 && bj >= 0 && bi < 2 * K && bj < 2 * K ? kind(b) : '';
-        const lx = x - (bi - K + 0.5) * B, lz = z - (bj - K + 0.5) * B;
-        if (curvyD(x, z) < CH + 1) return 'asphalt'; // on a curvy road
-        if (k && k !== 'plaza' && cutBlock({ x: (bi - K + 0.5) * B, z: (bj - K + 0.5) * B }) && Math.abs(lx) < inner - 4 && Math.abs(lz) < inner - 4 && curvyD(x, z) > CH + 3) return 'grass'; // park left either side of a curvy road
-        if (k === 'park' && Math.abs(lx) < inner - 4 && Math.abs(lz) < inner - 4) return 'grass';
-        if (k === 'diag' && Math.abs(lx) < inner - 4 && Math.abs(lz) < inner - 4 && Math.abs(lx - lz) > DG + 4) return 'grass';
-        return 'asphalt';
+      color: (x, z, h, slope, sd) => {
+        if (inPark(x, z)) return mix3(grassA, grassB, n(x / 18, z / 18) * 0.5 + 0.5);
+        if (sd < 5) return side; // sidewalks along every street
+        return mix3(lot, lot2, n(x / 9, z / 9) * 0.5 + 0.5);
       },
-      color: () => [0.2, 0.2, 0.22],
-      roads,
-      pads: [],
-      spawns: () => { const out = []; for (let k = 0; k < 12; k++) out.push({ x: -40 + (k % 4) * 26, z: -30 + Math.floor(k / 4) * 30, h: 0 }); return out; },
+      roads: ROADS.map((r, i) => ({ ...r, flatH: 0, center: 'dash', edge: true, color: i === 0 ? [0.15, 0.15, 0.17] : [0.17, 0.17, 0.19], ...(i === 0 ? { startLine: 30, kerbs: true } : {}) })),
+      pads: [
+        { ...CITY_PADS[0], type: 2, color: [0.33, 0.31, 0.29], markings: 'donut' }, // Central Plaza
+        { ...CITY_PADS[1], type: 2, color: [0.19, 0.19, 0.21], markings: 'lot' }, // Market car park
+      ],
+      spawns: (W) => W.roadSpawns(0, 30, 12, 1),
       challenges: [
-        { name: 'Plaza Showtime', x: 0, z: 0, r: 70, target: 18000, time: 30 },
-        { name: 'Lot Shuffle', x: 225, z: -315, r: 40, target: 9000, time: 25 },
-        { name: 'Downtown Sprint', x: -225, z: 45, r: 60, target: 10000, time: 25 },
-        { name: 'Boulevard Dash', x: -225, z: -225, r: 60, target: 11000, time: 25 },
+        { name: 'Plaza Showtime', x: CITY_PADS[0].x, z: CITY_PADS[0].z, r: 70, target: 18000, time: 30 },
+        { name: 'Car Park Shuffle', x: CITY_PADS[1].x, z: CITY_PADS[1].z, r: 55, target: 10000, time: 25 },
+        { name: 'Old Town Zig-Zag', x: -280, z: 270, r: 120, target: 14000, time: 30 },
+        { name: 'Harbour Hairpins', x: -430, z: -290, r: 120, target: 13000, time: 30 },
+        { name: 'Roundabout Rodeo', x: 330, z: -260, r: 70, target: 12000, time: 25 },
+        { name: 'Riverside Sweep', x: 380, z: 300, r: 120, target: 12000, time: 25 },
       ],
       env: {
         sky: { top: col('#0a1220'), horizon: col('#2b3340'), bottom: col('#14171c') },
         sunDir: norm([-0.3, 0.7, 0.4]), sunCol: [0.26, 0.29, 0.36], sunGlow: [0.06, 0.07, 0.09], ambSky: [0.24, 0.26, 0.32], ambGround: [0.14, 0.13, 0.12],
-        fogCol: col('#1e232b'), fogNear: 140, fogFar: 680, night: true, headlights: true, stars: 0.5, music: 'night',
+        fogCol: col('#1e232b'), fogNear: 160, fogFar: 760, night: true, headlights: true, stars: 0.5, music: 'night',
       },
       scenery(c) {
-        const r = c.rand, inner = (B - ST) / 2;
-        const pal = [[0.32, 0.33, 0.38], [0.42, 0.36, 0.33], [0.25, 0.3, 0.38], [0.5, 0.48, 0.45], [0.3, 0.27, 0.3]];
-        // ordinary shop signs: backlit white/cream panels and a few painted brand colours (no neon)
-        const signs = [[0.92, 0.9, 0.84], [0.95, 0.82, 0.6], [0.72, 0.22, 0.18], [0.18, 0.42, 0.3], [0.22, 0.3, 0.5]];
-        const triUp = (g, A, Bp, C, col) => { const cy = (Bp[2] - A[2]) * (C[0] - A[0]) - (Bp[0] - A[0]) * (C[2] - A[2]); if (cy > 0) g.tri(A, Bp, C, col); else g.tri(A, C, Bp, col); };
-        for (const b of blocks) {
-          let k = kind(b); const g = c.geo(b.x, b.z);
-          if (k !== 'plaza' && cutBlock(b)) { // a curvy road crosses this block: pocket park either side of it
-            g.box(b.x, 0.012, b.z, inner * 2 + 0.01, 0.024, inner * 2 + 0.01, { top: [0.36, 0.36, 0.38], side: [0.5, 0.5, 0.5] });
-            for (let t = 0; t < 30; t++) {
-              const x = b.x + (r() - 0.5) * (inner * 2 - 10), z = b.z + (r() - 0.5) * (inner * 2 - 10);
-              if (curvyD(x, z) < CH + 6) continue;
-              leafy(g, x, 0, z, 0.9 + r() * 0.5, r, [0.12, 0.3, 0.15]); c.circle(x, z, 0.5);
-            }
-            for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const lx = b.x + sx * (inner - 1), lz = b.z + sz * (inner - 1); if (curvyD(lx, lz) > CH + 3) lamp(c, lx, lz, Math.atan2(sx, sz), true, [1, 0.86, 0.6]); }
-            continue;
-          }
-          if (k === 'diag') {
-            // two triangular pocket parks either side of the boulevard: sidewalk rim + grass + trees
-            for (const sg of [1, -1]) {
-              const P = (lx, lz, y) => [b.x + lx, y, b.z + lz];
-              const tri = (d, y, col) => (sg > 0 ? triUp(g, P(-inner, -inner + d, y), P(-inner, inner, y), P(inner - d, inner, y), col) : triUp(g, P(-inner + d, -inner, y), P(inner, -inner, y), P(inner, inner - d, y), col));
-              tri(DG, 0.02, [0.36, 0.36, 0.38]);
-              tri(DG + 4 * Math.SQRT2 + 4, 0.035, [0.15, 0.3, 0.12]);
-              for (let t = 0; t < 8; t++) {
-                const u = r(), v = r() * (1 - u), lx = -inner + 8 + u * (2 * inner - 26), lz = inner - 8 - v * (2 * inner - 26);
-                const X = b.x + (sg > 0 ? lx : lz), Z = b.z + (sg > 0 ? lz : lx);
-                if (Math.abs((X - b.x) - (Z - b.z)) < DG + 9) continue;
-                leafy(g, X, 0, Z, 0.9 + r() * 0.4, r, [0.12, 0.3, 0.15]); c.circle(X, Z, 0.5);
-              }
-            }
-            for (const [sx, sz] of [[1, -1], [-1, 1]]) lamp(c, b.x + sx * (inner - 1), b.z + sz * (inner - 1), Math.atan2(sx, sz), true, [1, 0.88, 0.66]);
-            for (const t of [-0.3, 0, 0.3]) lamp(c, b.x + t * B - 10, b.z + t * B + 10, Math.PI * 0.75, true); // boulevard lights along the north-west kerb
-            continue;
-          }
-          if (k !== 'plaza') {
-            // sidewalk (flush) + curb line
-            g.box(b.x, 0.015, b.z, inner * 2 + 0.01, 0.03, inner * 2 + 0.01, { top: [0.36, 0.36, 0.38], side: [0.5, 0.5, 0.5] });
-            g.box(b.x, 0.03, b.z, inner * 2 - 4.5, 0.03, inner * 2 - 4.5, k === 'park' ? [0.15, 0.3, 0.12] : k === 'lot' ? [0.18, 0.18, 0.2] : [0.3, 0.3, 0.32]);
-          } else {
-            g.box(b.x, 0.015, b.z, B + 0.1, 0.03, B + 0.1, [0.38, 0.36, 0.33]); // stone paving
-          }
-          // lamps at corners (all blocks; none on the diagonal boulevard where it crosses the plaza)
-          for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) if (!(k === 'plaza' && sx === sz && b.i === b.j)) lamp(c, b.x + sx * (inner - 1), b.z + sz * (inner - 1), Math.atan2(sx, sz), true, sx * sz > 0 ? [1, 0.82, 0.55] : [1, 0.9, 0.74]); // warm street lights
-          if (k === 'build') {
-            const split = r();
-            const lots = split < 0.3 ? [[0, 0, 1, 1]] : split < 0.65 ? [[-0.5, 0, 0.5, 1], [0.5, 0, 0.5, 1]] : [[-0.5, -0.5, 0.5, 0.5], [0.5, -0.5, 0.5, 0.5], [-0.5, 0.5, 0.5, 0.5], [0.5, 0.5, 0.5, 0.5]];
-            const centre = Math.max(0, 1 - Math.hypot(b.x, b.z) / 600);
-            for (const [ox, oz, fw, fd] of lots) {
-              const w = (inner * 2 - 8) * fw - 2, d = (inner * 2 - 8) * fd - 2;
-              const x = b.x + ox * (inner * 2 - 8) * 0.5, z = b.z + oz * (inner * 2 - 8) * 0.5;
-              const h = 10 + r() * 30 + centre * centre * 70 * r();
-              building(c, x, z, w, d, h, pal[Math.floor(r() * pal.length)], true, r);
-              c.box(x, z, w, d);
-              if (r() < 0.45) {
-                const sc = signs[Math.floor(r() * signs.length)], side = r() < 0.5 ? 1 : -1;
-                g.box(x + (r() - 0.5) * w * 0.5, 7 + r() * 6, z + side * (d / 2 + 0.3), 5 + r() * 6, 1.4, 0.2, [...sc, 0.55]); // softly lit sign
-                c.glow(x, 0.05, z + side * (d / 2 + 4), 7, [0.09, 0.075, 0.055, 1]); // faint warm spill on the pavement
-              }
-            }
-          } else if (k === 'park') {
-            for (let t = 0; t < 26; t++) {
-              const x = b.x + (r() - 0.5) * (inner * 2 - 12), z = b.z + (r() - 0.5) * (inner * 2 - 12);
-              leafy(g, x, 0, z, 0.9 + r() * 0.5, r, [0.12, 0.3, 0.15]); c.circle(x, z, 0.5);
-            }
-          } else if (k === 'lot') {
-            for (let x = -inner + 6; x < inner - 4; x += 3.4) for (const zz of [-inner + 7, inner - 7]) g.box(b.x + x, 0.06, b.z + zz, 0.15, 0.01, 5.5, [0.85, 0.85, 0.8]);
-          } else if (k === 'plaza' && b.i === K - 1 && b.j === K - 1) {
-            // centre fountain-like sculpture at the middle of the plaza (at block corner)
-            const x = (b.i - K + 1) * B, z = (b.j - K + 1) * B;
-            g.cylinder(x, 0.4, z, 6, 0.8, 16, [0.5, 0.5, 0.55]);
-            g.cylinder(x, 3.5, z, 0.6, 6, 8, [0.6, 0.6, 0.65]);
-            g.blob(x, 7.2, z, 1.6, 1.6, 1.6, [0.55, 0.45, 0.3], 0, r); // bronze sculpture
-            c.circle(x, z, 6.2);
-            c.glow(x, 0.08, z, 16, [0.16, 0.13, 0.09, 1]); // warm floodlight pool
-          }
-        }
-        // street lights along the curvy roads
+        const r = c.rand;
+        const pal = [[0.32, 0.33, 0.38], [0.42, 0.36, 0.33], [0.25, 0.3, 0.38], [0.5, 0.48, 0.45], [0.3, 0.27, 0.3], [0.36, 0.3, 0.26], [0.22, 0.25, 0.3]];
+        const signs = [[0.92, 0.9, 0.84], [0.95, 0.82, 0.6], [0.72, 0.22, 0.18], [0.18, 0.42, 0.3], [0.22, 0.3, 0.5], [0.85, 0.35, 0.6]];
+        const taken = []; // [x, z, radius] of everything placed, so nothing overlaps
+        const free = (x, z, rad) => { for (const t of taken) if (Math.hypot(t[0] - x, t[1] - z) < t[2] + rad) return false; return true; };
+        const inside = (x, z, m) => Math.abs(x) < E - m && Math.abs(z) < E - m;
+        // --- street lights on both kerbs of every road, and trees on the boulevards
         for (const rd of c.roads) {
-          if (!rd.curvy) continue;
-          for (let i = 6; i < rd.n - 2; i += 12) {
-            const x = rd.x[i] + rd.tz[i] * (rd.half + 2), z = rd.z[i] - rd.tx[i] * (rd.half + 2);
-            if (Math.abs(x) > half - 4 || Math.abs(z) > half - 4 || c.sd(x, z) < 1.2) continue;
-            lamp(c, x, z, Math.atan2(-rd.tz[i], rd.tx[i]), true, [1, 0.84, 0.58]);
+          if (rd.gateSpur !== undefined) continue;
+          for (let i = 4; i < rd.n - 2; i += 11) for (const s of [1, -1]) {
+            const x = rd.x[i] + rd.tz[i] * s * (rd.half + 1.8), z = rd.z[i] - rd.tx[i] * s * (rd.half + 1.8);
+            if (!inside(x, z, 4) || c.sd(x, z) < 1.2 || padD(x, z) < 2 || !free(x, z, 3)) continue;
+            lamp(c, x, z, Math.atan2(-rd.tz[i] * s, rd.tx[i] * s), true, s > 0 ? [1, 0.84, 0.58] : [1, 0.9, 0.74]);
+            taken.push([x, z, 2]);
+          }
+          if (rd.boulevard) for (let i = 9; i < rd.n - 2; i += 11) for (const s of [1, -1]) {
+            const x = rd.x[i] + rd.tz[i] * s * (rd.half + 3.6), z = rd.z[i] - rd.tx[i] * s * (rd.half + 3.6);
+            if (!inside(x, z, 4) || c.sd(x, z) < 3 || padD(x, z) < 3 || !free(x, z, 2.5)) continue;
+            leafy(c.geo(x, z), x, 0, z, 0.75 + r() * 0.3, r, [0.12, 0.3, 0.15]); c.circle(x, z, 0.5); taken.push([x, z, 2]);
           }
         }
-        // crosswalks & intersections
-        for (const xv of lines) for (const zv of lines) {
-          const g = c.geo(xv, zv);
-          g.box(xv, 0.02, zv, ST - 0.5, 0.02, ST - 0.5, [0.15, 0.15, 0.17]);
-          for (let s = -3; s <= 3; s++) {
-            for (const sgn of [-1, 1]) {
-              g.box(xv + s * 1.9, 0.035, zv + sgn * (ST / 2 + 1.5), 1, 0.02, 3, [0.85, 0.85, 0.85]);
-              g.box(xv + sgn * (ST / 2 + 1.5), 0.035, zv + s * 1.9, 3, 0.02, 1, [0.85, 0.85, 0.85]);
-            }
+        // --- the park: trees, a pond and lamps on its path
+        { const g = c.geo(PARK.x, PARK.z);
+          g.cylinder(PARK.x + 18, 0.05, PARK.z - 10, 22, 0.1, 24, [0.1, 0.2, 0.28]); taken.push([PARK.x + 18, PARK.z - 10, 24]); // pond
+          for (let t = 0; t < 70; t++) {
+            const a = r() * Math.PI * 2, d = Math.sqrt(r()) * (PARK.r - 6), x = PARK.x + Math.cos(a) * d, z = PARK.z + Math.sin(a) * d;
+            if (!free(x, z, 3) || c.sd(x, z) < 4) continue;
+            leafy(c.geo(x, z), x, 0, z, 0.9 + r() * 0.6, r, [0.12, 0.3, 0.15]); c.circle(x, z, 0.5); taken.push([x, z, 3]);
+          }
+          for (const p of CITY_PADS) taken.push([p.x, p.z, p.r + 4]);
+          taken.push([PARK.x, PARK.z, PARK.r]);
+          // plaza: corner floodlights and benches round the edge
+          const P = CITY_PADS[0];
+          for (let k = 0; k < 8; k++) { const a = (k + 0.5) / 8 * Math.PI * 2, x = P.x + Math.cos(a) * (P.r + 3), z = P.z + Math.sin(a) * (P.r + 3); if (c.sd(x, z) > 1.5) { lamp(c, x, z, a + Math.PI, true, [1, 0.8, 0.5]); c.glow(x - Math.cos(a) * 6, 0.08, z - Math.sin(a) * 6, 12, [0.13, 0.1, 0.07, 1]); } }
+        }
+        // --- buildings: a jittered grid of lots; each building faces its nearest street
+        const centre = (x, z) => Math.max(0, 1 - Math.hypot(x - 20, z) / 520);
+        for (let gx = -E + 20; gx < E - 20; gx += 21) for (let gz = -E + 20; gz < E - 20; gz += 21) {
+          const x = gx + (r() - 0.5) * 6, z = gz + (r() - 0.5) * 6;
+          const sd = c.sd(x, z); if (sd < 9 || inPark(x, z, 8) || padD(x, z) < 8) continue;
+          // the biggest footprint that keeps a 5 m sidewalk to the road
+          const half = Math.min(15, (sd - 5) / 1.25); if (half < 4.5) continue;
+          const w = Math.min(half * 2, 12 + r() * 16), d = Math.min(half * 2, 12 + r() * 16), rad = Math.hypot(w, d) / 2;
+          if (!free(x, z, rad * 0.92)) continue;
+          const gxs = c.sd(x + 2, z) - c.sd(x - 2, z), gzs = c.sd(x, z + 2) - c.sd(x, z - 2);
+          const yaw = Math.atan2(-gxs, -gzs); // +z face looks at the street
+          const k = centre(x, z), h = 9 + r() * 22 + k * k * (40 + r() * 70);
+          building(c, x, z, w, d, h, pal[Math.floor(r() * pal.length)], true, r, yaw);
+          c.box(x, z, w, d, yaw);
+          taken.push([x, z, rad]);
+          if (r() < 0.5) { // shop sign on the street side, with a warm spill on the sidewalk
+            const sc = signs[Math.floor(r() * signs.length)], sx = Math.sin(yaw), sz = Math.cos(yaw);
+            c.geo(x, z).at(x + sx * (d / 2 + 0.25), 6 + r() * 5, z + sz * (d / 2 + 0.25), yaw).box(0, 0, 0, Math.min(w - 2, 5 + r() * 7), 1.4, 0.2, [...sc, 0.6]).reset();
+            c.glow(x + sx * (d / 2 + 4), 0.05, z + sz * (d / 2 + 4), 7, [0.09, 0.075, 0.055, 1]);
           }
         }
-        // perimeter barrier + skyline outside
-        const e = half + 8;
-        for (let v = -e; v < e; v += 6) {
-          for (const [x, z, yaw] of [[v + 3, -e, Math.PI / 2], [v + 3, e, Math.PI / 2], [-e, v + 3, 0], [e, v + 3, 0]]) {
+        // --- perimeter barrier + skyline outside
+        for (let v = -E; v < E; v += 6) {
+          for (const [x, z, yaw] of [[v + 3, -E, Math.PI / 2], [v + 3, E, Math.PI / 2], [-E, v + 3, 0], [E, v + 3, 0]]) {
             c.geo(x, z).at(x, 0.5, z, yaw).box(0, 0, 0, 0.7, 1, 6, { top: [0.6, 0.6, 0.6], side: (Math.floor(v / 6) & 1) ? [0.9, 0.9, 0.9] : [0.95, 0.75, 0.1] }).reset();
           }
         }
-        for (let t = 0; t < 150; t++) {
-          const a = r() * Math.PI * 2, d = e + 25 + r() * 30;
-          const x = Math.cos(a) * d * 1.05, z = Math.sin(a) * d * 1.05;
-          if (Math.max(Math.abs(x), Math.abs(z)) < e + 15) continue;
+        for (const s of [-1, 1]) { c.seg(-E, s * E, E, s * E); c.seg(s * E, -E, s * E, E); }
+        for (let t = 0; t < 170; t++) {
+          const a = r() * Math.PI * 2, dd = E + 30 + r() * 40;
+          const x = Math.cos(a) * dd * 1.05, z = Math.sin(a) * dd * 1.05;
+          if (Math.max(Math.abs(x), Math.abs(z)) < E + 18) continue;
           building(c, x, z, 18 + r() * 20, 18 + r() * 20, 25 + r() * 90, pal[t % pal.length], true, r);
         }
       },

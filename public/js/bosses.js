@@ -1,4 +1,6 @@
-// One boss per map. Pick "Boss" as the CPU difficulty for a 1v1 Speed Race against that map's boss.
+// One boss per map. Pick "Boss" as the CPU difficulty for a 1v1 against that map's boss.
+// Speed bosses (Apex Circuit, Dune Valley, Pinewood) fight in Speed Race. Drift masters (Kurogane Pass,
+// City Nights, Ironbay) fight in Drift Race: they slide every corner, so you have to out-DRIFT them, not out-run them.
 // Every boss learns from each race (oni.js brain) and beating one unlocks their car (Garage › Boss, a tab you only see once you own one).
 // Midnight Oni (Kurogane Pass) also turns up on pole in Hard and Legend races on any map.
 export const BOSSES = {
@@ -27,7 +29,7 @@ export const BOSSES = {
     },
   },
   mountain: {
-    id: 'oni', name: 'Midnight Oni', title: 'Midnight Oni', icon: '👹', color: '#ff4a3a', car: 'oni',
+    id: 'oni', drift: true, name: 'Midnight Oni', title: 'Midnight Oni', icon: '👹', color: '#ff4a3a', car: 'oni',
     cfg: { paint: '#0c0c0e', wheel: '#b01010', rim: 3, kit: 2, lowered: 1, underglow: '#ff1a12', livery: 2, liveryColor: '#c8140f' },
     lines: {
       start: ['Midnight belongs to me.', 'Try to keep up. Nobody ever does.', 'You hear that engine? That is your nightmare.', 'Another challenger. How cute.'],
@@ -51,7 +53,7 @@ export const BOSSES = {
     },
   },
   city: {
-    id: 'phantom', name: 'Phantom', title: 'The Phantom', icon: '👻', color: '#b58cff', car: 'phantom',
+    id: 'phantom', drift: true, name: 'Phantom', title: 'The Phantom', icon: '👻', color: '#b58cff', car: 'phantom',
     cfg: { paint: '#2a1740', wheel: '#1ee3ff', rim: 5, kit: 2, lowered: 1, underglow: '#1ee3ff', livery: 2, liveryColor: '#1ee3ff' },
     lines: {
       start: ['You won\'t even see me.', 'These streets are mine after dark.', 'Blink and I\'m gone.'],
@@ -63,7 +65,7 @@ export const BOSSES = {
     },
   },
   drift: {
-    id: 'ironjaw', name: 'Ironjaw', title: 'Marcus "Ironjaw" Kane', icon: '⚓', color: '#ffd23a', car: 'ironjaw',
+    id: 'ironjaw', drift: true, name: 'Ironjaw', title: 'Marcus "Ironjaw" Kane', icon: '⚓', color: '#ffd23a', car: 'ironjaw',
     cfg: { paint: '#151515', wheel: '#ffd23a', rim: 0, kit: 2, lowered: 1, underglow: '#ffb000', livery: 1, liveryColor: '#ffd23a' },
     lines: {
       start: ['Welcome to my harbour.', 'I don\'t brake. I slide.', 'Ironbay has one king.'],
@@ -76,4 +78,8 @@ export const BOSSES = {
   },
 };
 export const bossFor = (map) => BOSSES[map] || BOSSES.mountain;
+// which competition a boss fights in
+export const bossMode = (map) => (bossFor(map).drift ? 'driftrace' : 'race');
+// drift masters' drift score multiplier (CPU Legend is 0.75): their slides are judged like a pro's
+export const BOSS_DRIFT = 1.2;
 export const BOSS_UNLOCKS = Object.values(BOSSES).map((b) => b.id); // secret.js unlock names

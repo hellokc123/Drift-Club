@@ -90,6 +90,7 @@ class App {
       if (d.best && (!r.lap || d.best < r.lap)) r.lap = d.best;
       r.races = (r.races || 0) + 1; if (d.pos === 1 && d.field > 1) r.wins = (r.wins || 0) + 1;
     } else if (type === 'driftrace') {
+      if (d.beatBoss && d.bossId && unlock(d.bossId)) { const car = CARS.find((c) => c.secret === d.bossId); setTimeout(() => toast(`<b>You beat the boss!</b><br><small>Boss car unlocked: ${esc(car ? car.name : d.bossId)} (Garage › Boss tab)</small>`, 6000, 'good'), 800); }
       const r = ((R.driftrace = R.driftrace || {})[d.map] = R.driftrace[d.map] || { score: {} });
       if (d.finished && d.score > (r.score[d.laps] || 0)) r.score[d.laps] = d.score;
       r.drift = Math.max(r.drift || 0, d.drift || 0);
