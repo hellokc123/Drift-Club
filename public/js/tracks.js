@@ -76,7 +76,7 @@ export function samplePath(pts, closed, { linear = false } = {}) {
 }
 
 // ------------------------------------------------------------------ map geometry (rendered by maps.js)
-const CITY_B = 90, CITY_ST = 16, CITY_K = 5;
+const CITY_B = 90, CITY_ST = 20, CITY_K = 5;
 function cityRoads() {
   const roads = [], e = CITY_K * CITY_B;
   for (let i = -CITY_K; i <= CITY_K; i++) {
@@ -346,6 +346,10 @@ export const RACE = {
   drift: { name: 'Ironbay Figure-Eight', road: 0, start: 40, width: 18, margin: 12 },
   city: { name: 'Downtown Street Circuit', pts: streetLoop(CITY_LOOP, 12), linear: true, start: 0, width: 16, margin: 6 },
 };
+// Wider roads everywhere (room for tandems and side-by-side racing). City streets are set by CITY_ST.
+export const ROAD_SCALE = 1.3;
+for (const [id, g] of Object.entries(GEO)) if (id !== 'city') for (const r of g.roads) r.width = Math.round(r.width * ROAD_SCALE * 10) / 10;
+for (const [id, R] of Object.entries(RACE)) R.width = id === 'city' ? CITY_ST : Math.round(R.width * ROAD_SCALE * 10) / 10;
 export const RACE_MAPS = Object.keys(RACE);
 
 // A circuit made of pieces of several roads of the network: legs = [[road, [fromX, fromZ], [toX, toZ], dir]]

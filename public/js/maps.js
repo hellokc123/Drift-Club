@@ -148,7 +148,7 @@ export class World {
     spots.forEach((sp, gi) => {
       if (sp.spur) { // hand-placed side road
         const parent = spec.roads[sp.road] || {};
-        extra.push({ pts: sp.spur, width: 10, ...(this.id === 'city' ? { flatH: 0, edge: false } : { maxGrade: 0.14, smooth: 4 }), center: 'dash', color: parent.color || [0.16, 0.16, 0.18], gateSpur: gi, samples: crSample(sp.spur, false, 3) });
+        extra.push({ pts: sp.spur, width: 13, ...(this.id === 'city' ? { flatH: 0, edge: false } : { maxGrade: 0.14, smooth: 4 }), center: 'dash', color: parent.color || [0.16, 0.16, 0.18], gateSpur: gi, samples: crSample(sp.spur, false, 3) });
         return;
       }
       const rd = spec.roads[sp.road], P = sampled[sp.road]; if (!rd) return;
@@ -165,7 +165,7 @@ export class World {
               [x0 + tx * 48 + nx * (len - 16), z0 + tz * 48 + nz * (len - 16)], [x0 + tx * 48 + nx * len, z0 + tz * 48 + nz * len]]; // straight last 30 m for the gate
             const samples = crSample(pts, false, 3);
             if (!clear(samples, sp.road)) continue;
-            extra.push({ pts, width: 10, center: 'dash', color: rd.color || [0.26, 0.26, 0.28], smooth: 6, maxGrade: 0.14, gateSpur: gi, samples });
+            extra.push({ pts, width: 13, center: 'dash', color: rd.color || [0.26, 0.26, 0.28], smooth: 6, maxGrade: 0.14, gateSpur: gi, samples });
             done = true; break;
           }
           if (done) break;
