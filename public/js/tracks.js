@@ -78,23 +78,41 @@ export function samplePath(pts, closed, { linear = false } = {}) {
 // ------------------------------------------------------------------ map geometry (rendered by maps.js)
 // City Nights: a real street network (no grid). Road 0 is the Downtown Street Circuit; avenues, an
 // old-town zig-zag, harbour hairpins, a roundabout and a riverside drive branch off it.
-export const CITY_PARK = { x: 170, z: 290, r: 80 };
-export const CITY_PADS = [{ x: -20, z: 40, r: 58 }, { x: -205, z: -215, r: 46 }];
+export const CITY_K = 1.3; // the inner city (scaled up from the first version)
+export const CITY_PARK = { x: 170 * CITY_K, z: 290 * CITY_K, r: 80 * CITY_K };
+export const CITY_PADS = [{ x: -20 * CITY_K, z: 40 * CITY_K, r: 64 }, { x: -205 * CITY_K, z: -215 * CITY_K, r: 50 }, { x: -380, z: -880, r: 42 }];
 function cityRoads() {
-  const ring = []; for (let k = 0; k < 14; k++) { const a = (k / 14) * Math.PI * 2; ring.push([Math.round(330 + Math.cos(a) * 42), Math.round(-260 + Math.sin(a) * 42)]); }
+  const S = (pts) => pts.map(([x, z]) => [Math.round(x * CITY_K), Math.round(z * CITY_K)]);
+  const ring = []; for (let k = 0; k < 14; k++) { const a = (k / 14) * Math.PI * 2; ring.push([Math.round((330 + Math.cos(a) * 42) * CITY_K), Math.round((-260 + Math.sin(a) * 42) * CITY_K)]); }
   return [
-    { name: 'Downtown Street Circuit', closed: true, width: 20, pts: [[-500, -520], [-200, -545], [100, -530], [380, -500], [540, -400], [580, -200], [540, -60], [470, 20], [520, 150], [580, 300], [540, 470], [400, 560], [220, 560], [110, 500], [20, 380], [-90, 420], [-200, 480], [-330, 545], [-480, 500], [-560, 360], [-520, 230], [-430, 120], [-480, 0], [-560, -120], [-580, -300], [-560, -440]] },
-    { name: 'Grand Avenue', width: 20, boulevard: true, pts: [[100, -530], [60, -380], [90, -220], [30, -60], [-20, 40], [10, 200], [-10, 300], [20, 380]] },
-    { name: 'Midtown Boulevard', width: 20, boulevard: true, pts: [[-480, 0], [-330, -20], [-170, 50], [-20, 40], [140, -10], [300, 50], [470, 20]] },
-    { name: 'Old Town Zig-Zag', width: 15, pts: [[-430, 120], [-400, 240], [-320, 190], [-270, 310], [-190, 250], [-150, 350], [-90, 420]] },
-    { name: 'Harbour Hairpins', width: 15, pts: [[-560, -440], [-440, -380], [-470, -280], [-360, -240], [-400, -140], [-330, -20]] },
+    // ---- inner city
+    { name: 'Downtown Street Circuit', closed: true, width: 20, pts: S([[-500, -520], [-200, -545], [100, -530], [380, -500], [540, -400], [580, -200], [540, -60], [470, 20], [520, 150], [580, 300], [540, 470], [400, 560], [220, 560], [110, 500], [20, 380], [-90, 420], [-200, 480], [-330, 545], [-480, 500], [-560, 360], [-520, 230], [-430, 120], [-480, 0], [-560, -120], [-580, -300], [-560, -440]]) },
+    { name: 'Grand Avenue', width: 20, boulevard: true, pts: S([[100, -530], [60, -380], [90, -220], [30, -60], [-20, 40], [10, 200], [-10, 300], [20, 380]]) },
+    { name: 'Midtown Boulevard', width: 20, boulevard: true, pts: S([[-480, 0], [-330, -20], [-170, 50], [-20, 40], [140, -10], [300, 50], [470, 20]]) },
+    { name: 'Old Town Zig-Zag', width: 15, pts: S([[-430, 120], [-400, 240], [-320, 190], [-270, 310], [-190, 250], [-150, 350], [-90, 420]]) },
+    { name: 'Harbour Hairpins', width: 15, pts: S([[-560, -440], [-440, -380], [-470, -280], [-360, -240], [-400, -140], [-330, -20]]) },
     { name: 'Roundabout', closed: true, width: 16, pts: ring },
-    { name: 'Dock Road', width: 16, pts: [[380, -500], [350, -390], [330, -302]] },
-    { name: 'Westway', width: 16, pts: [[288, -260], [180, -250], [90, -220]] },
-    { name: 'Eastway', width: 16, pts: [[372, -260], [470, -230], [580, -200]] },
-    { name: 'Riverside Drive', width: 18, pts: [[300, 50], [340, 200], [300, 330], [400, 420], [540, 470]] },
-    { name: 'Park Lane', width: 15, pts: [[10, 200], [90, 150], [200, 140], [338, 195]] },
-    { name: 'Lot Lane', width: 15, pts: [[-170, 50], [-215, -80], [-205, -170]] },
+    { name: 'Dock Road', width: 16, pts: S([[380, -500], [350, -390], [330, -302]]) },
+    { name: 'Westway', width: 16, pts: S([[288, -260], [180, -250], [90, -220]]) },
+    { name: 'Eastway', width: 16, pts: S([[372, -260], [470, -230], [580, -200]]) },
+    { name: 'Riverside Drive', width: 18, pts: S([[300, 50], [340, 200], [300, 330], [400, 420], [540, 470]]) },
+    { name: 'Park Lane', width: 15, pts: S([[10, 200], [90, 150], [200, 140], [338, 195]]) },
+    { name: 'Lot Lane', width: 15, pts: S([[-170, 50], [-215, -80], [-205, -170]]) },
+    // ---- outer districts
+    { name: 'Metro Ring Road', closed: true, width: 22, boulevard: true, pts: [[-700, -1010], [0, -1040], [700, -1010], [1000, -760], [1040, 0], [1010, 700], [760, 1010], [0, 1040], [-760, 1010], [-1010, 760], [-1040, 0], [-1010, -700]] },
+    { name: 'South Expressway', width: 18, pts: [[130, -689], [110, -850], [0, -1040]] },
+    { name: 'North Avenue', width: 18, pts: [[286, 728], [300, 880], [320, 1034]] },
+    { name: 'East Avenue', width: 18, pts: [[754, -260], [900, -230], [1036, -200]] },
+    { name: 'West Avenue', width: 18, pts: [[-624, 0], [-830, 40], [-1040, 20]] },
+    { name: 'Northeast Link', width: 18, pts: [[754, 390], [880, 520], [1010, 700]] },
+    { name: 'Southwest Link', width: 18, pts: [[-728, -572], [-860, -640], [-1010, -700]] },
+    { name: 'Northwest Link', width: 18, pts: [[-728, 468], [-870, 620], [-1010, 760]] },
+    { name: 'Southeast Link', width: 18, pts: [[702, -520], [840, -760], [1000, -760]] },
+    { name: 'Dockside Loop', closed: true, width: 16, pts: [[-560, -800], [-300, -780], [-150, -860], [-200, -960], [-450, -970], [-600, -900]] },
+    { name: 'Dock Street', width: 16, pts: [[-300, -780], [-285, -740], [-280, -708]] },
+    { name: 'Industrial Esses', width: 16, pts: [[900, -230], [870, -80], [940, 60], [860, 200], [930, 330], [880, 520]] },
+    { name: 'Hillcrest Switchbacks', width: 15, pts: [[300, 880], [160, 820], [60, 930], [-80, 840], [-200, 940], [-340, 850], [-480, 950], [-620, 880], [-870, 620]] },
+    { name: 'Westside Avenue', width: 18, pts: [[-860, -640], [-900, -400], [-850, -200], [-830, 40], [-880, 250], [-870, 620]] },
   ];
 }
 

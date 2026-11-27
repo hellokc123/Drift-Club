@@ -1939,23 +1939,41 @@ function samplePath(pts, closed, { linear = false } = {}) {
 // ------------------------------------------------------------------ map geometry (rendered by maps.js)
 // City Nights: a real street network (no grid). Road 0 is the Downtown Street Circuit; avenues, an
 // old-town zig-zag, harbour hairpins, a roundabout and a riverside drive branch off it.
-const CITY_PARK = { x: 170, z: 290, r: 80 };
-const CITY_PADS = [{ x: -20, z: 40, r: 58 }, { x: -205, z: -215, r: 46 }];
+const CITY_K = 1.3; // the inner city (scaled up from the first version)
+const CITY_PARK = { x: 170 * CITY_K, z: 290 * CITY_K, r: 80 * CITY_K };
+const CITY_PADS = [{ x: -20 * CITY_K, z: 40 * CITY_K, r: 64 }, { x: -205 * CITY_K, z: -215 * CITY_K, r: 50 }, { x: -380, z: -880, r: 42 }];
 function cityRoads() {
-  const ring = []; for (let k = 0; k < 14; k++) { const a = (k / 14) * Math.PI * 2; ring.push([Math.round(330 + Math.cos(a) * 42), Math.round(-260 + Math.sin(a) * 42)]); }
+  const S = (pts) => pts.map(([x, z]) => [Math.round(x * CITY_K), Math.round(z * CITY_K)]);
+  const ring = []; for (let k = 0; k < 14; k++) { const a = (k / 14) * Math.PI * 2; ring.push([Math.round((330 + Math.cos(a) * 42) * CITY_K), Math.round((-260 + Math.sin(a) * 42) * CITY_K)]); }
   return [
-    { name: 'Downtown Street Circuit', closed: true, width: 20, pts: [[-500, -520], [-200, -545], [100, -530], [380, -500], [540, -400], [580, -200], [540, -60], [470, 20], [520, 150], [580, 300], [540, 470], [400, 560], [220, 560], [110, 500], [20, 380], [-90, 420], [-200, 480], [-330, 545], [-480, 500], [-560, 360], [-520, 230], [-430, 120], [-480, 0], [-560, -120], [-580, -300], [-560, -440]] },
-    { name: 'Grand Avenue', width: 20, boulevard: true, pts: [[100, -530], [60, -380], [90, -220], [30, -60], [-20, 40], [10, 200], [-10, 300], [20, 380]] },
-    { name: 'Midtown Boulevard', width: 20, boulevard: true, pts: [[-480, 0], [-330, -20], [-170, 50], [-20, 40], [140, -10], [300, 50], [470, 20]] },
-    { name: 'Old Town Zig-Zag', width: 15, pts: [[-430, 120], [-400, 240], [-320, 190], [-270, 310], [-190, 250], [-150, 350], [-90, 420]] },
-    { name: 'Harbour Hairpins', width: 15, pts: [[-560, -440], [-440, -380], [-470, -280], [-360, -240], [-400, -140], [-330, -20]] },
+    // ---- inner city
+    { name: 'Downtown Street Circuit', closed: true, width: 20, pts: S([[-500, -520], [-200, -545], [100, -530], [380, -500], [540, -400], [580, -200], [540, -60], [470, 20], [520, 150], [580, 300], [540, 470], [400, 560], [220, 560], [110, 500], [20, 380], [-90, 420], [-200, 480], [-330, 545], [-480, 500], [-560, 360], [-520, 230], [-430, 120], [-480, 0], [-560, -120], [-580, -300], [-560, -440]]) },
+    { name: 'Grand Avenue', width: 20, boulevard: true, pts: S([[100, -530], [60, -380], [90, -220], [30, -60], [-20, 40], [10, 200], [-10, 300], [20, 380]]) },
+    { name: 'Midtown Boulevard', width: 20, boulevard: true, pts: S([[-480, 0], [-330, -20], [-170, 50], [-20, 40], [140, -10], [300, 50], [470, 20]]) },
+    { name: 'Old Town Zig-Zag', width: 15, pts: S([[-430, 120], [-400, 240], [-320, 190], [-270, 310], [-190, 250], [-150, 350], [-90, 420]]) },
+    { name: 'Harbour Hairpins', width: 15, pts: S([[-560, -440], [-440, -380], [-470, -280], [-360, -240], [-400, -140], [-330, -20]]) },
     { name: 'Roundabout', closed: true, width: 16, pts: ring },
-    { name: 'Dock Road', width: 16, pts: [[380, -500], [350, -390], [330, -302]] },
-    { name: 'Westway', width: 16, pts: [[288, -260], [180, -250], [90, -220]] },
-    { name: 'Eastway', width: 16, pts: [[372, -260], [470, -230], [580, -200]] },
-    { name: 'Riverside Drive', width: 18, pts: [[300, 50], [340, 200], [300, 330], [400, 420], [540, 470]] },
-    { name: 'Park Lane', width: 15, pts: [[10, 200], [90, 150], [200, 140], [338, 195]] },
-    { name: 'Lot Lane', width: 15, pts: [[-170, 50], [-215, -80], [-205, -170]] },
+    { name: 'Dock Road', width: 16, pts: S([[380, -500], [350, -390], [330, -302]]) },
+    { name: 'Westway', width: 16, pts: S([[288, -260], [180, -250], [90, -220]]) },
+    { name: 'Eastway', width: 16, pts: S([[372, -260], [470, -230], [580, -200]]) },
+    { name: 'Riverside Drive', width: 18, pts: S([[300, 50], [340, 200], [300, 330], [400, 420], [540, 470]]) },
+    { name: 'Park Lane', width: 15, pts: S([[10, 200], [90, 150], [200, 140], [338, 195]]) },
+    { name: 'Lot Lane', width: 15, pts: S([[-170, 50], [-215, -80], [-205, -170]]) },
+    // ---- outer districts
+    { name: 'Metro Ring Road', closed: true, width: 22, boulevard: true, pts: [[-700, -1010], [0, -1040], [700, -1010], [1000, -760], [1040, 0], [1010, 700], [760, 1010], [0, 1040], [-760, 1010], [-1010, 760], [-1040, 0], [-1010, -700]] },
+    { name: 'South Expressway', width: 18, pts: [[130, -689], [110, -850], [0, -1040]] },
+    { name: 'North Avenue', width: 18, pts: [[286, 728], [300, 880], [320, 1034]] },
+    { name: 'East Avenue', width: 18, pts: [[754, -260], [900, -230], [1036, -200]] },
+    { name: 'West Avenue', width: 18, pts: [[-624, 0], [-830, 40], [-1040, 20]] },
+    { name: 'Northeast Link', width: 18, pts: [[754, 390], [880, 520], [1010, 700]] },
+    { name: 'Southwest Link', width: 18, pts: [[-728, -572], [-860, -640], [-1010, -700]] },
+    { name: 'Northwest Link', width: 18, pts: [[-728, 468], [-870, 620], [-1010, 760]] },
+    { name: 'Southeast Link', width: 18, pts: [[702, -520], [840, -760], [1000, -760]] },
+    { name: 'Dockside Loop', closed: true, width: 16, pts: [[-560, -800], [-300, -780], [-150, -860], [-200, -960], [-450, -970], [-600, -900]] },
+    { name: 'Dock Street', width: 16, pts: [[-300, -780], [-285, -740], [-280, -708]] },
+    { name: 'Industrial Esses', width: 16, pts: [[900, -230], [870, -80], [940, 60], [860, 200], [930, 330], [880, 520]] },
+    { name: 'Hillcrest Switchbacks', width: 15, pts: [[300, 880], [160, 820], [60, 930], [-80, 840], [-200, 940], [-340, 850], [-480, 950], [-620, 880], [-870, 620]] },
+    { name: 'Westside Avenue', width: 18, pts: [[-860, -640], [-900, -400], [-850, -200], [-830, 40], [-880, 250], [-870, 620]] },
   ];
 }
 
@@ -2400,7 +2418,7 @@ class TrackGeo {
 }
 const OFF_TRACK_MARGIN = 4; // metres beyond the tarmac edge before it counts as leaving the track
 
-return { clamp, crSample, resample, segDist, wrapAngle, samplePath, CITY_PARK, CITY_PADS, GEO, RACE, ROAD_SCALE, RACE_MAPS, raceRoute, gridSlots, RaceTracker, BATTLE, BATTLE_MAPS, battleCourse, pathDistance, TrackGeo, OFF_TRACK_MARGIN };
+return { clamp, crSample, resample, segDist, wrapAngle, samplePath, CITY_K, CITY_PARK, CITY_PADS, GEO, RACE, ROAD_SCALE, RACE_MAPS, raceRoute, gridSlots, RaceTracker, BATTLE, BATTLE_MAPS, battleCourse, pathDistance, TrackGeo, OFF_TRACK_MARGIN };
 })();
 
 // ===== js/minimap.js =====
@@ -4690,7 +4708,7 @@ const MAP_LIST = [
   { id: 'desert', name: 'Dune Valley', type: 'Desert', desc: 'Huge open desert, 4 km wide. A 12 km winding highway, an interstate, a canyon road, salt flat, dry lake, airstrip and a ghost town.', accent: '#d9a46a' },
   { id: 'mountain', name: 'Kurogane Pass', type: 'Mountains', desc: 'Big Japanese touge at dusk: a five-hairpin uphill, a nine-switchback Irohazaka descent, ridge esses and a valley ring road.', accent: '#d48d6e' },
   { id: 'forest', name: 'Pinewood Trails', type: 'Forest', desc: 'Misty forest roads round a lake, gravel logging trails, a big clearing and a quarry.', accent: '#86b77a' },
-  { id: 'city', name: 'City Nights', type: 'City', desc: 'Night-time downtown street circuit with curving avenues, an old-town zig-zag, harbour hairpins, a roundabout and a riverside drive. Was: grid of streets cut by a diagonal boulevard, a central plaza and open parking lots.', accent: '#d8b25c' },
+  { id: 'city', name: 'City Nights', type: 'City', desc: 'A 2.4 km night city: downtown street circuit, curving avenues, an outer ring road and districts (docks, industrial esses, hillcrest switchbacks), working traffic lights and live traffic.', accent: '#d8b25c' },
   { id: 'drift', name: 'Ironbay Drift Park', type: 'Drift Park', desc: 'A harbourside drift venue: figure-eight course, hairpins, a huge practice pad, a donut circle and container alleys.', accent: '#7fa8a3' },
 ];
 
@@ -5786,38 +5804,42 @@ const SPECS = {
   city(q) {
     // A real downtown street network (tracks.js cityRoads): no grid. Buildings line every street,
     // turned to face the road they sit on, taller towards downtown; lamps line both kerbs.
-    const PARK = CITY_PARK, E = 625; // E: perimeter barrier
+    const PARK = CITY_PARK, E = 1130; // E: perimeter barrier
     const n = makeNoise(505);
     const inPark = (x, z, m = 0) => Math.hypot(x - PARK.x, z - PARK.z) < PARK.r + m;
     const padD = (x, z) => Math.min(...CITY_PADS.map((p) => Math.hypot(x - p.x, z - p.z) - p.r));
     const side = col('#5b5b60'), lot = col('#2c2d31'), lot2 = col('#25262a'), grassA = col('#1f3a22'), grassB = col('#28452a');
     const ROADS = GEO.city.roads;
     return {
-      seed: 505, size: 1400, natural: 'asphalt', boundary: 1400 / 2 - E, blend: 4,
+      seed: 505, size: 2400, natural: 'asphalt', boundary: 2400 / 2 - E, blend: 4,
       terrain: () => 0,
       color: (x, z, h, slope, sd) => {
         if (inPark(x, z)) return mix3(grassA, grassB, n(x / 18, z / 18) * 0.5 + 0.5);
         if (sd < 5) return side; // sidewalks along every street
         return mix3(lot, lot2, n(x / 9, z / 9) * 0.5 + 0.5);
       },
-      roads: ROADS.map((r, i) => ({ ...r, flatH: 0, center: 'dash', edge: true, color: i === 0 ? [0.15, 0.15, 0.17] : [0.17, 0.17, 0.19], ...(i === 0 ? { startLine: 30, kerbs: true } : {}) })),
+      roads: ROADS.map((r, i) => ({ ...r, flatH: 0, center: 'dash', edge: true, color: i === 0 ? [0.15, 0.15, 0.17] : [0.17, 0.17, 0.19], ...(i === 0 ? { startLine: 30 } : {}) })),
       pads: [
         { ...CITY_PADS[0], type: 2, color: [0.33, 0.31, 0.29], markings: 'donut' }, // Central Plaza
         { ...CITY_PADS[1], type: 2, color: [0.19, 0.19, 0.21], markings: 'lot' }, // Market car park
+        { ...CITY_PADS[2], type: 2, color: [0.2, 0.2, 0.21], markings: 'lot' }, // Dockside yard
       ],
       spawns: (W) => W.roadSpawns(0, 30, 12, 1),
       challenges: [
-        { name: 'Plaza Showtime', x: CITY_PADS[0].x, z: CITY_PADS[0].z, r: 70, target: 18000, time: 30 },
-        { name: 'Car Park Shuffle', x: CITY_PADS[1].x, z: CITY_PADS[1].z, r: 55, target: 10000, time: 25 },
-        { name: 'Old Town Zig-Zag', x: -280, z: 270, r: 120, target: 14000, time: 30 },
-        { name: 'Harbour Hairpins', x: -430, z: -290, r: 120, target: 13000, time: 30 },
-        { name: 'Roundabout Rodeo', x: 330, z: -260, r: 70, target: 12000, time: 25 },
-        { name: 'Riverside Sweep', x: 380, z: 300, r: 120, target: 12000, time: 25 },
+        { name: 'Plaza Showtime', x: CITY_PADS[0].x, z: CITY_PADS[0].z, r: 80, target: 18000, time: 30 },
+        { name: 'Car Park Shuffle', x: CITY_PADS[1].x, z: CITY_PADS[1].z, r: 60, target: 10000, time: 25 },
+        { name: 'Old Town Zig-Zag', x: -364, z: 350, r: 150, target: 14000, time: 30 },
+        { name: 'Harbour Hairpins', x: -560, z: -377, r: 150, target: 13000, time: 30 },
+        { name: 'Roundabout Rodeo', x: 429, z: -338, r: 85, target: 12000, time: 25 },
+        { name: 'Riverside Sweep', x: 494, z: 390, r: 150, target: 12000, time: 25 },
+        { name: 'Industrial Esses', x: 900, z: 140, r: 170, target: 15000, time: 30 },
+        { name: 'Hillcrest Switchbacks', x: -180, z: 890, r: 200, target: 16000, time: 35 },
+        { name: 'Dockside Loop', x: -380, z: -880, r: 170, target: 14000, time: 30 },
       ],
       env: {
         sky: { top: col('#0a1220'), horizon: col('#2b3340'), bottom: col('#14171c') },
         sunDir: norm([-0.3, 0.7, 0.4]), sunCol: [0.26, 0.29, 0.36], sunGlow: [0.06, 0.07, 0.09], ambSky: [0.24, 0.26, 0.32], ambGround: [0.14, 0.13, 0.12],
-        fogCol: col('#1e232b'), fogNear: 160, fogFar: 760, night: true, headlights: true, stars: 0.5, music: 'night',
+        fogCol: col('#1e232b'), fogNear: 180, fogFar: 900, night: true, headlights: true, stars: 0.5, music: 'night',
       },
       scenery(c) {
         const r = c.rand;
@@ -5829,9 +5851,10 @@ const SPECS = {
         // --- street lights on both kerbs of every road, and trees on the boulevards
         for (const rd of c.roads) {
           if (rd.gateSpur !== undefined) continue;
-          for (let i = 4; i < rd.n - 2; i += 11) for (const s of [1, -1]) {
+          for (let i = 4; i < rd.n - 2; i += 8) for (const s of [1, -1]) {
             const x = rd.x[i] + rd.tz[i] * s * (rd.half + 1.8), z = rd.z[i] - rd.tx[i] * s * (rd.half + 1.8);
             if (!inside(x, z, 4) || c.sd(x, z) < 1.2 || padD(x, z) < 2 || !free(x, z, 3)) continue;
+            c.glow(x - rd.tz[i] * s * 3.5, 0.06, z + rd.tx[i] * s * 3.5, 8, [0.11, 0.09, 0.06, 1]); // light pool on the road
             lamp(c, x, z, Math.atan2(-rd.tz[i] * s, rd.tx[i] * s), true, s > 0 ? [1, 0.84, 0.58] : [1, 0.9, 0.74]);
             taken.push([x, z, 2]);
           }
@@ -5856,17 +5879,19 @@ const SPECS = {
           for (let k = 0; k < 8; k++) { const a = (k + 0.5) / 8 * Math.PI * 2, x = P.x + Math.cos(a) * (P.r + 3), z = P.z + Math.sin(a) * (P.r + 3); if (c.sd(x, z) > 1.5) { lamp(c, x, z, a + Math.PI, true, [1, 0.8, 0.5]); c.glow(x - Math.cos(a) * 6, 0.08, z - Math.sin(a) * 6, 12, [0.13, 0.1, 0.07, 1]); } }
         }
         // --- buildings: a jittered grid of lots; each building faces its nearest street
-        const centre = (x, z) => Math.max(0, 1 - Math.hypot(x - 20, z) / 520);
+        const centre = (x, z) => Math.max(0, 1 - Math.hypot(x - 26, z) / 700);
         for (let gx = -E + 20; gx < E - 20; gx += 21) for (let gz = -E + 20; gz < E - 20; gz += 21) {
           const x = gx + (r() - 0.5) * 6, z = gz + (r() - 0.5) * 6;
           const sd = c.sd(x, z); if (sd < 9 || inPark(x, z, 8) || padD(x, z) < 8) continue;
+          const outer = Math.max(Math.abs(x), Math.abs(z)) > 780; // outer districts: fewer, bigger buildings (warehouses, low blocks)
+          if (outer && r() < 0.35) continue;
           // the biggest footprint that keeps a 5 m sidewalk to the road
           const half = Math.min(15, (sd - 5) / 1.25); if (half < 4.5) continue;
           const w = Math.min(half * 2, 12 + r() * 16), d = Math.min(half * 2, 12 + r() * 16), rad = Math.hypot(w, d) / 2;
           if (!free(x, z, rad * 0.92)) continue;
           const gxs = c.sd(x + 2, z) - c.sd(x - 2, z), gzs = c.sd(x, z + 2) - c.sd(x, z - 2);
           const yaw = Math.atan2(-gxs, -gzs); // +z face looks at the street
-          const k = centre(x, z), h = 9 + r() * 22 + k * k * (40 + r() * 70);
+          const k = centre(x, z), h = outer ? 7 + r() * 14 : 9 + r() * 22 + k * k * (40 + r() * 70);
           building(c, x, z, w, d, h, pal[Math.floor(r() * pal.length)], true, r, yaw);
           c.box(x, z, w, d, yaw);
           taken.push([x, z, rad]);
@@ -7977,6 +8002,250 @@ function norm(v) { const l = Math.hypot(...v); return v.map((x) => x / l); }
 return { Showroom };
 })();
 
+// ===== js/traffic.js =====
+__mod["js/traffic.js"] = (function () {
+// City traffic: working traffic lights at every street junction, and cars that drive in their lane on
+// every street, stop at red lights, queue behind each other, brake for you and turn at junctions.
+// Everything here is local to each player (cosmetic + a solid obstacle), so it costs nothing online.
+const { Geo } = __mod["js/engine/geometry.js"];
+const { mat4 } = __mod["js/engine/math.js"];
+const { buildCarModel, carDrawItems } = __mod["js/cars.js"];
+const CYCLE = 26; // s: group A green 9.5, amber 2.5, all-red 1, group B green 9.5, amber 2.5, all-red 1
+const PAINTS = ['#c9c9cc', '#1d1f24', '#8c1d1d', '#24427a', '#e8e6df', '#5b6168', '#2f5a3a', '#b8862b', '#6b2b55', '#0f0f12', '#a7aab0', '#d6d0c4'];
+const MODELS = ['hatch', 'sedan', 'pipa', 'brenna', 'trail', 'atlas', 'fennec', 'ranger', 'wren', 'castellan', 'zephyr', 'sedan', 'hatch'];
+
+class Traffic {
+  constructor(game, { cars = true, count = 44 } = {}) {
+    this.g = game; this.R = game.app.renderer; this.t = 0;
+    const W = game.world;
+    this.roads = W.roads.map((r, ri) => ({ r, ri })).filter(({ r }) => r.gateSpur === undefined).map(({ r, ri }) => {
+      // distance along the road at each sample (for speeds in m/s)
+      const s = new Float32Array(r.n); for (let k = 1; k < r.n; k++) s[k] = s[k - 1] + Math.hypot(r.x[k] - r.x[k - 1], r.z[k] - r.z[k - 1]);
+      return { r, ri, s, len: s[r.n - 1] + (r.closed ? Math.hypot(r.x[0] - r.x[r.n - 1], r.z[0] - r.z[r.n - 1]) : 0), stops: [], ends: [[], []], lights: !/roundabout/i.test(r.name || '') };
+    });
+    this.roads.forEach((R, k) => { R.k = k; });
+    this.findJunctions();
+    this.buildSignals();
+    this.cars = [];
+    if (cars) this.spawn(count);
+  }
+
+  // ------------------------------------------------------------------ junctions
+  findJunctions() {
+    const cell = 24, hash = new Map(), key = (a, b) => a * 73856093 ^ b * 19349663;
+    this.roads.forEach((R, k) => { const r = R.r; for (let i = 0; i < r.n; i += 2) { const h = key(Math.floor(r.x[i] / cell), Math.floor(r.z[i] / cell)); let a = hash.get(h); if (!a) hash.set(h, a = []); a.push([k, i]); } });
+    const hits = [];
+    this.roads.forEach((A, ka) => {
+      const a = A.r;
+      for (let i = 0; i < a.n; i += 2) {
+        const cx = Math.floor(a.x[i] / cell), cz = Math.floor(a.z[i] / cell);
+        for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+          const arr = hash.get(key(cx + dx, cz + dz)); if (!arr) continue;
+          for (const [kb, j] of arr) {
+            if (kb <= ka) continue;
+            const b = this.roads[kb].r;
+            if (Math.hypot(a.x[i] - b.x[j], a.z[i] - b.z[j]) < (a.half + b.half) * 0.55) hits.push({ x: (a.x[i] + b.x[j]) / 2, z: (a.z[i] + b.z[j]) / 2, legs: [[ka, i], [kb, j]] });
+          }
+        }
+      }
+    });
+    // cluster contact points into junctions
+    const J = [];
+    for (const h of hits) {
+      let j = J.find((q) => Math.hypot(q.x - h.x, q.z - h.z) < 36);
+      if (!j) { j = { x: h.x, z: h.z, n: 0, legs: new Map() }; J.push(j); }
+      j.x = (j.x * j.n + h.x) / (j.n + 1); j.z = (j.z * j.n + h.z) / (j.n + 1); j.n++;
+      for (const [k, i] of h.legs) { const cur = j.legs.get(k); if (cur === undefined) j.legs.set(k, i); }
+    }
+    // each leg: the road sample nearest the junction centre
+    this.junctions = J.map((j, id) => {
+      const legs = [...j.legs.keys()].map((k) => {
+        const r = this.roads[k].r; let bi = 0, bd = 1e9;
+        for (let i = 0; i < r.n; i++) { const d = Math.hypot(r.x[i] - j.x, r.z[i] - j.z); if (d < bd) { bd = d; bi = i; } }
+        return { k, i: bi };
+      });
+      const lit = legs.length >= 2 && legs.every((l) => this.roads[l.k].lights);
+      return { id, x: j.x, z: j.z, legs, lit, off: (id * 7.3) % CYCLE };
+    });
+    // per-road list of junction crossings (for turning) and road-end connections
+    for (const jn of this.junctions) for (const l of jn.legs) this.roads[l.k].stops.push({ jn, i: l.i });
+    for (const R of this.roads) {
+      R.stops.sort((p, q) => p.i - q.i);
+      if (R.r.closed) continue;
+      for (const [end, idx] of [[0, 0], [1, R.r.n - 1]]) {
+        const ex = R.r.x[idx], ez = R.r.z[idx];
+        this.roads.forEach((O, k) => {
+          if (O === R) return;
+          let bi = -1, bd = 14; for (let i = 0; i < O.r.n; i++) { const d = Math.hypot(O.r.x[i] - ex, O.r.z[i] - ez); if (d < bd) { bd = d; bi = i; } }
+          if (bi >= 0) R.ends[end].push({ k, i: bi });
+        });
+      }
+    }
+  }
+  // which group a road is in at a junction: the first leg's road is group A, the rest group B
+  lightFor(jn, k) {
+    if (!jn.lit) return 'g';
+    const ph = (this.t + jn.off) % CYCLE, A = jn.legs[0].k === k;
+    const p = A ? ph : (ph + 13) % CYCLE;
+    return p < 9.5 ? 'g' : p < 12 ? 'a' : 'r';
+  }
+
+  // ------------------------------------------------------------------ signal heads
+  buildSignals() {
+    const W = this.g.world, poles = new Geo(), lens = new Geo();
+    lens.box(0, 0, 0, 0.26, 0.26, 0.08, [1, 1, 1]);
+    this.heads = [];
+    for (const jn of this.junctions) {
+      if (!jn.lit) continue;
+      const maxHalf = Math.max(...jn.legs.map((l) => this.roads[l.k].r.half));
+      for (const l of jn.legs) {
+        const R = this.roads[l.k], r = R.r;
+        for (const d of [1, -1]) {
+          // stop line: back from the junction by the crossing road's half width + 3 m
+          let si = l.i, run = 0;
+          while (run < maxHalf + 3) { const ni = si - d; if (ni < 0 || ni >= r.n) { si = -1; break; } run += Math.hypot(r.x[ni] - r.x[si], r.z[ni] - r.z[si]); si = ni; }
+          if (si < 0) continue; // the road starts/ends at this junction on this side: no approach
+          const fx = r.tx[si] * d, fz = r.tz[si] * d, rx = -fz, rz = fx; // travel direction and its right
+          const px = r.x[si] + rx * (r.half + 1.8), pz = r.z[si] + rz * (r.half + 1.8);
+          const y = W.heightAt(px, pz), yaw = Math.atan2(-fx, -fz); // the lenses face the drivers
+          poles.cylinder(px, y + 2.6, pz, 0.11, 5.2, 6, [0.16, 0.17, 0.19]);
+          poles.at(px, y + 5.3, pz, yaw).box(0, 0, 0.06, 0.42, 1.15, 0.3, [0.07, 0.07, 0.08]).box(0, 0, 0.23, 0.5, 1.25, 0.04, [0.12, 0.12, 0.13]).reset();
+          W.addCircle(px, pz, 0.3);
+          const m = (dy) => mat4.compose(new Float32Array(16), px - fx * 0.24, y + 5.3 + dy, pz - fz * 0.24, yaw, 0, 0);
+          this.heads.push({ jn, k: l.k, x: px, z: pz, m: [m(0.36), m(0), m(-0.36)] });
+          R.stopLines = R.stopLines || []; R.stopLines.push({ jn, i: si, d });
+        }
+      }
+    }
+    this.poleMesh = poles.p.length ? this.R.createMesh(poles.build()) : null;
+    this.lensMesh = this.R.createMesh(lens.build());
+    this.I = mat4.compose(new Float32Array(16), 0, 0, 0, 0, 0, 0);
+  }
+
+  // ------------------------------------------------------------------ cars
+  spawn(count) {
+    const W = this.g.world, car = this.g.car, total = this.roads.reduce((a, R) => a + R.len, 0);
+    let tries = 0;
+    while (this.cars.length < count && tries++ < count * 40) {
+      // longer streets get more cars
+      let pick = Math.random() * total, R = this.roads[0];
+      for (const q of this.roads) { pick -= q.len; if (pick <= 0) { R = q; break; } }
+      const i = 2 + Math.random() * (R.r.n - 4), d = Math.random() < 0.5 ? 1 : -1;
+      const c = { R, i, d, v: 0, vmax: 12 + Math.random() * 6, stopT: 0, wait: 0 };
+      this.place(c);
+      if (car && Math.hypot(c.x - car.x, c.z - car.z) < 70) continue;
+      if (this.cars.some((o) => Math.hypot(o.x - c.x, o.z - c.z) < 16)) continue;
+      const id = MODELS[Math.floor(Math.random() * MODELS.length)];
+      c.model = buildCarModel(this.R, { id, paint: PAINTS[Math.floor(Math.random() * PAINTS.length)], wheel: '#2a2b2e' });
+      const dm = c.model.meshes.dims; c.radius = dm.W * 0.5; c.offset = dm.L * 0.27; c.mass = 1400; c.dims = dm;
+      c.y = W.heightAt(c.x, c.z); c.spin = 0;
+      this.cars.push(c);
+    }
+  }
+  // position + heading from (road, float sample index, direction), in the right-hand lane
+  place(c) {
+    const r = c.R.r, n = r.n;
+    let i = c.i; if (r.closed) i = ((i % n) + n) % n; else i = Math.max(0, Math.min(n - 1.001, i));
+    const i0 = Math.floor(i), i1 = r.closed ? (i0 + 1) % n : Math.min(n - 1, i0 + 1), f = i - i0;
+    const tx = r.tx[i0] + (r.tx[i1] - r.tx[i0]) * f, tz = r.tz[i0] + (r.tz[i1] - r.tz[i0]) * f, tl = Math.hypot(tx, tz) || 1;
+    const fx = (tx / tl) * c.d, fz = (tz / tl) * c.d, lane = r.half * 0.48;
+    // right-hand traffic: the car's right is (-fz, fx) (in this engine +x local is the car's left)
+    const x = r.x[i0] + (r.x[i1] - r.x[i0]) * f - fz * lane, z = r.z[i0] + (r.z[i1] - r.z[i0]) * f + fx * lane;
+    c.vx = c.x !== undefined ? (x - c.x) : 0; c.vz = c.z !== undefined ? (z - c.z) : 0;
+    c.x = x; c.z = z; c.h = Math.atan2(fx, fz); c.fx = fx; c.fz = fz;
+  }
+  // metres per sample at index i
+  step(R, i) { const r = R.r, n = r.n, i0 = Math.max(0, Math.min(n - 2, Math.floor(i))); return Math.max(0.5, R.s[i0 + 1] - R.s[i0]) || 3; }
+
+  update(dt) {
+    this.t += dt;
+    const W = this.g.world, me = this.g.car;
+    for (const c of this.cars) {
+      const r = c.R.r, sp = this.step(c.R, c.i);
+      let target = c.vmax;
+      // tight bends: slow down
+      if (!Number.isFinite(c.v)) c.v = 0;
+      const ahead = Math.round(c.i + c.d * 8), ia = r.closed ? ((ahead % r.n) + r.n) % r.n : Math.max(0, Math.min(r.n - 1, ahead));
+      const turn = Math.abs(Math.atan2(r.tx[Math.floor(c.i) % r.n] * r.tz[ia] - r.tz[Math.floor(c.i) % r.n] * r.tx[ia], r.tx[Math.floor(c.i) % r.n] * r.tx[ia] + r.tz[Math.floor(c.i) % r.n] * r.tz[ia]));
+      target = Math.min(target, Math.max(6, 18 - turn * 14));
+      // red / amber lights ahead in my direction
+      for (const st of c.R.stopLines || []) {
+        if (st.d !== c.d) continue;
+        let di = (st.i - c.i) * c.d; if (r.closed && di < 0) di += r.n;
+        const dist = di * sp;
+        if (dist < -1 || dist > 45) continue;
+        const L = this.lightFor(st.jn, c.R.k);
+        if (L === 'r' || (L === 'a' && dist > 14)) target = Math.min(target, Math.sqrt(Math.max(0, dist - 1.5) * 2 * 3.2));
+      }
+      // the car in front (any car within my lane ahead), and you
+      const look = (ox, oz, gap) => {
+        const dx = ox - c.x, dz = oz - c.z, along = dx * c.fx + dz * c.fz, lat = Math.abs(dx * c.fz - dz * c.fx);
+        if (along > 0 && along < 40 && lat < 3.2) target = Math.min(target, Math.max(0, (along - gap) * 0.9));
+      };
+      for (const o of this.cars) if (o !== c && Math.abs(o.x - c.x) < 40 && Math.abs(o.z - c.z) < 40 && (o.fx * c.fx + o.fz * c.fz) > 0.3) look(o.x, o.z, 9);
+      if (me) look(me.x, me.z, 8);
+      if (c.stopT > 0) { c.stopT -= dt; target = 0; }
+      // accelerate / brake smoothly
+      const prev = c.v;
+      c.v = target > c.v ? Math.min(target, c.v + 3 * dt) : Math.max(target, c.v - 7 * dt);
+      c.brake = c.v < prev - 0.01 || c.v < 0.3;
+      c.i += (c.d * c.v * dt) / sp;
+      if (r.closed) c.i = ((c.i % r.n) + r.n) % r.n;
+      // junction turns: when crossing a junction centre, sometimes turn onto the other street
+      for (const st of c.R.stops) {
+        const was = (st.i - (c.i - (c.d * c.v * dt) / sp)) * c.d, now = (st.i - c.i) * c.d;
+        if (was > 0 && now <= 0 && Math.random() < 0.35) {
+          const opts = st.jn.legs.filter((l) => this.roads[l.k] !== c.R);
+          if (opts.length) { const l = opts[Math.floor(Math.random() * opts.length)]; c.R = this.roads[l.k]; c.i = l.i; c.d = l.i < 3 ? 1 : l.i > c.R.r.n - 4 ? -1 : (Math.random() < 0.5 ? 1 : -1); c.x = undefined; }
+          break;
+        }
+      }
+      // end of an open street: continue onto a connecting street (or turn round)
+      const rr = c.R.r;
+      if (!rr.closed && (c.i <= 0 || c.i >= rr.n - 1)) {
+        const opts = c.R.ends[c.i <= 0 ? 0 : 1];
+        if (opts.length) { const l = opts[Math.floor(Math.random() * opts.length)]; c.R = this.roads[l.k]; c.i = l.i; c.d = l.i < 3 ? 1 : l.i > c.R.r.n - 4 ? -1 : (Math.random() < 0.5 ? 1 : -1); }
+        else { c.d = -c.d; c.i = Math.max(0.5, Math.min(rr.n - 1.5, c.i)); }
+        c.x = undefined;
+      }
+      this.place(c);
+      if (dt > 0) { c.vx = c.vx / dt; c.vz = c.vz / dt; }
+      if (Math.hypot(c.vx, c.vz) > 40) { c.vx = c.fx * c.v; c.vz = c.fz * c.v; } // after a road change
+      c.y = W.heightAt(c.x, c.z);
+      c.spin += (c.v / 0.33) * dt;
+    }
+  }
+  // physics: you bump into traffic (called every physics step); the car you hit stops for a moment
+  collide(car) {
+    for (const c of this.cars) {
+      if (Math.abs(c.x - car.x) > 8 || Math.abs(c.z - car.z) > 8) continue;
+      const before = car.impact;
+      car.collideCar(c);
+      if (car.impact > before || car.impact > 0.5) { c.stopT = 2.5; c.v = 0; }
+    }
+  }
+
+  draw(items) {
+    const e = this.g.cam.eye || [this.g.car.x, 0, this.g.car.z], cx = e[0], cz = e[2];
+    if (this.poleMesh) items.push({ mesh: this.poleMesh, matrix: this.I, spec: 0.2 });
+    const COL = { g: [0.15, 1.6, 0.45], a: [1.7, 1.05, 0.1], r: [1.8, 0.1, 0.06] }, OFF = [0.1, 0.1, 0.1];
+    for (const h of this.heads) {
+      if (Math.abs(h.x - cx) > 420 || Math.abs(h.z - cz) > 420) continue;
+      const L = this.lightFor(h.jn, h.k);
+      items.push({ mesh: this.lensMesh, matrix: h.m[0], emissive: 1, tint: L === 'r' ? COL.r : OFF });
+      items.push({ mesh: this.lensMesh, matrix: h.m[1], emissive: 1, tint: L === 'a' ? COL.a : OFF });
+      items.push({ mesh: this.lensMesh, matrix: h.m[2], emissive: 1, tint: L === 'g' ? COL.g : OFF });
+    }
+    for (const c of this.cars) {
+      if (Math.abs(c.x - cx) > 380 || Math.abs(c.z - cz) > 380) continue;
+      carDrawItems(c.model, { x: c.x, y: c.y, z: c.z, yaw: c.h, spin: c.spin, steer: 0, brake: c.brake, lights: true }, items);
+    }
+  }
+}
+
+return { Traffic };
+})();
+
 // ===== js/effects.js =====
 __mod["js/effects.js"] = (function () {
 // Tyre smoke / dust particles, skid marks, car shadows, headlight beams, underglow.
@@ -9023,6 +9292,7 @@ __mod["js/game.js"] = (function () {
 const { World, MAP_LIST } = __mod["js/maps.js"];
 const { Vehicle, PHYS_DT } = __mod["js/physics.js"];
 const { buildCarModel, carDrawItems, carById } = __mod["js/cars.js"];
+const { Traffic } = __mod["js/traffic.js"];
 const { Minimap } = __mod["js/minimap.js"];
 const { applyTune, RULES, isStock } = __mod["js/tuning.js"];
 const { Effects } = __mod["js/effects.js"];
@@ -9078,6 +9348,8 @@ class Game {
     }
     if (this.opts.resume && !this.spectator) { const r = this.opts.resume; this.car.place(r.x, r.z, r.h); this.cam.snap(); this.teleportFlag = true; }
     if (this.spectator) this.startSpectating();
+    // City Nights: working traffic lights everywhere; traffic cars in free roam (not in competitions)
+    if (this.opts.mapId === 'city') this.traffic = new Traffic(this, { cars: !this.mode.comp && !this.spectator });
     this.minimap = new Minimap(this);
     if (this.mode.rounds && !this.mp) {
       this.localRounds = { n: 0, total: this.opts.rounds || 3, dur: this.opts.roundTime || 90 };
@@ -9411,6 +9683,7 @@ class Game {
           this.car.step(PHYS_DT, inp);
           maxImpact = Math.max(maxImpact, this.car.impact);
           for (const r of this.remotes.values()) if (r.seen && !r.away) { this.car.collideCar(r); maxImpact = Math.max(maxImpact, this.car.impact); }
+          if (this.traffic) { this.traffic.collide(this.car); maxImpact = Math.max(maxImpact, this.car.impact); }
         }
         if (this.comp) this.comp.stepExtras(PHYS_DT);
         this.accum -= PHYS_DT; steps++;
@@ -9434,6 +9707,7 @@ class Game {
       this.updateRound(dt);
       this.checkGates(dt);
     }
+    if (this.traffic && !simPaused) this.traffic.update(Math.min(dt, 0.1));
     if (this.comp) this.comp.update(dt, !simPaused);
     if (this.mp) {
       this.interpRemotes(dt);
@@ -9561,6 +9835,7 @@ class Game {
       if (p && dist < 260) { r.tag.style.display = 'block'; r.tag.style.transform = `translate(${p[0]}px, ${p[1]}px) translate(-50%, -100%) scale(${clamp(30 / dist, 0.55, 1.1)})`; }
       else r.tag.style.display = 'none';
     }
+    if (this.traffic) this.traffic.draw(items);
     if (this.comp) this.comp.draw(items, dt);
     E.update(dt);
     const head = (this.env.headlights || this.env.night) && !this.spectator ? {

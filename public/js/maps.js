@@ -11,7 +11,7 @@ export const MAP_LIST = [
   { id: 'desert', name: 'Dune Valley', type: 'Desert', desc: 'Huge open desert, 4 km wide. A 12 km winding highway, an interstate, a canyon road, salt flat, dry lake, airstrip and a ghost town.', accent: '#d9a46a' },
   { id: 'mountain', name: 'Kurogane Pass', type: 'Mountains', desc: 'Big Japanese touge at dusk: a five-hairpin uphill, a nine-switchback Irohazaka descent, ridge esses and a valley ring road.', accent: '#d48d6e' },
   { id: 'forest', name: 'Pinewood Trails', type: 'Forest', desc: 'Misty forest roads round a lake, gravel logging trails, a big clearing and a quarry.', accent: '#86b77a' },
-  { id: 'city', name: 'City Nights', type: 'City', desc: 'Night-time downtown street circuit with curving avenues, an old-town zig-zag, harbour hairpins, a roundabout and a riverside drive. Was: grid of streets cut by a diagonal boulevard, a central plaza and open parking lots.', accent: '#d8b25c' },
+  { id: 'city', name: 'City Nights', type: 'City', desc: 'A 2.4 km night city: downtown street circuit, curving avenues, an outer ring road and districts (docks, industrial esses, hillcrest switchbacks), working traffic lights and live traffic.', accent: '#d8b25c' },
   { id: 'drift', name: 'Ironbay Drift Park', type: 'Drift Park', desc: 'A harbourside drift venue: figure-eight course, hairpins, a huge practice pad, a donut circle and container alleys.', accent: '#7fa8a3' },
 ];
 
@@ -1107,38 +1107,42 @@ const SPECS = {
   city(q) {
     // A real downtown street network (tracks.js cityRoads): no grid. Buildings line every street,
     // turned to face the road they sit on, taller towards downtown; lamps line both kerbs.
-    const PARK = CITY_PARK, E = 625; // E: perimeter barrier
+    const PARK = CITY_PARK, E = 1130; // E: perimeter barrier
     const n = makeNoise(505);
     const inPark = (x, z, m = 0) => Math.hypot(x - PARK.x, z - PARK.z) < PARK.r + m;
     const padD = (x, z) => Math.min(...CITY_PADS.map((p) => Math.hypot(x - p.x, z - p.z) - p.r));
     const side = col('#5b5b60'), lot = col('#2c2d31'), lot2 = col('#25262a'), grassA = col('#1f3a22'), grassB = col('#28452a');
     const ROADS = GEO.city.roads;
     return {
-      seed: 505, size: 1400, natural: 'asphalt', boundary: 1400 / 2 - E, blend: 4,
+      seed: 505, size: 2400, natural: 'asphalt', boundary: 2400 / 2 - E, blend: 4,
       terrain: () => 0,
       color: (x, z, h, slope, sd) => {
         if (inPark(x, z)) return mix3(grassA, grassB, n(x / 18, z / 18) * 0.5 + 0.5);
         if (sd < 5) return side; // sidewalks along every street
         return mix3(lot, lot2, n(x / 9, z / 9) * 0.5 + 0.5);
       },
-      roads: ROADS.map((r, i) => ({ ...r, flatH: 0, center: 'dash', edge: true, color: i === 0 ? [0.15, 0.15, 0.17] : [0.17, 0.17, 0.19], ...(i === 0 ? { startLine: 30, kerbs: true } : {}) })),
+      roads: ROADS.map((r, i) => ({ ...r, flatH: 0, center: 'dash', edge: true, color: i === 0 ? [0.15, 0.15, 0.17] : [0.17, 0.17, 0.19], ...(i === 0 ? { startLine: 30 } : {}) })),
       pads: [
         { ...CITY_PADS[0], type: 2, color: [0.33, 0.31, 0.29], markings: 'donut' }, // Central Plaza
         { ...CITY_PADS[1], type: 2, color: [0.19, 0.19, 0.21], markings: 'lot' }, // Market car park
+        { ...CITY_PADS[2], type: 2, color: [0.2, 0.2, 0.21], markings: 'lot' }, // Dockside yard
       ],
       spawns: (W) => W.roadSpawns(0, 30, 12, 1),
       challenges: [
-        { name: 'Plaza Showtime', x: CITY_PADS[0].x, z: CITY_PADS[0].z, r: 70, target: 18000, time: 30 },
-        { name: 'Car Park Shuffle', x: CITY_PADS[1].x, z: CITY_PADS[1].z, r: 55, target: 10000, time: 25 },
-        { name: 'Old Town Zig-Zag', x: -280, z: 270, r: 120, target: 14000, time: 30 },
-        { name: 'Harbour Hairpins', x: -430, z: -290, r: 120, target: 13000, time: 30 },
-        { name: 'Roundabout Rodeo', x: 330, z: -260, r: 70, target: 12000, time: 25 },
-        { name: 'Riverside Sweep', x: 380, z: 300, r: 120, target: 12000, time: 25 },
+        { name: 'Plaza Showtime', x: CITY_PADS[0].x, z: CITY_PADS[0].z, r: 80, target: 18000, time: 30 },
+        { name: 'Car Park Shuffle', x: CITY_PADS[1].x, z: CITY_PADS[1].z, r: 60, target: 10000, time: 25 },
+        { name: 'Old Town Zig-Zag', x: -364, z: 350, r: 150, target: 14000, time: 30 },
+        { name: 'Harbour Hairpins', x: -560, z: -377, r: 150, target: 13000, time: 30 },
+        { name: 'Roundabout Rodeo', x: 429, z: -338, r: 85, target: 12000, time: 25 },
+        { name: 'Riverside Sweep', x: 494, z: 390, r: 150, target: 12000, time: 25 },
+        { name: 'Industrial Esses', x: 900, z: 140, r: 170, target: 15000, time: 30 },
+        { name: 'Hillcrest Switchbacks', x: -180, z: 890, r: 200, target: 16000, time: 35 },
+        { name: 'Dockside Loop', x: -380, z: -880, r: 170, target: 14000, time: 30 },
       ],
       env: {
         sky: { top: col('#0a1220'), horizon: col('#2b3340'), bottom: col('#14171c') },
         sunDir: norm([-0.3, 0.7, 0.4]), sunCol: [0.26, 0.29, 0.36], sunGlow: [0.06, 0.07, 0.09], ambSky: [0.24, 0.26, 0.32], ambGround: [0.14, 0.13, 0.12],
-        fogCol: col('#1e232b'), fogNear: 160, fogFar: 760, night: true, headlights: true, stars: 0.5, music: 'night',
+        fogCol: col('#1e232b'), fogNear: 180, fogFar: 900, night: true, headlights: true, stars: 0.5, music: 'night',
       },
       scenery(c) {
         const r = c.rand;
@@ -1150,9 +1154,10 @@ const SPECS = {
         // --- street lights on both kerbs of every road, and trees on the boulevards
         for (const rd of c.roads) {
           if (rd.gateSpur !== undefined) continue;
-          for (let i = 4; i < rd.n - 2; i += 11) for (const s of [1, -1]) {
+          for (let i = 4; i < rd.n - 2; i += 8) for (const s of [1, -1]) {
             const x = rd.x[i] + rd.tz[i] * s * (rd.half + 1.8), z = rd.z[i] - rd.tx[i] * s * (rd.half + 1.8);
             if (!inside(x, z, 4) || c.sd(x, z) < 1.2 || padD(x, z) < 2 || !free(x, z, 3)) continue;
+            c.glow(x - rd.tz[i] * s * 3.5, 0.06, z + rd.tx[i] * s * 3.5, 8, [0.11, 0.09, 0.06, 1]); // light pool on the road
             lamp(c, x, z, Math.atan2(-rd.tz[i] * s, rd.tx[i] * s), true, s > 0 ? [1, 0.84, 0.58] : [1, 0.9, 0.74]);
             taken.push([x, z, 2]);
           }
@@ -1177,17 +1182,19 @@ const SPECS = {
           for (let k = 0; k < 8; k++) { const a = (k + 0.5) / 8 * Math.PI * 2, x = P.x + Math.cos(a) * (P.r + 3), z = P.z + Math.sin(a) * (P.r + 3); if (c.sd(x, z) > 1.5) { lamp(c, x, z, a + Math.PI, true, [1, 0.8, 0.5]); c.glow(x - Math.cos(a) * 6, 0.08, z - Math.sin(a) * 6, 12, [0.13, 0.1, 0.07, 1]); } }
         }
         // --- buildings: a jittered grid of lots; each building faces its nearest street
-        const centre = (x, z) => Math.max(0, 1 - Math.hypot(x - 20, z) / 520);
+        const centre = (x, z) => Math.max(0, 1 - Math.hypot(x - 26, z) / 700);
         for (let gx = -E + 20; gx < E - 20; gx += 21) for (let gz = -E + 20; gz < E - 20; gz += 21) {
           const x = gx + (r() - 0.5) * 6, z = gz + (r() - 0.5) * 6;
           const sd = c.sd(x, z); if (sd < 9 || inPark(x, z, 8) || padD(x, z) < 8) continue;
+          const outer = Math.max(Math.abs(x), Math.abs(z)) > 780; // outer districts: fewer, bigger buildings (warehouses, low blocks)
+          if (outer && r() < 0.35) continue;
           // the biggest footprint that keeps a 5 m sidewalk to the road
           const half = Math.min(15, (sd - 5) / 1.25); if (half < 4.5) continue;
           const w = Math.min(half * 2, 12 + r() * 16), d = Math.min(half * 2, 12 + r() * 16), rad = Math.hypot(w, d) / 2;
           if (!free(x, z, rad * 0.92)) continue;
           const gxs = c.sd(x + 2, z) - c.sd(x - 2, z), gzs = c.sd(x, z + 2) - c.sd(x, z - 2);
           const yaw = Math.atan2(-gxs, -gzs); // +z face looks at the street
-          const k = centre(x, z), h = 9 + r() * 22 + k * k * (40 + r() * 70);
+          const k = centre(x, z), h = outer ? 7 + r() * 14 : 9 + r() * 22 + k * k * (40 + r() * 70);
           building(c, x, z, w, d, h, pal[Math.floor(r() * pal.length)], true, r, yaw);
           c.box(x, z, w, d, yaw);
           taken.push([x, z, rad]);

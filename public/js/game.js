@@ -2,6 +2,7 @@
 import { World, MAP_LIST } from './maps.js';
 import { Vehicle, PHYS_DT } from './physics.js';
 import { buildCarModel, carDrawItems, carById } from './cars.js';
+import { Traffic } from './traffic.js';
 import { Minimap } from './minimap.js';
 import { applyTune, RULES, isStock } from './tuning.js';
 import { Effects } from './effects.js';
@@ -58,6 +59,8 @@ export class Game {
     }
     if (this.opts.resume && !this.spectator) { const r = this.opts.resume; this.car.place(r.x, r.z, r.h); this.cam.snap(); this.teleportFlag = true; }
     if (this.spectator) this.startSpectating();
+    // City Nights: working traffic lights everywhere; traffic cars in free roam (not in competitions)
+    if (this.opts.mapId === 'city') this.traffic = new Traffic(this, { cars: !this.mode.comp && !this.spectator });
     this.minimap = new Minimap(this);
     if (this.mode.rounds && !this.mp) {
       this.localRounds = { n: 0, total: this.opts.rounds || 3, dur: this.opts.roundTime || 90 };
@@ -391,6 +394,7 @@ export class Game {
           this.car.step(PHYS_DT, inp);
           maxImpact = Math.max(maxImpact, this.car.impact);
           for (const r of this.remotes.values()) if (r.seen && !r.away) { this.car.collideCar(r); maxImpact = Math.max(maxImpact, this.car.impact); }
+          if (this.traffic) { this.traffic.collide(this.car); maxImpact = Math.max(maxImpact, this.car.impact); }
         }
         if (this.comp) this.comp.stepExtras(PHYS_DT);
         this.accum -= PHYS_DT; steps++;
@@ -414,6 +418,7 @@ export class Game {
       this.updateRound(dt);
       this.checkGates(dt);
     }
+    if (this.traffic && !simPaused) this.traffic.update(Math.min(dt, 0.1));
     if (this.comp) this.comp.update(dt, !simPaused);
     if (this.mp) {
       this.interpRemotes(dt);
@@ -541,6 +546,7 @@ export class Game {
       if (p && dist < 260) { r.tag.style.display = 'block'; r.tag.style.transform = `translate(${p[0]}px, ${p[1]}px) translate(-50%, -100%) scale(${clamp(30 / dist, 0.55, 1.1)})`; }
       else r.tag.style.display = 'none';
     }
+    if (this.traffic) this.traffic.draw(items);
     if (this.comp) this.comp.draw(items, dt);
     E.update(dt);
     const head = (this.env.headlights || this.env.night) && !this.spectator ? {
